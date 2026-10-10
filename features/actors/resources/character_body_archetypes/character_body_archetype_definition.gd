@@ -20,6 +20,17 @@ const VISUAL_BODY_TYPE_FEMALE := 3
 @export var rest_aware_animation := false
 @export_enum("None:1", "Male:2", "Female:3") var visual_body_type := VISUAL_BODY_TYPE_NONE
 @export var bone_pose_position_offsets: Dictionary = {}
+## One registration per body surface, shared by every source garment.
+@export var wardrobe_profiles: Dictionary[String, Resource] = {}
+
+
+func get_wardrobe_profile(body_scene_path: String = "") -> Resource:
+	if body_scene_path.is_empty():
+		var scene := regular_visual_scene if regular_visual_scene != null else visual_scene
+		if scene == null:
+			return null
+		body_scene_path = scene.resource_path
+	return wardrobe_profiles.get(body_scene_path)
 
 
 func get_race_id() -> String:

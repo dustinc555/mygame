@@ -22,10 +22,12 @@ const SKIN_VALUE_FULL := 0.18
 const MALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Male_Dark.png"
 const FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Superhero_Female_Dark_BaseColor.png"
 const REGULAR_MALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Dark_BaseColor_png.png"
+## Offline palette source; the source directory is deliberately not imported.
+const HUMAN_REGULAR_MALE_TEXTURE_PATH := "res://assets/characters/humans/frontier_regular/source/textures/male_abdomen_basecolor.png"
 const REGULAR_FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Female_Dark_BaseColor_png.png"
 const TEEN_MALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Teen_Male_Dark_BaseColor.png"
 const TEEN_FEMALE_DARK_TEXTURE_PATH := "res://assets/vendor/quaternius/universal_base_characters/base_characters/T_Teen_Female_Dark_BaseColor_png.png"
-## Source coverage is shared by every generated palette, including Rustdead.
+## Vendor sources remain authoritative except for the human regular-male override.
 const SOURCE_TEXTURE_PATHS_BY_VARIANT := {
 	BODY_VARIANT_HEROIC: {
 		VISUAL_BODY_TYPE_MALE: MALE_DARK_TEXTURE_PATH,
@@ -145,7 +147,9 @@ static func get_supported_body_variants() -> Array[String]:
 	return variants
 
 
-static func get_source_texture_path(body_type: int, body_variant := BODY_VARIANT_HEROIC) -> String:
+static func get_source_texture_path(body_type: int, body_variant := BODY_VARIANT_HEROIC, race_id := HUMAN_RACE_ID) -> String:
+	if normalize_race_id(race_id) == HUMAN_RACE_ID and body_variant == BODY_VARIANT_REGULAR and _normalize_body_type(body_type) == VISUAL_BODY_TYPE_MALE:
+		return HUMAN_REGULAR_MALE_TEXTURE_PATH
 	var sources: Dictionary = SOURCE_TEXTURE_PATHS_BY_VARIANT.get(body_variant, SOURCE_TEXTURE_PATHS_BY_VARIANT[BODY_VARIANT_HEROIC])
 	return str(sources[_normalize_body_type(body_type)])
 
@@ -366,7 +370,8 @@ static func _apply_skin_texture_to_mesh(mesh_instance: MeshInstance3D, skin_text
 			continue
 		var custom_material: Material
 		if source_material is BaseMaterial3D:
-			custom_material = (source_material as BaseMaterial3D).duplicate(true)
+			# Only the material changes; keep the approved normal and other maps shared.
+			custom_material = (source_material as BaseMaterial3D).duplicate()
 			(custom_material as BaseMaterial3D).albedo_texture = skin_texture
 			(custom_material as BaseMaterial3D).albedo_color = Color.WHITE
 		else:

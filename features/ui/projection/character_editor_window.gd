@@ -7,6 +7,7 @@ signal cancel_requested
 
 const CHARACTER_APPEARANCE_DATA_SCRIPT = preload("res://features/actors/resources/character_appearance/character_appearance_data.gd")
 const SKIN_TEXTURE_BUILDER = preload("res://features/actors/projection/appearance/skin_texture_builder.gd")
+const CLOTHING_FITTER = preload("res://features/actors/projection/appearance/clothing_fitter.gd")
 const HUMAN_RACE = preload("res://features/actors/resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://features/actors/resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://features/actors/resources/character_body_archetypes/human_female.tres")
@@ -62,6 +63,8 @@ var _preview_zoom_factor := 1.0
 var _preview_dragging := false
 var _preview_clothes_visible := true
 var _preview_clothing_surface_offsets: Dictionary = {}
+var _preview_clothing_fit_errors: Dictionary[String, String] = {}
+var _preview_clothing_fit_status: Label
 var _preview_visual_root: Node3D
 var _preview_skeleton: Skeleton3D
 var _preview_foot_anchor_correction_y := 0.0
@@ -197,6 +200,11 @@ func _build_ui() -> void:
 	viewport_container.stretch = true
 	viewport_container.gui_input.connect(_on_preview_gui_input)
 	preview_column.add_child(viewport_container)
+	_preview_clothing_fit_status = Label.new()
+	_preview_clothing_fit_status.name = "ClothingFitStatus"
+	_preview_clothing_fit_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_preview_clothing_fit_status.hide()
+	preview_column.add_child(_preview_clothing_fit_status)
 	_preview_viewport = SubViewport.new()
 	_preview_viewport.process_mode = Node.PROCESS_MODE_ALWAYS
 	_preview_viewport.size = Vector2i(500, 500)
@@ -587,12 +595,11 @@ func _create_preview_model() -> Node3D:
 	body_root.rotation.y = PREVIEW_VISUAL_YAW_OFFSET
 	visual_root.add_child(body_root)
 	_setup_preview_idle_animation(body_root)
-	_set_base_eyebrow_visuals_visible(body_root, draft_appearance.eyebrow_style == null)
 	var visual_fit_scale := _fit_preview_visual_to_height(visual_root)
 	var skeleton := _find_skeleton(visual_root)
 	_preview_skeleton = skeleton
 	_apply_preview_bone_offsets(skeleton, body_archetype)
-	_setup_preview_clothing_visuals(visual_root, skeleton, body_archetype, visual_fit_scale)
+	_setup_preview_clothing_visuals(visual_root, skeleton, body_archetype, visual_fit_scale, body_root.scene_file_path)
 	_setup_preview_head_attachment_visuals(visual_root, skeleton)
 	model.rotation.y = _preview_rotation_y
 	return model
@@ -892,12 +899,17 @@ func get_preview_camera_distance() -> float:
 
 
 func preview_has_visible_base_eyebrows() -> bool:
+	# A selected embedded style is not an additional untinted placeholder.
+	if draft_appearance != null and CharacterVisualAssembler.get_embedded_head_attachment(_get_preview_body_root(), draft_appearance.eyebrow_style) != null:
+		return false
 	return _has_visible_base_eyebrow_visual(_get_preview_body_root())
 
 
 func preview_has_custom_eyebrows() -> bool:
 	if _preview_model == null:
 		return false
+	if draft_appearance != null and CharacterVisualAssembler.get_embedded_head_attachment(_get_preview_body_root(), draft_appearance.eyebrow_style) != null:
+		return true
 	var visual_root := _preview_model.get_node_or_null("PreviewCharacterVisual")
 	if visual_root == null:
 		return false
@@ -1054,7 +1066,10 @@ func _get_skeleton_foot_anchor_global_y(skeleton: Skeleton3D) -> float:
 	return result
 
 
-func _setup_preview_clothing_visuals(visual_root: Node3D, skeleton: Skeleton3D, body_archetype: Resource, visual_fit_scale: float) -> void:
+func _setup_preview_clothing_visuals(visual_root: Node3D, skeleton: Skeleton3D, body_archetype: Resource, visual_fit_scale: float, body_scene_path: String) -> void:
+	_preview_clothing_fit_errors.clear()
+	_preview_clothing_surface_offsets.clear()
+	_update_preview_clothing_fit_status()
 	if target_actor == null or not is_instance_valid(target_actor):
 		return
 	var surface_offset_base := PREVIEW_CHARACTER_HEIGHT / maxf(visual_fit_scale, 0.001)
@@ -1062,23 +1077,46 @@ func _setup_preview_clothing_visuals(visual_root: Node3D, skeleton: Skeleton3D, 
 		var item := target_actor.get_equipped_item(slot_name)
 		if item == null:
 			continue
-		var equipped_scene := item.get_equipped_scene_for_body_archetype(body_archetype)
+		var equipment_visual := item.get_equipment_visual_for_body_archetype(body_archetype, body_scene_path)
+		var equipped_scene := item.get_equipped_scene_for_body_archetype(body_archetype, body_scene_path)
 		if equipped_scene == null:
+			if item.has_clothing_binding():
+				_preview_clothing_fit_errors[slot_name] = "No compatible clothing source/body profile for %s" % body_scene_path
 			continue
 		var instance := equipped_scene.instantiate()
 		if not (instance is Node3D):
-			instance.queue_free()
+			instance.free()
+			if item.has_clothing_binding():
+				_preview_clothing_fit_errors[slot_name] = "Clothing source must be a Node3D scene"
 			continue
 		var source_root := instance as Node3D
 		var visual_transform: Transform3D = item.equipped_transform
 		var surface_offset_ratio := 0.0
-		var equipment_visual := item.get_equipment_visual_for_body_archetype(body_archetype)
 		if equipment_visual != null:
 			visual_transform = equipment_visual.get("equipped_transform")
 			surface_offset_ratio = float(equipment_visual.get("surface_offset_ratio"))
 		var surface_offset := surface_offset_base * surface_offset_ratio
 		_preview_clothing_surface_offsets[slot_name] = surface_offset
 		var node_name := "Equipped_%s" % slot_name.capitalize()
+		var binding: Resource = equipment_visual.get("clothing_binding") if equipment_visual != null else null
+		if binding != null:
+			var profile: Resource = body_archetype.get_wardrobe_profile(body_scene_path) if body_archetype != null else null
+			var result := CLOTHING_FITTER.fit(source_root, binding, profile, skeleton)
+			source_root.free()
+			_preview_clothing_surface_offsets[slot_name] = 0.0
+			if not result.error.is_empty():
+				_preview_clothing_fit_errors[slot_name] = result.error
+				continue
+			var fitted: Node3D = result.visual
+			fitted.name = node_name
+			# Fitted meshes already have target-space vertices and inverse binds.
+			fitted.transform = _get_node3d_transform_relative_to_root(visual_root, skeleton) * visual_transform
+			visual_root.add_child(fitted)
+			var meshes: Array[MeshInstance3D] = []
+			_collect_mesh_instances(fitted, meshes)
+			for mesh in meshes:
+				mesh.skeleton = mesh.get_path_to(skeleton)
+			continue
 		if skeleton != null and _setup_preview_shared_skeleton_visual(visual_root, skeleton, source_root, node_name, visual_transform, Color.WHITE, false, surface_offset):
 			source_root.free()
 			continue
@@ -1086,6 +1124,17 @@ func _setup_preview_clothing_visuals(visual_root: Node3D, skeleton: Skeleton3D, 
 		source_root.transform = Transform3D(Basis(Vector3.UP, PREVIEW_VISUAL_YAW_OFFSET), Vector3.ZERO) * visual_transform
 		_inflate_clothing_visual(source_root, surface_offset)
 		visual_root.add_child(source_root)
+	_update_preview_clothing_fit_status()
+
+
+func _update_preview_clothing_fit_status() -> void:
+	if _preview_clothing_fit_status == null:
+		return
+	var errors := PackedStringArray()
+	for slot: String in _preview_clothing_fit_errors:
+		errors.append("%s: %s" % [slot.capitalize(), _preview_clothing_fit_errors[slot]])
+	_preview_clothing_fit_status.text = "Clothing fit failed — " + "\n".join(errors) if not errors.is_empty() else ""
+	_preview_clothing_fit_status.visible = not errors.is_empty()
 
 
 func _setup_preview_head_attachment_visuals(visual_root: Node3D, skeleton: Skeleton3D) -> void:
@@ -1097,9 +1146,13 @@ func _setup_preview_head_attachment_visuals(visual_root: Node3D, skeleton: Skele
 func _setup_preview_head_attachment_visual(visual_root: Node3D, skeleton: Skeleton3D, style_resource: Resource, color: Color, slot_label: String) -> void:
 	if style_resource == null:
 		return
+	if CharacterVisualAssembler.apply_embedded_head_attachment(visual_root, style_resource, color):
+		return
 	var source_root := CharacterVisualAssembler.instantiate_head_attachment(style_resource, draft_appearance.visual_age_years, color)
 	if source_root == null:
 		return
+	if slot_label == "Eyebrows":
+		_set_base_eyebrow_visuals_visible(visual_root, false)
 	var node_name := "Appearance%s" % slot_label
 	if skeleton != null and _setup_preview_shared_skeleton_visual(visual_root, skeleton, source_root, node_name, Transform3D.IDENTITY, color, false):
 		source_root.free()
@@ -1200,12 +1253,7 @@ func _set_preview_clothing_visible(visible_flag: bool) -> void:
 
 
 func _set_base_eyebrow_visuals_visible(root: Node, visible_flag: bool) -> void:
-	if root == null:
-		return
-	if root is MeshInstance3D and _is_base_eyebrow_visual(root):
-		(root as MeshInstance3D).visible = visible_flag
-	for child in root.get_children():
-		_set_base_eyebrow_visuals_visible(child, visible_flag)
+	CharacterVisualAssembler.set_base_eyebrows_visible(root, visible_flag)
 
 
 func _has_visible_base_eyebrow_visual(root: Node) -> bool:
@@ -1220,7 +1268,7 @@ func _has_visible_base_eyebrow_visual(root: Node) -> bool:
 
 
 func _is_base_eyebrow_visual(node: Node) -> bool:
-	return str(node.name).to_lower().contains("eyebrow")
+	return CharacterVisualAssembler.is_base_eyebrow_visual(node)
 
 
 func _apply_preview_material(root: Node, color: Color) -> void:
@@ -1295,6 +1343,8 @@ func _apply_preview_style_color(style_resource: Resource, slot_label: String, co
 	if style_resource == null or not bool(style_resource.get("colorize")):
 		return true
 	if _preview_model == null:
+		return true
+	if CharacterVisualAssembler.apply_embedded_head_attachment(_get_preview_body_root(), style_resource, color):
 		return true
 	var slot_root := _preview_model.find_child("Appearance%s" % slot_label, true, false)
 	if slot_root == null:
@@ -1390,6 +1440,9 @@ func _contains_live_actor_node(node: Node) -> bool:
 
 
 func _clear_preview() -> void:
+	_preview_clothing_fit_errors.clear()
+	_preview_clothing_surface_offsets.clear()
+	_update_preview_clothing_fit_status()
 	if _preview_model != null and is_instance_valid(_preview_model):
 		_preview_root.remove_child(_preview_model)
 		_preview_model.queue_free()

@@ -1,0 +1,1282 @@
+{
+  "artifacts": {
+    "female_heroic": {
+      "artifact_sha256": "0239770e5e714942ff26694c3418868de306c572acc7e05e5af6cd74ce1f2d58",
+      "bone_names": [
+        "Head",
+        "ball_l",
+        "ball_leaf_l",
+        "ball_leaf_r",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "clavicle_l",
+        "clavicle_r",
+        "foot_l",
+        "foot_r",
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "neck_01",
+        "pelvis",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "pinky_04_leaf_l",
+        "pinky_04_leaf_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "root",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "thumb_04_leaf_l",
+        "thumb_04_leaf_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "height_m": 1.774855529185542,
+      "inputs": {
+        "body": {
+          "body_scene_path": "res://assets/characters/humans/frontier_variants/female_heroic.glb",
+          "id": "female_heroic",
+          "preserve_foot_shape": true,
+          "registration_mesh": "Superhero_Female",
+          "registration_source_path": "res://assets/characters/humans/frontier_variants/female_heroic.glb"
+        },
+        "cage_id": "humanoid_v1",
+        "canonical_mesh": "RegularMale",
+        "canonical_source": {
+          ".godot/imported/male_regular.glb-b880b32c12d97a07f250a9a3cbf62fe4.scn": "1ad9250e0123f54985ae214a23ab7e0de94ddff5d0b3d1e68d5c6eaf2d524238",
+          "assets/characters/humans/frontier_regular/male_regular.glb": "0323f842b7d58dddfc29ddf87e3b6ec794b23f7e87589f5619940ec2a9990ca8",
+          "assets/characters/humans/frontier_regular/male_regular.glb.import": "e75c1a114173950928a1ef6b1c0102b6d5e0e17b68553e2e0f6ef805427b77ac"
+        },
+        "registration_dependencies": {
+          ".godot/imported/female_heroic.glb-fee4775769c328bfe83a54f5e7a2eeb5.scn": "79cda724cacdec41ccf6af5799991a1d864bee75f475b2328444d96ec7395a9d",
+          "assets/characters/humans/frontier_variants/female_heroic.glb": "d735557f03c415167e0b166a2a9194c0df23061055ef414a34e8ee0be5cdf05f",
+          "assets/characters/humans/frontier_variants/female_heroic.glb.import": "eb15459cb8eacbcb1ef459f7f79ab1b43f6170ec364f80fc3660bd7bfbf9242c"
+        },
+        "scene_dependencies": {
+          ".godot/imported/female_heroic.glb-fee4775769c328bfe83a54f5e7a2eeb5.scn": "79cda724cacdec41ccf6af5799991a1d864bee75f475b2328444d96ec7395a9d",
+          "assets/characters/humans/frontier_variants/female_heroic.glb": "d735557f03c415167e0b166a2a9194c0df23061055ef414a34e8ee0be5cdf05f",
+          "assets/characters/humans/frontier_variants/female_heroic.glb.import": "eb15459cb8eacbcb1ef459f7f79ab1b43f6170ec364f80fc3660bd7bfbf9242c"
+        },
+        "settings": {
+          "candidate_triangles": 32,
+          "iterations_per_stage": 3,
+          "opposed_normal_penalty": 0.01,
+          "skin_weight_penalty": 0.004,
+          "stiffness": [
+            12.0,
+            6.0,
+            3.0,
+            1.0,
+            0.3
+          ],
+          "weld_decimals": 6
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "path": "res://assets/characters/wardrobe/female_heroic.res",
+      "point_count": 6066,
+      "points_sha256": "679ab587eb7f1d0b524c20c7a1a7bf6c06ee9e1474397cd33f498c581282340b",
+      "registration_metrics": {
+        "foot_shape": {
+          "l": {
+            "affine": [
+              [
+                1.043946533102825,
+                0.0009697105383179556,
+                -0.011104278637543543
+              ],
+              [
+                0.026535916465830138,
+                0.9014838202110462,
+                -0.06521101104972839
+              ],
+              [
+                -0.03344265930446188,
+                -0.03578508642830872,
+                0.9693275486176558
+              ],
+              [
+                0.018827884228574947,
+                0.0007266100512011153,
+                0.010911796858956293
+              ]
+            ],
+            "max_change_m": 0.057603170271184695,
+            "point_count": 391
+          },
+          "r": {
+            "affine": [
+              [
+                1.0439464179217492,
+                -0.000969822552453755,
+                0.011104128761886083
+              ],
+              [
+                -0.026535941196554152,
+                0.9014838750135125,
+                -0.06521083088182306
+              ],
+              [
+                0.03344259303577187,
+                -0.03578491810513062,
+                0.9693277594532963
+              ],
+              [
+                -0.01882787003520711,
+                0.0007266223978471542,
+                0.010911844867326149
+              ]
+            ],
+            "max_change_m": 0.057603142783665934,
+            "point_count": 391
+          }
+        },
+        "iterations": [
+          {
+            "max_m": 0.029564901484985088,
+            "median_m": 0.002432736623505117,
+            "p95_m": 0.009184963737114839,
+            "stiffness": 12.0
+          },
+          {
+            "max_m": 0.021342382340687336,
+            "median_m": 0.0017747286548320529,
+            "p95_m": 0.006795391188040436,
+            "stiffness": 6.0
+          },
+          {
+            "max_m": 0.018302469345541004,
+            "median_m": 0.0013483246318956306,
+            "p95_m": 0.00522361633179035,
+            "stiffness": 3.0
+          },
+          {
+            "max_m": 0.013961872032355516,
+            "median_m": 0.0008190013912493044,
+            "p95_m": 0.0033256394280165714,
+            "stiffness": 1.0
+          },
+          {
+            "max_m": 0.009407263383484342,
+            "median_m": 0.000381476023544157,
+            "p95_m": 0.0015896981289322775,
+            "stiffness": 0.3
+          }
+        ]
+      },
+      "runtime_bone_aliases": {},
+      "source_digest": "b506059d5dd4313ee78fc27b93fb6711f2c08d5b19b0d0cdabf8aefff46ed0f0",
+      "uid": "uid://bwqpvmnln4j30",
+      "visual_acceptance": "not established by authoring metrics"
+    },
+    "female_regular": {
+      "artifact_sha256": "0683d172b08e77555b3da7b12959f13fab6bb308781068b73ac637fa37746fc2",
+      "bone_names": [
+        "Head",
+        "ball_l",
+        "ball_leaf_l",
+        "ball_leaf_r",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "clavicle_l",
+        "clavicle_r",
+        "foot_l",
+        "foot_r",
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "neck_01",
+        "pelvis",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "pinky_04_leaf_l",
+        "pinky_04_leaf_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "root",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "thumb_04_leaf_l",
+        "thumb_04_leaf_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "height_m": 1.7709776428749167,
+      "inputs": {
+        "body": {
+          "body_scene_path": "res://assets/characters/humans/frontier_regular/female_regular.glb",
+          "id": "female_regular",
+          "preserve_foot_shape": true,
+          "registration_mesh": "Female_Regular",
+          "registration_source_path": "res://assets/characters/humans/frontier_regular/female_regular.glb"
+        },
+        "cage_id": "humanoid_v1",
+        "canonical_mesh": "RegularMale",
+        "canonical_source": {
+          ".godot/imported/male_regular.glb-b880b32c12d97a07f250a9a3cbf62fe4.scn": "1ad9250e0123f54985ae214a23ab7e0de94ddff5d0b3d1e68d5c6eaf2d524238",
+          "assets/characters/humans/frontier_regular/male_regular.glb": "0323f842b7d58dddfc29ddf87e3b6ec794b23f7e87589f5619940ec2a9990ca8",
+          "assets/characters/humans/frontier_regular/male_regular.glb.import": "e75c1a114173950928a1ef6b1c0102b6d5e0e17b68553e2e0f6ef805427b77ac"
+        },
+        "registration_dependencies": {
+          ".godot/imported/female_regular.glb-0eb6988406e77cd1ccd4d2cb9eb629e4.scn": "a30c77cb890e7ba406d068ea427a52c326350b344b836639ebe035e377f8ea06",
+          "assets/characters/humans/frontier_regular/female_regular.glb": "bd12f5dc72e9fe9f8efc8d72bb8e7b8e9ba82096d6bfada32f6269f9bca39085",
+          "assets/characters/humans/frontier_regular/female_regular.glb.import": "220bf0272b049177af6fdbc2d46f2e77eaa7e3422ce1e7e4c82a3a1bb3ba0308"
+        },
+        "scene_dependencies": {
+          ".godot/imported/female_regular.glb-0eb6988406e77cd1ccd4d2cb9eb629e4.scn": "a30c77cb890e7ba406d068ea427a52c326350b344b836639ebe035e377f8ea06",
+          "assets/characters/humans/frontier_regular/female_regular.glb": "bd12f5dc72e9fe9f8efc8d72bb8e7b8e9ba82096d6bfada32f6269f9bca39085",
+          "assets/characters/humans/frontier_regular/female_regular.glb.import": "220bf0272b049177af6fdbc2d46f2e77eaa7e3422ce1e7e4c82a3a1bb3ba0308"
+        },
+        "settings": {
+          "candidate_triangles": 32,
+          "iterations_per_stage": 3,
+          "opposed_normal_penalty": 0.01,
+          "skin_weight_penalty": 0.004,
+          "stiffness": [
+            12.0,
+            6.0,
+            3.0,
+            1.0,
+            0.3
+          ],
+          "weld_decimals": 6
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "path": "res://assets/characters/wardrobe/female_regular.res",
+      "point_count": 6066,
+      "points_sha256": "603351ffcb9a05fc12f993173a4c3ca743e4d7bff4361653bf3374c117108665",
+      "registration_metrics": {
+        "foot_shape": {
+          "l": {
+            "affine": [
+              [
+                1.0430702181078388,
+                0.0068755669700602635,
+                -0.00972170067236595
+              ],
+              [
+                0.023964641065432182,
+                0.887232903787296,
+                -0.048194760011694295
+              ],
+              [
+                -0.03348506992880924,
+                -0.032647980838825995,
+                0.9719528951779731
+              ],
+              [
+                0.018970922519973035,
+                0.002535958996092158,
+                0.010508825518603377
+              ]
+            ],
+            "max_change_m": 0.06191467642906616,
+            "point_count": 391
+          },
+          "r": {
+            "affine": [
+              [
+                1.04307007763683,
+                -0.006875650418332295,
+                0.009721576040476671
+              ],
+              [
+                -0.023964675902876237,
+                0.8872329008573249,
+                -0.048194574585428265
+              ],
+              [
+                0.03348500581016002,
+                -0.032647844991578384,
+                0.9719530985335929
+              ],
+              [
+                -0.018970906618630837,
+                0.0025359747775671737,
+                0.010508876270682047
+              ]
+            ],
+            "max_change_m": 0.061914653582490625,
+            "point_count": 391
+          }
+        },
+        "iterations": [
+          {
+            "max_m": 0.025158935579994934,
+            "median_m": 0.002427371234644902,
+            "p95_m": 0.00856835998112772,
+            "stiffness": 12.0
+          },
+          {
+            "max_m": 0.020329062151495866,
+            "median_m": 0.0017942933798633176,
+            "p95_m": 0.006837771828893956,
+            "stiffness": 6.0
+          },
+          {
+            "max_m": 0.016527030810329302,
+            "median_m": 0.0013536187447941868,
+            "p95_m": 0.005272909004369844,
+            "stiffness": 3.0
+          },
+          {
+            "max_m": 0.01007965004195846,
+            "median_m": 0.0008360399394476373,
+            "p95_m": 0.0033641161759898866,
+            "stiffness": 1.0
+          },
+          {
+            "max_m": 0.004840283260658394,
+            "median_m": 0.00038880420534010985,
+            "p95_m": 0.0016340516823630615,
+            "stiffness": 0.3
+          }
+        ]
+      },
+      "runtime_bone_aliases": {},
+      "source_digest": "739bd3c905eef42ac47d031bcfa4d71d09fea4a77ac9f863aea43626354eabaf",
+      "uid": "uid://bagl7b1q2j7xo",
+      "visual_acceptance": "not established by authoring metrics"
+    },
+    "female_teen": {
+      "artifact_sha256": "989673fb60a804429c0f6ad5773021d347125783835ad56f2d91ae00aa9e6951",
+      "bone_names": [
+        "Head",
+        "ball_l",
+        "ball_leaf_l",
+        "ball_leaf_r",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "clavicle_l",
+        "clavicle_r",
+        "foot_l",
+        "foot_r",
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "neck_01",
+        "pelvis",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "pinky_04_leaf_l",
+        "pinky_04_leaf_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "root",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "thumb_04_leaf_l",
+        "thumb_04_leaf_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "height_m": 1.515653702788784,
+      "inputs": {
+        "body": {
+          "body_scene_path": "res://assets/characters/humans/frontier_variants/female_teen.glb",
+          "id": "female_teen",
+          "preserve_foot_shape": true,
+          "registration_mesh": "Teen_Female",
+          "registration_source_path": "res://assets/characters/humans/frontier_variants/female_teen.glb"
+        },
+        "cage_id": "humanoid_v1",
+        "canonical_mesh": "RegularMale",
+        "canonical_source": {
+          ".godot/imported/male_regular.glb-b880b32c12d97a07f250a9a3cbf62fe4.scn": "1ad9250e0123f54985ae214a23ab7e0de94ddff5d0b3d1e68d5c6eaf2d524238",
+          "assets/characters/humans/frontier_regular/male_regular.glb": "0323f842b7d58dddfc29ddf87e3b6ec794b23f7e87589f5619940ec2a9990ca8",
+          "assets/characters/humans/frontier_regular/male_regular.glb.import": "e75c1a114173950928a1ef6b1c0102b6d5e0e17b68553e2e0f6ef805427b77ac"
+        },
+        "registration_dependencies": {
+          ".godot/imported/female_teen.glb-da127005c444561cf699ffd9760f949b.scn": "13bba75cd79368b0f6c8a9d71d32b38a337629a1e0f7ee1960d7a24ff8b69d68",
+          "assets/characters/humans/frontier_variants/female_teen.glb": "f87ddc8c47af785af668da697e648b7f47455aaa881c81831174d22fbfcc115d",
+          "assets/characters/humans/frontier_variants/female_teen.glb.import": "3f3b2ef58aa850bc8332d0de0f98fed4e62a0c4db572052e7c3df9a9eca1a625"
+        },
+        "scene_dependencies": {
+          ".godot/imported/female_teen.glb-da127005c444561cf699ffd9760f949b.scn": "13bba75cd79368b0f6c8a9d71d32b38a337629a1e0f7ee1960d7a24ff8b69d68",
+          "assets/characters/humans/frontier_variants/female_teen.glb": "f87ddc8c47af785af668da697e648b7f47455aaa881c81831174d22fbfcc115d",
+          "assets/characters/humans/frontier_variants/female_teen.glb.import": "3f3b2ef58aa850bc8332d0de0f98fed4e62a0c4db572052e7c3df9a9eca1a625"
+        },
+        "settings": {
+          "candidate_triangles": 32,
+          "iterations_per_stage": 3,
+          "opposed_normal_penalty": 0.01,
+          "skin_weight_penalty": 0.004,
+          "stiffness": [
+            12.0,
+            6.0,
+            3.0,
+            1.0,
+            0.3
+          ],
+          "weld_decimals": 6
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "path": "res://assets/characters/wardrobe/female_teen.res",
+      "point_count": 6066,
+      "points_sha256": "5b7e2d86f7a9924e41d9da376dc7ea1684ae5f81502a132581ef2ae2913035d2",
+      "registration_metrics": {
+        "foot_shape": {
+          "l": {
+            "affine": [
+              [
+                0.9100278810122879,
+                -0.010209511671317138,
+                -0.007057006274488639
+              ],
+              [
+                0.011340327400726102,
+                0.8055729205359592,
+                -0.05259265103589825
+              ],
+              [
+                -0.0552444157832732,
+                -0.04305954707818857,
+                0.8935675468444307
+              ],
+              [
+                0.01828467564700371,
+                0.006662785027324647,
+                0.016603111569408545
+              ]
+            ],
+            "max_change_m": 0.06289103372956958,
+            "point_count": 391
+          },
+          "r": {
+            "affine": [
+              [
+                0.9100278173177564,
+                0.010209469549352809,
+                0.007056988074566655
+              ],
+              [
+                -0.011340447759117725,
+                0.8055730534458057,
+                -0.05259257121365014
+              ],
+              [
+                0.05524428979869617,
+                -0.04305949460603678,
+                0.8935676318763467
+              ],
+              [
+                -0.01828464113777064,
+                0.006662777163387701,
+                0.016603167895446427
+              ]
+            ],
+            "max_change_m": 0.06289103640554061,
+            "point_count": 391
+          }
+        },
+        "iterations": [
+          {
+            "max_m": 0.01782167234102448,
+            "median_m": 0.002214708975660103,
+            "p95_m": 0.007883215507791929,
+            "stiffness": 12.0
+          },
+          {
+            "max_m": 0.016294672024009863,
+            "median_m": 0.001606925943698685,
+            "p95_m": 0.006345808721044269,
+            "stiffness": 6.0
+          },
+          {
+            "max_m": 0.015604572259758897,
+            "median_m": 0.0012610235238099717,
+            "p95_m": 0.00481110437591576,
+            "stiffness": 3.0
+          },
+          {
+            "max_m": 0.010242386094765204,
+            "median_m": 0.0007835860034124725,
+            "p95_m": 0.003000067719239341,
+            "stiffness": 1.0
+          },
+          {
+            "max_m": 0.005724301180942377,
+            "median_m": 0.0003690174079677952,
+            "p95_m": 0.0014975210068207609,
+            "stiffness": 0.3
+          }
+        ]
+      },
+      "runtime_bone_aliases": {},
+      "source_digest": "5e3468c6ac39b8c0454d5c5299992a9f18a91a53c9c9ae3e44a4c3f3b0193f72",
+      "uid": "uid://bah8ge5oudam8",
+      "visual_acceptance": "not established by authoring metrics"
+    },
+    "male_heroic": {
+      "artifact_sha256": "878fc466dc9a65f527175fb3193bcd6a67ff37ab06c7097aab1cee5be074a15a",
+      "bone_names": [
+        "Head",
+        "ball_l",
+        "ball_leaf_l",
+        "ball_leaf_r",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "clavicle_l",
+        "clavicle_r",
+        "foot_l",
+        "foot_r",
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "neck_01",
+        "pelvis",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "pinky_04_leaf_l",
+        "pinky_04_leaf_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "root",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "thumb_04_leaf_l",
+        "thumb_04_leaf_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "height_m": 1.819586881597181,
+      "inputs": {
+        "body": {
+          "body_scene_path": "res://assets/characters/humans/frontier_variants/male_heroic.glb",
+          "id": "male_heroic",
+          "registration_mesh": "SuperHero_Male",
+          "registration_source_path": "res://assets/characters/humans/frontier_variants/male_heroic.glb"
+        },
+        "cage_id": "humanoid_v1",
+        "canonical_mesh": "RegularMale",
+        "canonical_source": {
+          ".godot/imported/male_regular.glb-b880b32c12d97a07f250a9a3cbf62fe4.scn": "1ad9250e0123f54985ae214a23ab7e0de94ddff5d0b3d1e68d5c6eaf2d524238",
+          "assets/characters/humans/frontier_regular/male_regular.glb": "0323f842b7d58dddfc29ddf87e3b6ec794b23f7e87589f5619940ec2a9990ca8",
+          "assets/characters/humans/frontier_regular/male_regular.glb.import": "e75c1a114173950928a1ef6b1c0102b6d5e0e17b68553e2e0f6ef805427b77ac"
+        },
+        "registration_dependencies": {
+          ".godot/imported/male_heroic.glb-9933c2b8d9285db891951be89514e5e2.scn": "8faf3143f308fe7a42fa47d40c982b074566febd7d70ef8c9fc39f6f95951352",
+          "assets/characters/humans/frontier_variants/male_heroic.glb": "d76bc312ae5d1e2ae691b26d3cffbb3a1ff8e67816756c6614f4a07ae2c09591",
+          "assets/characters/humans/frontier_variants/male_heroic.glb.import": "ba9f3fc16fbaf35536dacccaf33b001511e5850547200d075c6a062f44054808"
+        },
+        "scene_dependencies": {
+          ".godot/imported/male_heroic.glb-9933c2b8d9285db891951be89514e5e2.scn": "8faf3143f308fe7a42fa47d40c982b074566febd7d70ef8c9fc39f6f95951352",
+          "assets/characters/humans/frontier_variants/male_heroic.glb": "d76bc312ae5d1e2ae691b26d3cffbb3a1ff8e67816756c6614f4a07ae2c09591",
+          "assets/characters/humans/frontier_variants/male_heroic.glb.import": "ba9f3fc16fbaf35536dacccaf33b001511e5850547200d075c6a062f44054808"
+        },
+        "settings": {
+          "candidate_triangles": 32,
+          "iterations_per_stage": 3,
+          "opposed_normal_penalty": 0.01,
+          "skin_weight_penalty": 0.004,
+          "stiffness": [
+            12.0,
+            6.0,
+            3.0,
+            1.0,
+            0.3
+          ],
+          "weld_decimals": 6
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "path": "res://assets/characters/wardrobe/male_heroic.res",
+      "point_count": 6066,
+      "points_sha256": "a5c0048b6e123df88a7bb02d21e95e462f68cbfe001057e7e60f1ea0902da014",
+      "registration_metrics": {
+        "iterations": [
+          {
+            "max_m": 0.03327225303413578,
+            "median_m": 0.0016277335832321788,
+            "p95_m": 0.008108356343491711,
+            "stiffness": 12.0
+          },
+          {
+            "max_m": 0.025256287182609992,
+            "median_m": 0.001048580950923553,
+            "p95_m": 0.006118702475391944,
+            "stiffness": 6.0
+          },
+          {
+            "max_m": 0.01422828142184026,
+            "median_m": 0.0007511269954368956,
+            "p95_m": 0.004712679224878122,
+            "stiffness": 3.0
+          },
+          {
+            "max_m": 0.009440564079517327,
+            "median_m": 0.000457126045071591,
+            "p95_m": 0.002832224264203112,
+            "stiffness": 1.0
+          },
+          {
+            "max_m": 0.004395523361113312,
+            "median_m": 0.0002109541164917877,
+            "p95_m": 0.0013142067772243635,
+            "stiffness": 0.3
+          }
+        ]
+      },
+      "runtime_bone_aliases": {},
+      "source_digest": "ecfc2c4f990fed2448ff6672f6dcc044db263d877d9472112b884a325da26048",
+      "uid": "uid://cewi8frfjoooh",
+      "visual_acceptance": "not established by authoring metrics"
+    },
+    "male_regular": {
+      "artifact_sha256": "f455162ac66b3f3f1e9e2d39782d0147a1f679bfaaf131949b2c0e7e6f83df92",
+      "bone_names": [
+        "Head",
+        "ball_l",
+        "ball_leaf_l",
+        "ball_leaf_r",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "clavicle_l",
+        "clavicle_r",
+        "foot_l",
+        "foot_r",
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "neck_01",
+        "pelvis",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "pinky_04_leaf_l",
+        "pinky_04_leaf_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "root",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "thumb_04_leaf_l",
+        "thumb_04_leaf_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "height_m": 1.8158562442128112,
+      "inputs": {
+        "body": {
+          "body_scene_path": "res://assets/characters/humans/frontier_regular/male_regular.glb",
+          "id": "male_regular",
+          "registration_mesh": "RegularMale",
+          "registration_source_path": "res://assets/characters/humans/frontier_regular/male_regular.glb"
+        },
+        "cage_id": "humanoid_v1",
+        "canonical_mesh": "RegularMale",
+        "canonical_source": {
+          ".godot/imported/male_regular.glb-b880b32c12d97a07f250a9a3cbf62fe4.scn": "1ad9250e0123f54985ae214a23ab7e0de94ddff5d0b3d1e68d5c6eaf2d524238",
+          "assets/characters/humans/frontier_regular/male_regular.glb": "0323f842b7d58dddfc29ddf87e3b6ec794b23f7e87589f5619940ec2a9990ca8",
+          "assets/characters/humans/frontier_regular/male_regular.glb.import": "e75c1a114173950928a1ef6b1c0102b6d5e0e17b68553e2e0f6ef805427b77ac"
+        },
+        "registration_dependencies": {
+          ".godot/imported/male_regular.glb-b880b32c12d97a07f250a9a3cbf62fe4.scn": "1ad9250e0123f54985ae214a23ab7e0de94ddff5d0b3d1e68d5c6eaf2d524238",
+          "assets/characters/humans/frontier_regular/male_regular.glb": "0323f842b7d58dddfc29ddf87e3b6ec794b23f7e87589f5619940ec2a9990ca8",
+          "assets/characters/humans/frontier_regular/male_regular.glb.import": "e75c1a114173950928a1ef6b1c0102b6d5e0e17b68553e2e0f6ef805427b77ac"
+        },
+        "scene_dependencies": {
+          ".godot/imported/male_regular.glb-b880b32c12d97a07f250a9a3cbf62fe4.scn": "1ad9250e0123f54985ae214a23ab7e0de94ddff5d0b3d1e68d5c6eaf2d524238",
+          "assets/characters/humans/frontier_regular/male_regular.glb": "0323f842b7d58dddfc29ddf87e3b6ec794b23f7e87589f5619940ec2a9990ca8",
+          "assets/characters/humans/frontier_regular/male_regular.glb.import": "e75c1a114173950928a1ef6b1c0102b6d5e0e17b68553e2e0f6ef805427b77ac"
+        },
+        "settings": {
+          "candidate_triangles": 32,
+          "iterations_per_stage": 3,
+          "opposed_normal_penalty": 0.01,
+          "skin_weight_penalty": 0.004,
+          "stiffness": [
+            12.0,
+            6.0,
+            3.0,
+            1.0,
+            0.3
+          ],
+          "weld_decimals": 6
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "path": "res://assets/characters/wardrobe/male_regular.res",
+      "point_count": 6066,
+      "points_sha256": "fa497c74520e5db57d1f634f6fa3a231311e13ecf1d3f38aa289a42baf80cfd4",
+      "registration_metrics": {
+        "identity": true
+      },
+      "runtime_bone_aliases": {},
+      "source_digest": "c86da979e19eb7f0f1c4d5ab1df9c2bf2c90c316408febc741c5cd5940588eed",
+      "uid": "uid://c5htbff30wghf",
+      "visual_acceptance": "not established by authoring metrics"
+    },
+    "male_teen": {
+      "artifact_sha256": "743d54e64f2e5dd7f952c9eca169e2504be89c4607d59e7989b3be6299dc41ea",
+      "bone_names": [
+        "Head",
+        "ball_l",
+        "ball_leaf_l",
+        "ball_leaf_r",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "clavicle_l",
+        "clavicle_r",
+        "foot_l",
+        "foot_r",
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "neck_01",
+        "pelvis",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "pinky_04_leaf_l",
+        "pinky_04_leaf_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "root",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "thumb_04_leaf_l",
+        "thumb_04_leaf_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "height_m": 1.5744164800681055,
+      "inputs": {
+        "body": {
+          "body_scene_path": "res://assets/characters/humans/frontier_variants/male_teen.glb",
+          "id": "male_teen",
+          "registration_mesh": "Teen_Male",
+          "registration_source_path": "res://assets/characters/humans/frontier_variants/male_teen.glb"
+        },
+        "cage_id": "humanoid_v1",
+        "canonical_mesh": "RegularMale",
+        "canonical_source": {
+          ".godot/imported/male_regular.glb-b880b32c12d97a07f250a9a3cbf62fe4.scn": "1ad9250e0123f54985ae214a23ab7e0de94ddff5d0b3d1e68d5c6eaf2d524238",
+          "assets/characters/humans/frontier_regular/male_regular.glb": "0323f842b7d58dddfc29ddf87e3b6ec794b23f7e87589f5619940ec2a9990ca8",
+          "assets/characters/humans/frontier_regular/male_regular.glb.import": "e75c1a114173950928a1ef6b1c0102b6d5e0e17b68553e2e0f6ef805427b77ac"
+        },
+        "registration_dependencies": {
+          ".godot/imported/male_teen.glb-65d6682e0f1a90e3c027c1891e294211.scn": "9c03483cc8bc8d05fa29d71d70c19191dba1bb7b2f3d81ac6707e0e6b535a39d",
+          "assets/characters/humans/frontier_variants/male_teen.glb": "aa7ada90b1f04735bc9c2e13f8d219997cad6587c27be9099d2a97e1ba3fb1af",
+          "assets/characters/humans/frontier_variants/male_teen.glb.import": "1a17ae94aaa6b091402ab19f18a46196ac2bcc3e8e2b12feb1e83996ae0e830b"
+        },
+        "scene_dependencies": {
+          ".godot/imported/male_teen.glb-65d6682e0f1a90e3c027c1891e294211.scn": "9c03483cc8bc8d05fa29d71d70c19191dba1bb7b2f3d81ac6707e0e6b535a39d",
+          "assets/characters/humans/frontier_variants/male_teen.glb": "aa7ada90b1f04735bc9c2e13f8d219997cad6587c27be9099d2a97e1ba3fb1af",
+          "assets/characters/humans/frontier_variants/male_teen.glb.import": "1a17ae94aaa6b091402ab19f18a46196ac2bcc3e8e2b12feb1e83996ae0e830b"
+        },
+        "settings": {
+          "candidate_triangles": 32,
+          "iterations_per_stage": 3,
+          "opposed_normal_penalty": 0.01,
+          "skin_weight_penalty": 0.004,
+          "stiffness": [
+            12.0,
+            6.0,
+            3.0,
+            1.0,
+            0.3
+          ],
+          "weld_decimals": 6
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "path": "res://assets/characters/wardrobe/male_teen.res",
+      "point_count": 6066,
+      "points_sha256": "6d31f97c684e8de016d3900d07987425f6baccd2356dca7c4ed1f9010432c55e",
+      "registration_metrics": {
+        "iterations": [
+          {
+            "max_m": 0.017357053530303194,
+            "median_m": 0.0013472062652895944,
+            "p95_m": 0.005549768450716794,
+            "stiffness": 12.0
+          },
+          {
+            "max_m": 0.01454886878913452,
+            "median_m": 0.0009814587512313954,
+            "p95_m": 0.004399780053410664,
+            "stiffness": 6.0
+          },
+          {
+            "max_m": 0.013387575414426721,
+            "median_m": 0.0007567294409279823,
+            "p95_m": 0.0035785209356380895,
+            "stiffness": 3.0
+          },
+          {
+            "max_m": 0.010459597738884111,
+            "median_m": 0.00046670867922986206,
+            "p95_m": 0.002323291817744445,
+            "stiffness": 1.0
+          },
+          {
+            "max_m": 0.006010924493358397,
+            "median_m": 0.00022030624028637888,
+            "p95_m": 0.0011352822694424961,
+            "stiffness": 0.3
+          }
+        ]
+      },
+      "runtime_bone_aliases": {},
+      "source_digest": "15b07d99c0ce6afe26d1873ec1e711a7b773b582e3d7601ed9e618ef50a8ea02",
+      "uid": "uid://dnjnax4cjelo7",
+      "visual_acceptance": "not established by authoring metrics"
+    },
+    "original_male_regular": {
+      "artifact_sha256": "fbf197d41e737c5518af82382a45dc83392ee3421fa197f3f9ba696cc27f8a32",
+      "bone_names": [
+        "Head",
+        "ball_l",
+        "ball_leaf_l",
+        "ball_leaf_r",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "clavicle_l",
+        "clavicle_r",
+        "foot_l",
+        "foot_r",
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "neck_01",
+        "pelvis",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "pinky_04_leaf_l",
+        "pinky_04_leaf_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "root",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "thumb_04_leaf_l",
+        "thumb_04_leaf_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "height_m": 1.8158560361994913,
+      "inputs": {
+        "body": {
+          "body_scene_path": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf",
+          "id": "original_male_regular",
+          "registration_mesh": "RegularMale",
+          "registration_source_path": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf"
+        },
+        "cage_id": "humanoid_v1",
+        "canonical_mesh": "RegularMale",
+        "canonical_source": {
+          ".godot/imported/male_regular.glb-b880b32c12d97a07f250a9a3cbf62fe4.scn": "1ad9250e0123f54985ae214a23ab7e0de94ddff5d0b3d1e68d5c6eaf2d524238",
+          "assets/characters/humans/frontier_regular/male_regular.glb": "0323f842b7d58dddfc29ddf87e3b6ec794b23f7e87589f5619940ec2a9990ca8",
+          "assets/characters/humans/frontier_regular/male_regular.glb.import": "e75c1a114173950928a1ef6b1c0102b6d5e0e17b68553e2e0f6ef805427b77ac"
+        },
+        "registration_dependencies": {
+          ".godot/imported/Regular_Male_FullBody.gltf-679b516cf0776c6c023adc08f20491b8.scn": "cd77109cf2bec20284d073163e5b8161b1290b3e7bdc837ca142e5f1a4952cb2",
+          ".godot/imported/T_Eye_Brown.png-2674170d636c87892389020ec716d635.s3tc.ctex": "a35a7adbe8fc09eec6e084fc2935d043340bf39b9ddf66b2876e33f78fbe7030",
+          ".godot/imported/T_Eye_Normal.png-7bc2b839175993d62e0cc8546b7c206a.s3tc.ctex": "2586af5c362910c0fbc47531db1d95e54102c8265cb9c5281de2ec69d526e3da",
+          ".godot/imported/T_Hair_1_BaseColor.png-9fa9cceeff58735482186318874a54ef.s3tc.ctex": "8c2915692529609bff4dbb5e33be85dc781ccca96547bc2a47835ddb77654524",
+          ".godot/imported/T_Hair_1_Normal.png-f559e99e98d63a9dfd338a4f8346590c.s3tc.ctex": "c613d0cf3cbbf0393a3d219e397665030ea4e56e21e7fe74a0945a34ff714296",
+          ".godot/imported/T_Regular_Male_Dark_BaseColor_png.png-0c025a56613133964bf3e5362094d87e.s3tc.ctex": "c5db2af87eff210865c99365e518594640bb29568ab0d39339829117f8f63a8a",
+          ".godot/imported/T_Regular_Male_Normal_png.png-88dc3186e182ab0dfc6c779762b8ee08.s3tc.ctex": "bf2ca1ac17590ee1c66daf5d70c95a0bef26909788159acbcf256b8954b8fa43",
+          ".godot/imported/T_Regular_Male_Roughness_png.png-83fe5292f3326786b6beedaeb7487677.s3tc.ctex": "205b89cfa0018fa7958b57e7e83f596412abb94ac7b0e178bf9297adc671c4d5",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.bin": "851f6a8954da6a27ab21ee3aacd11e50726d2822ffecae96784e43463517543f",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf": "c5c901b24dfc1a4f22e65c16abc0ea8b0a2791498f1c6475d017921320ce9dc3",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf.import": "9ca2183f49eaa96be9e30b07515f4bb2683578c3415d13335906fad451f1e19f",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Eye_Brown.png": "d08e3356a83211bc6ca21fe3a8e39f4b5c1a3b8f85457fc2c0fb57be09935025",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Eye_Brown.png.import": "7116ed116ea16fd19491f8e8d624868a696e3669863152975476858bb1f3833d",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Eye_Normal.png": "9ed61f7726a54fe346a78b9e5a18905d8e2b88f86235d97f53cd207a26f3f8c7",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Eye_Normal.png.import": "19d0bff2b25fef9c6843ea310fd3f3771bd3761cc9d0e02cd2adf320f6e9ee14",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Hair_1_BaseColor.png": "bc7aa863bd22ab0a995cd838cceb4d3a5186ee54ee2fb0108fad85d20c057e6e",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Hair_1_BaseColor.png.import": "798c44e20ed499c91c29dfca47c3602c8665a409630cd622c4bd37c430caec2d",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Hair_1_Normal.png": "57fd0ad8c96a4d01b38769637e066cecaa285b456f6e48ce00863754a457affb",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Hair_1_Normal.png.import": "f31b45e3563923b1e0988028b52ec38c5dd8f8073f0c35038bd91587f1839df2",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Dark_BaseColor_png.png": "b4dcc0f4139aab548d7c070c4655bd2080ef16caeaaabee6c4aeb693c524e802",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Dark_BaseColor_png.png.import": "f92b876cfb70e4527815e35ab00d11124ec2d76f313c12ed54bb8617ecd4d927",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Normal_png.png": "10cd71e2453e577fdd43e912b6016a99baf64964f0593e524bdd304855e15e2a",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Normal_png.png.import": "5dec5572d2be74d9212194dc62e41fbf07445309c69c188b6b08016ee209304a",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Roughness_png.png": "086c2eb25bddfdb77d8e639ccbffb8df723ef4a1910d8e1b217e852f8668bfe5",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Roughness_png.png.import": "0dad83a9bf607134ba002bcd91f8eca44584a3fe47e113e4072d838fcc8907e4"
+        },
+        "scene_dependencies": {
+          ".godot/imported/Regular_Male_FullBody.gltf-679b516cf0776c6c023adc08f20491b8.scn": "cd77109cf2bec20284d073163e5b8161b1290b3e7bdc837ca142e5f1a4952cb2",
+          ".godot/imported/T_Eye_Brown.png-2674170d636c87892389020ec716d635.s3tc.ctex": "a35a7adbe8fc09eec6e084fc2935d043340bf39b9ddf66b2876e33f78fbe7030",
+          ".godot/imported/T_Eye_Normal.png-7bc2b839175993d62e0cc8546b7c206a.s3tc.ctex": "2586af5c362910c0fbc47531db1d95e54102c8265cb9c5281de2ec69d526e3da",
+          ".godot/imported/T_Hair_1_BaseColor.png-9fa9cceeff58735482186318874a54ef.s3tc.ctex": "8c2915692529609bff4dbb5e33be85dc781ccca96547bc2a47835ddb77654524",
+          ".godot/imported/T_Hair_1_Normal.png-f559e99e98d63a9dfd338a4f8346590c.s3tc.ctex": "c613d0cf3cbbf0393a3d219e397665030ea4e56e21e7fe74a0945a34ff714296",
+          ".godot/imported/T_Regular_Male_Dark_BaseColor_png.png-0c025a56613133964bf3e5362094d87e.s3tc.ctex": "c5db2af87eff210865c99365e518594640bb29568ab0d39339829117f8f63a8a",
+          ".godot/imported/T_Regular_Male_Normal_png.png-88dc3186e182ab0dfc6c779762b8ee08.s3tc.ctex": "bf2ca1ac17590ee1c66daf5d70c95a0bef26909788159acbcf256b8954b8fa43",
+          ".godot/imported/T_Regular_Male_Roughness_png.png-83fe5292f3326786b6beedaeb7487677.s3tc.ctex": "205b89cfa0018fa7958b57e7e83f596412abb94ac7b0e178bf9297adc671c4d5",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.bin": "851f6a8954da6a27ab21ee3aacd11e50726d2822ffecae96784e43463517543f",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf": "c5c901b24dfc1a4f22e65c16abc0ea8b0a2791498f1c6475d017921320ce9dc3",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf.import": "9ca2183f49eaa96be9e30b07515f4bb2683578c3415d13335906fad451f1e19f",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Eye_Brown.png": "d08e3356a83211bc6ca21fe3a8e39f4b5c1a3b8f85457fc2c0fb57be09935025",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Eye_Brown.png.import": "7116ed116ea16fd19491f8e8d624868a696e3669863152975476858bb1f3833d",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Eye_Normal.png": "9ed61f7726a54fe346a78b9e5a18905d8e2b88f86235d97f53cd207a26f3f8c7",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Eye_Normal.png.import": "19d0bff2b25fef9c6843ea310fd3f3771bd3761cc9d0e02cd2adf320f6e9ee14",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Hair_1_BaseColor.png": "bc7aa863bd22ab0a995cd838cceb4d3a5186ee54ee2fb0108fad85d20c057e6e",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Hair_1_BaseColor.png.import": "798c44e20ed499c91c29dfca47c3602c8665a409630cd622c4bd37c430caec2d",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Hair_1_Normal.png": "57fd0ad8c96a4d01b38769637e066cecaa285b456f6e48ce00863754a457affb",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Hair_1_Normal.png.import": "f31b45e3563923b1e0988028b52ec38c5dd8f8073f0c35038bd91587f1839df2",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Dark_BaseColor_png.png": "b4dcc0f4139aab548d7c070c4655bd2080ef16caeaaabee6c4aeb693c524e802",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Dark_BaseColor_png.png.import": "f92b876cfb70e4527815e35ab00d11124ec2d76f313c12ed54bb8617ecd4d927",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Normal_png.png": "10cd71e2453e577fdd43e912b6016a99baf64964f0593e524bdd304855e15e2a",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Normal_png.png.import": "5dec5572d2be74d9212194dc62e41fbf07445309c69c188b6b08016ee209304a",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Roughness_png.png": "086c2eb25bddfdb77d8e639ccbffb8df723ef4a1910d8e1b217e852f8668bfe5",
+          "assets/vendor/quaternius/universal_base_characters/base_characters/T_Regular_Male_Roughness_png.png.import": "0dad83a9bf607134ba002bcd91f8eca44584a3fe47e113e4072d838fcc8907e4"
+        },
+        "settings": {
+          "candidate_triangles": 32,
+          "iterations_per_stage": 3,
+          "opposed_normal_penalty": 0.01,
+          "skin_weight_penalty": 0.004,
+          "stiffness": [
+            12.0,
+            6.0,
+            3.0,
+            1.0,
+            0.3
+          ],
+          "weld_decimals": 6
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "path": "res://assets/characters/wardrobe/original_male_regular.res",
+      "point_count": 6066,
+      "points_sha256": "7a8df32c030bb5969ca722c99b41f4bf9ec8fa1591a3224b2f7bcdd5ee802b65",
+      "registration_metrics": {
+        "iterations": [
+          {
+            "max_m": 0.00621315370029096,
+            "median_m": 5.608968013090748e-06,
+            "p95_m": 0.00141921497352251,
+            "stiffness": 12.0
+          },
+          {
+            "max_m": 0.005926777199137024,
+            "median_m": 3.688608183769742e-06,
+            "p95_m": 0.0009411223026240678,
+            "stiffness": 6.0
+          },
+          {
+            "max_m": 0.004626718892675613,
+            "median_m": 2.1434362407966216e-06,
+            "p95_m": 0.000732392936095087,
+            "stiffness": 3.0
+          },
+          {
+            "max_m": 0.0030128890332378087,
+            "median_m": 8.765935823797965e-07,
+            "p95_m": 0.0004281098347888588,
+            "stiffness": 1.0
+          },
+          {
+            "max_m": 0.0014285671868705188,
+            "median_m": 3.1183760002726244e-07,
+            "p95_m": 0.00018353373071712756,
+            "stiffness": 0.3
+          }
+        ]
+      },
+      "runtime_bone_aliases": {},
+      "source_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+      "uid": "uid://lo24epkjbtf3",
+      "visual_acceptance": "not established by authoring metrics"
+    }
+  },
+  "schema_version": 1
+}

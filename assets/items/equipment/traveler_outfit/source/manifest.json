@@ -1,0 +1,338 @@
+[
+  {
+    "part": "jacket",
+    "key": "male_regular",
+    "body": "res://assets/characters/humans/frontier_regular/male_regular.glb",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/male_regular.glb",
+    "sha256": "b2edf0897a862b36d68b4c9f626a8418e4c925b51b9656a3087ac262f88ba0ed"
+  },
+  {
+    "part": "trousers",
+    "key": "male_regular",
+    "body": "res://assets/characters/humans/frontier_regular/male_regular.glb",
+    "runtime": "res://assets/items/equipment/traveler_trousers/male_regular.glb",
+    "sha256": "8a78c67dafd76ac77fbb2566c1a079b84e52b7942db446e7bcd3708e080a7432"
+  },
+  {
+    "part": "boots",
+    "key": "male_regular",
+    "body": "res://assets/characters/humans/frontier_regular/male_regular.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/male_regular.glb",
+    "sha256": "6bbc0a7f0c22f632714d7e5b8dadbfa3aa7ef2728f4e2d4bf256ac7684b4410c"
+  },
+  {
+    "part": "gloves",
+    "key": "male_regular",
+    "body": "res://assets/characters/humans/frontier_regular/male_regular.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/male_regular.glb",
+    "sha256": "f4e1e0feda29f0f9c3f55d3dc323361ada356cd48660709c5573b8e1914613b5"
+  },
+  {
+    "part": "jacket",
+    "key": "male_heroic",
+    "body": "res://assets/characters/humans/frontier_variants/male_heroic.glb",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/male_heroic.glb",
+    "sha256": "9599739f16519628cc0d9980588612b9d0ccc8e11abbdf30690f0e64f31a4055"
+  },
+  {
+    "part": "trousers",
+    "key": "male_heroic",
+    "body": "res://assets/characters/humans/frontier_variants/male_heroic.glb",
+    "runtime": "res://assets/items/equipment/traveler_trousers/male_heroic.glb",
+    "sha256": "382104d58c79c92b7f6e4515e7305001f044ba899352da4dbc9ae24610ca3eb3"
+  },
+  {
+    "part": "boots",
+    "key": "male_heroic",
+    "body": "res://assets/characters/humans/frontier_variants/male_heroic.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/male_heroic.glb",
+    "sha256": "092a4ebf10534a5c99453ce597803237b079e613375bf107a1d0332fd92a0c11"
+  },
+  {
+    "part": "gloves",
+    "key": "male_heroic",
+    "body": "res://assets/characters/humans/frontier_variants/male_heroic.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/male_heroic.glb",
+    "sha256": "6fb4162ca2faea31d9d4831db1e8ac4472318efceaf051fafa2f03a0c3dd97fa"
+  },
+  {
+    "part": "jacket",
+    "key": "male_teen",
+    "body": "res://assets/characters/humans/frontier_variants/male_teen.glb",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/male_teen.glb",
+    "sha256": "a14b89ce7b45b6cb9592383c1b75ed2affce2fd05cfd1dad20a72d0e53e22cbd"
+  },
+  {
+    "part": "trousers",
+    "key": "male_teen",
+    "body": "res://assets/characters/humans/frontier_variants/male_teen.glb",
+    "runtime": "res://assets/items/equipment/traveler_trousers/male_teen.glb",
+    "sha256": "6235b68a9c658b7c144a7d72c8d12987b0f14d9814503d39768bf0a8f23ed16b"
+  },
+  {
+    "part": "boots",
+    "key": "male_teen",
+    "body": "res://assets/characters/humans/frontier_variants/male_teen.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/male_teen.glb",
+    "sha256": "4c51b84ae28f4fcaf0b491810b2824e8132069af58c06809c1531da4a3ee1ab3"
+  },
+  {
+    "part": "gloves",
+    "key": "male_teen",
+    "body": "res://assets/characters/humans/frontier_variants/male_teen.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/male_teen.glb",
+    "sha256": "5e9ea8af4a1fd7a977f167b7cf1389f5fb0ae89d977edbc3a54a2eb0df63679d"
+  },
+  {
+    "part": "jacket",
+    "key": "female_regular",
+    "body": "res://assets/characters/humans/frontier_regular/female_regular.glb",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/female_regular.glb",
+    "sha256": "88716f09c00bdebcb8438dbfd4274bb984d78b68846902525cb14f32dac441dd"
+  },
+  {
+    "part": "trousers",
+    "key": "female_regular",
+    "body": "res://assets/characters/humans/frontier_regular/female_regular.glb",
+    "runtime": "res://assets/items/equipment/traveler_trousers/female_regular.glb",
+    "sha256": "60b320bc665dcc9229502f436cce433f24e0f2f0c2692377ab8a8a16833f7a43"
+  },
+  {
+    "part": "boots",
+    "key": "female_regular",
+    "body": "res://assets/characters/humans/frontier_regular/female_regular.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/female_regular.glb",
+    "sha256": "237817e3479701cdf48b707f315f20fe8d015d3d941ca746579208a7d153beaa"
+  },
+  {
+    "part": "gloves",
+    "key": "female_regular",
+    "body": "res://assets/characters/humans/frontier_regular/female_regular.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/female_regular.glb",
+    "sha256": "0e5bf4b75052506779b89b584ee33b2364356d4f2c4be820179ed44dd0b0789b"
+  },
+  {
+    "part": "jacket",
+    "key": "female_heroic",
+    "body": "res://assets/characters/humans/frontier_variants/female_heroic.glb",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/female_heroic.glb",
+    "sha256": "8720965c8d13c294eb5f8a72038005892a909ee91a8f52ed5ed4c350b7d831fd"
+  },
+  {
+    "part": "trousers",
+    "key": "female_heroic",
+    "body": "res://assets/characters/humans/frontier_variants/female_heroic.glb",
+    "runtime": "res://assets/items/equipment/traveler_trousers/female_heroic.glb",
+    "sha256": "79fb6020acb2b85c865c25309dbf37ddef04af2803d5ab60c700c0b956516418"
+  },
+  {
+    "part": "boots",
+    "key": "female_heroic",
+    "body": "res://assets/characters/humans/frontier_variants/female_heroic.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/female_heroic.glb",
+    "sha256": "c90bd18fa995432beeddd16cb961288c1cf75b67e90056c5897e8978b03684c5"
+  },
+  {
+    "part": "gloves",
+    "key": "female_heroic",
+    "body": "res://assets/characters/humans/frontier_variants/female_heroic.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/female_heroic.glb",
+    "sha256": "8885b68a41def69aed9deb69cdc4984e0bfbcd7e49632b610c0ff0808eb6c8f3"
+  },
+  {
+    "part": "jacket",
+    "key": "female_teen",
+    "body": "res://assets/characters/humans/frontier_variants/female_teen.glb",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/female_teen.glb",
+    "sha256": "c7e94f89e14dac0d48b5d722877f10fcd88b8c94eb18d7881f23495477d32f0f"
+  },
+  {
+    "part": "trousers",
+    "key": "female_teen",
+    "body": "res://assets/characters/humans/frontier_variants/female_teen.glb",
+    "runtime": "res://assets/items/equipment/traveler_trousers/female_teen.glb",
+    "sha256": "8a35c5916f13bd85f5b5dd273497964a6c7f8cd08e29775570cb1b14c729e501"
+  },
+  {
+    "part": "boots",
+    "key": "female_teen",
+    "body": "res://assets/characters/humans/frontier_variants/female_teen.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/female_teen.glb",
+    "sha256": "0128ca6aaada321a6a05f41399802e9fc2c63e71b9d8d88f213fe7627b7d3437"
+  },
+  {
+    "part": "gloves",
+    "key": "female_teen",
+    "body": "res://assets/characters/humans/frontier_variants/female_teen.glb",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/female_teen.glb",
+    "sha256": "5885258a949b616d58b1197c73d7b5981f094c45f56ca519eef37c6dc9b0bd2d"
+  },
+  {
+    "part": "jacket",
+    "key": "male_regular_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/male_regular_original.glb",
+    "sha256": "336ba76252b2a310643cad4bff09db72c7b13f72eef0f38b65848271f3dea402"
+  },
+  {
+    "part": "trousers",
+    "key": "male_regular_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_trousers/male_regular_original.glb",
+    "sha256": "c4d68eb4bebd958c346f284eb20f43247574244f38dc1a8469abdb742ebf2683"
+  },
+  {
+    "part": "boots",
+    "key": "male_regular_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/male_regular_original.glb",
+    "sha256": "4a17128b0f976f0fbb8e37b0c055c6a169bb0281125eeac2f7b5cc5290fb5b39"
+  },
+  {
+    "part": "gloves",
+    "key": "male_regular_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/male_regular_original.glb",
+    "sha256": "fed63dad6d50954d0466746354060d40c404333a83096b6988998ab6274ff93f"
+  },
+  {
+    "part": "jacket",
+    "key": "male_heroic_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/male_heroic_original.glb",
+    "sha256": "9298b4540390cd73654d6ac8188d75db3fc94fb97937a9bf14851f6b925607ed"
+  },
+  {
+    "part": "trousers",
+    "key": "male_heroic_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_trousers/male_heroic_original.glb",
+    "sha256": "3c127b76c4a2642b567e78b2f88f997a15216f2b87a6c658d41d643660ef0c30"
+  },
+  {
+    "part": "boots",
+    "key": "male_heroic_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/male_heroic_original.glb",
+    "sha256": "acbfdd527acb41d57e8af9e1bbcc0fdf377ca94f3ad9e14de1dbe073ff71876e"
+  },
+  {
+    "part": "gloves",
+    "key": "male_heroic_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/male_heroic_original.glb",
+    "sha256": "d98e49ca2c7f8f47622b717188426d3dc3dbca911684b547842948cdbd730cf6"
+  },
+  {
+    "part": "jacket",
+    "key": "male_teen_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Teen_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/male_teen_original.glb",
+    "sha256": "bf32619e3b08dbd5949c3a1b545688b8e5be7b346c28a75798e5073342c5b411"
+  },
+  {
+    "part": "trousers",
+    "key": "male_teen_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Teen_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_trousers/male_teen_original.glb",
+    "sha256": "f876d3ad823311e6fecb72f38178e1e71cf2aeba69ad35c5c9d8330947d65df1"
+  },
+  {
+    "part": "boots",
+    "key": "male_teen_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Teen_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/male_teen_original.glb",
+    "sha256": "d58ebf56a4a19d8b2433d868a71a13d928f95b401109a6f4ad3c4c97a80be224"
+  },
+  {
+    "part": "gloves",
+    "key": "male_teen_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Teen_Male_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/male_teen_original.glb",
+    "sha256": "b7ea6f2dfb44d1e1659b34c35a7ec505cb0bea5006d1a958e7874818cc7fbf4d"
+  },
+  {
+    "part": "jacket",
+    "key": "female_regular_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/female_regular_original.glb",
+    "sha256": "2f4aba2b3fd39475406df97a975f5787d5f6bedb041b7da489a97e06827d69ec"
+  },
+  {
+    "part": "trousers",
+    "key": "female_regular_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_trousers/female_regular_original.glb",
+    "sha256": "26bdfe618ddffa19cf3ff71ac8ea5fe49c36f02ef11e3c871fc2d06506b90692"
+  },
+  {
+    "part": "boots",
+    "key": "female_regular_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/female_regular_original.glb",
+    "sha256": "4be2d738f0c995bee69bb8445dfe7b0afd003444add786b3d15e9f4f3c701deb"
+  },
+  {
+    "part": "gloves",
+    "key": "female_regular_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/female_regular_original.glb",
+    "sha256": "5063eed29f151b6f15bd63cf577074ec85c47ea427a89400e17c915c5793979b"
+  },
+  {
+    "part": "jacket",
+    "key": "female_heroic_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/female_heroic_original.glb",
+    "sha256": "956d26b3c29afb19c6bec126175a376b4f6eb4fe71e4d148f6dd62ae9c10f68a"
+  },
+  {
+    "part": "trousers",
+    "key": "female_heroic_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_trousers/female_heroic_original.glb",
+    "sha256": "4f73189102485d25c31a7e350a16a07eeb82fcaefefdd75b907c3ea9b70ddd91"
+  },
+  {
+    "part": "boots",
+    "key": "female_heroic_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/female_heroic_original.glb",
+    "sha256": "32710dc5c21106414bcd707bbebfc92be3b5e2a53e87137cbf23505d26ef50fd"
+  },
+  {
+    "part": "gloves",
+    "key": "female_heroic_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/female_heroic_original.glb",
+    "sha256": "9cc5da3045e663a05c77c4ee3df9699e1c1ace61f0496e37d52dd0b5753e438a"
+  },
+  {
+    "part": "jacket",
+    "key": "female_teen_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Teen_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_leather_jacket/body_fits/female_teen_original.glb",
+    "sha256": "8153fc8bedd9bb36a8b5f25aba7cf8cb4d702bae41470eb1c8843adb524efe9b"
+  },
+  {
+    "part": "trousers",
+    "key": "female_teen_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Teen_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_trousers/female_teen_original.glb",
+    "sha256": "05effc645555ac5e16dd57f0600965397b14908014add72878501a4c5c7c1bfc"
+  },
+  {
+    "part": "boots",
+    "key": "female_teen_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Teen_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_boots/female_teen_original.glb",
+    "sha256": "2566dd798585eb4a26a5505888ce50ba598d102ffda18c969beffbb0e61db337"
+  },
+  {
+    "part": "gloves",
+    "key": "female_teen_original",
+    "body": "res://assets/vendor/quaternius/universal_base_characters/base_characters/Teen_Female_FullBody.gltf",
+    "runtime": "res://assets/items/equipment/traveler_hide_gloves/female_teen_original.glb",
+    "sha256": "4653637e3c02e538d3f80b5243db85a3e2a3f302c30e480616fd148e101d5b3c"
+  }
+]

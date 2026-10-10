@@ -1,0 +1,2107 @@
+{
+  "artifacts": {
+    "knight_armet": {
+      "artifact_sha256": "94f006ce1a2382301bbfe7822f375f15f34ed67769d544d72823bfaf7b222c11",
+      "clearance_meters": 0.007263424144797965,
+      "clearance_ratio": 0.004,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "fcc1ec22da8843cb163a545286ac1e2fed4ded6230b06495cdf23854073ad834",
+          "mesh_path": "Armature/Skeleton3D/Male_Knight_Head_Armet",
+          "surface_index": 0,
+          "vertex_count": 1583
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.004,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Head_Armet.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Knight_Head_Armet.gltf-46b4bf553bb58283235a29c52eea8ad8.scn": "95285dfa11dc86d805dfc355f5542cb39263fde82ddc9286d48cfe8f9fdcb933",
+          ".godot/imported/T_Knight_BaseColor.png-2b7b3ae9e65784bc25544a9d287fb231.s3tc.ctex": "9457cf7d243187637a4e71c7379acdcb30f30075b43a241276b67ddcac0b9705",
+          ".godot/imported/T_Knight_Normal.png-e017256777d4a95f96ebdf0f23035015.s3tc.ctex": "4368cafa784bbedfc208a9d2f030753881c2b01ada8731ba2c643074f6fd8ed8",
+          ".godot/imported/T_Knight_ORM.png-7a2cc3962b8888dd0070ac33d28b7fc6.s3tc.ctex": "5cbe0685c96ed5ae0ed4bca9f8ea05cd313cbde0c57663f64f20213b9600c053",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Head_Armet.bin": "e8f4443acdcaeb8c694cae02bf93864b130fcd4607c2b0ce1c2126905691389c",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Head_Armet.gltf": "0161fbff8f33dad9192b652e182696ee0771d7e99de9e9d25505511e63abd796",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Head_Armet.gltf.import": "f451bfc77797612d6194823ac1cb9ebf5b592fcf38d2057ea7e88378188e5eab",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png": "ea7f3691c41d5130096fb18196c2448fbde5ad372d9aab7c33852e4019483460",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png.import": "cc8131668560bbd88fb9192485d6ce9bbf2b6d2f88ebc152217e23fbf1467bd6",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png": "b3ced7c1405acfc9945455696e8dbc44c298cd9aa992fd78cb574aa27810f5d5",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png.import": "875df67f226cc3414ddc084a6841ef7496611742737bf72271630268fadb499e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png": "3633bd33a1ededb46b0bdabb3aa35e1d0e6993962ed1e7e2d45f9f3ad0dc064f",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png.import": "6dc25a037aafc855f8ccaea7fed04e475069277f6818cf26effb173dd08ccf9f"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_armet.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/knight_armet.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "ffa0111dbb5f789339da3be3f4a66c92b422a64147269b09ad19a5acaceb7626",
+      "uid": "uid://dq35wvfhtloav",
+      "used_joint_names": [
+        "Head"
+      ],
+      "vertices": 1583,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "knight_cuirass": {
+      "artifact_sha256": "818fa1fed9da90f19dd45e597c3210bd237348248598d1e982b5c9909504d0e8",
+      "clearance_meters": 0.03268540865159084,
+      "clearance_ratio": 0.018,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "22f8ae31a96c741c81a396eebee239a1fa5de6d327e43ad7f0b7254506852b48",
+          "mesh_path": "Armature/Skeleton3D/Male_Knight_Body_Armor",
+          "surface_index": 0,
+          "vertex_count": 5336
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.018,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Armor.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Knight_Body_Armor.gltf-54497b16193ac90d24cbce364b4e8462.scn": "b530384c8c7b31df3e19b1fa543ea47373f71a4a67feac8925158953378dbd68",
+          ".godot/imported/T_Knight_BaseColor.png-2b7b3ae9e65784bc25544a9d287fb231.s3tc.ctex": "9457cf7d243187637a4e71c7379acdcb30f30075b43a241276b67ddcac0b9705",
+          ".godot/imported/T_Knight_Normal.png-e017256777d4a95f96ebdf0f23035015.s3tc.ctex": "4368cafa784bbedfc208a9d2f030753881c2b01ada8731ba2c643074f6fd8ed8",
+          ".godot/imported/T_Knight_ORM.png-7a2cc3962b8888dd0070ac33d28b7fc6.s3tc.ctex": "5cbe0685c96ed5ae0ed4bca9f8ea05cd313cbde0c57663f64f20213b9600c053",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Armor.bin": "30d6327869d2b9f6fadc677a28250e1e3185c8890e082c2c3465c41161a73caa",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Armor.gltf": "67745658ba877f466780cd2b60293b44a14786798d56384c22cb11a6a1dd2fba",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Armor.gltf.import": "4621cea4fc2618c1e4933cccf6da10c7505ab5828371bee39c23f8f9e8b9d9c4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png": "ea7f3691c41d5130096fb18196c2448fbde5ad372d9aab7c33852e4019483460",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png.import": "cc8131668560bbd88fb9192485d6ce9bbf2b6d2f88ebc152217e23fbf1467bd6",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png": "b3ced7c1405acfc9945455696e8dbc44c298cd9aa992fd78cb574aa27810f5d5",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png.import": "875df67f226cc3414ddc084a6841ef7496611742737bf72271630268fadb499e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png": "3633bd33a1ededb46b0bdabb3aa35e1d0e6993962ed1e7e2d45f9f3ad0dc064f",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png.import": "6dc25a037aafc855f8ccaea7fed04e475069277f6818cf26effb173dd08ccf9f"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_cuirass.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/knight_cuirass.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "3c6eae811e3cafec0a8e25aa45bf918e745aa8ada982eed0507efd0693427229",
+      "uid": "uid://dtysdukioimox",
+      "used_joint_names": [
+        "Head",
+        "clavicle_l",
+        "clavicle_r",
+        "neck_01",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 5336,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "knight_gambeson": {
+      "artifact_sha256": "655f2d47c9ea907b70b47988ac10b15d3285c2c295b9a2d2fcb6ca701198282d",
+      "clearance_meters": 0.0,
+      "clearance_ratio": 0.0,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "a25d512c71fd6848033d3836ecc583fd54ad97dda561176e4faea60d2d239665",
+          "mesh_path": "Armature/Skeleton3D/Male_Knight_Body_Cloth",
+          "surface_index": 0,
+          "vertex_count": 1701
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.0,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Cloth.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Knight_Body_Cloth.gltf-49166ddafc3aa32239f7c0a683b20a46.scn": "5833b0c77c3e4bb57aa5e79776a84e9d202bfbe1c8352e7329b3ab5ac2ea9fa1",
+          ".godot/imported/T_Knight_BaseColor.png-2b7b3ae9e65784bc25544a9d287fb231.s3tc.ctex": "9457cf7d243187637a4e71c7379acdcb30f30075b43a241276b67ddcac0b9705",
+          ".godot/imported/T_Knight_Normal.png-e017256777d4a95f96ebdf0f23035015.s3tc.ctex": "4368cafa784bbedfc208a9d2f030753881c2b01ada8731ba2c643074f6fd8ed8",
+          ".godot/imported/T_Knight_ORM.png-7a2cc3962b8888dd0070ac33d28b7fc6.s3tc.ctex": "5cbe0685c96ed5ae0ed4bca9f8ea05cd313cbde0c57663f64f20213b9600c053",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Cloth.bin": "371511d0ee3871b51f15d23485fd0ee822387e27e1b29c05666081e593f68689",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Cloth.gltf": "9226d8745f71b339afd50e3db8936c77dc24f4a4693ab114156a3a39e8a0a9b9",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Cloth.gltf.import": "9dbd3b5cb4adacadaec1813206f5cf1aab1fb4951aa0671efa085c5f401f14af",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png": "ea7f3691c41d5130096fb18196c2448fbde5ad372d9aab7c33852e4019483460",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png.import": "cc8131668560bbd88fb9192485d6ce9bbf2b6d2f88ebc152217e23fbf1467bd6",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png": "b3ced7c1405acfc9945455696e8dbc44c298cd9aa992fd78cb574aa27810f5d5",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png.import": "875df67f226cc3414ddc084a6841ef7496611742737bf72271630268fadb499e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png": "3633bd33a1ededb46b0bdabb3aa35e1d0e6993962ed1e7e2d45f9f3ad0dc064f",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png.import": "6dc25a037aafc855f8ccaea7fed04e475069277f6818cf26effb173dd08ccf9f"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_gambeson.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/knight_gambeson.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "43a63c287d01e73dac197274196cd19ed020e80b6766bfe9ae66a32afa664640",
+      "uid": "uid://d05h2ossd2wys",
+      "used_joint_names": [
+        "clavicle_l",
+        "clavicle_r",
+        "neck_01",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 1701,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "knight_gauntlets": {
+      "artifact_sha256": "38962e6ae30143c8d4f70908938d23bbcf04522d9cf1c2400dda8efbe5c9b7cf",
+      "clearance_meters": 0.02542198450679288,
+      "clearance_ratio": 0.014,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "e00ac0c0e540e10336daa4f8fff9c2c2082a2f1be712cb60f4ade5c5dafe6b79",
+          "mesh_path": "Armature/Skeleton3D/Male_Knight_Arms",
+          "surface_index": 0,
+          "vertex_count": 7140
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.014,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Arms.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Knight_Arms.gltf-84e23295534bbe73e27f8d29fb6b112b.scn": "b1b5ce0a28d4bc51de4a26eac6dd3facc27b7f10e6b6ac785291ac24df6fccb2",
+          ".godot/imported/T_Knight_BaseColor.png-2b7b3ae9e65784bc25544a9d287fb231.s3tc.ctex": "9457cf7d243187637a4e71c7379acdcb30f30075b43a241276b67ddcac0b9705",
+          ".godot/imported/T_Knight_Normal.png-e017256777d4a95f96ebdf0f23035015.s3tc.ctex": "4368cafa784bbedfc208a9d2f030753881c2b01ada8731ba2c643074f6fd8ed8",
+          ".godot/imported/T_Knight_ORM.png-7a2cc3962b8888dd0070ac33d28b7fc6.s3tc.ctex": "5cbe0685c96ed5ae0ed4bca9f8ea05cd313cbde0c57663f64f20213b9600c053",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Arms.bin": "065cfddea8a6b6dadb5a9ff2a6d0341a62c5a7f0b2f1a3a9415f5f372e49d753",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Arms.gltf": "3d46e6c94b300570ce48eed6bc31192f8f34a030ceeec35bd2a260ba76da56ba",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Arms.gltf.import": "d74e75825237c7b9fb7ae7b7d5d6c07d7cdf8563041eba020fec0a9c5ee3b358",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png": "ea7f3691c41d5130096fb18196c2448fbde5ad372d9aab7c33852e4019483460",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png.import": "cc8131668560bbd88fb9192485d6ce9bbf2b6d2f88ebc152217e23fbf1467bd6",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png": "b3ced7c1405acfc9945455696e8dbc44c298cd9aa992fd78cb574aa27810f5d5",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png.import": "875df67f226cc3414ddc084a6841ef7496611742737bf72271630268fadb499e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png": "3633bd33a1ededb46b0bdabb3aa35e1d0e6993962ed1e7e2d45f9f3ad0dc064f",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png.import": "6dc25a037aafc855f8ccaea7fed04e475069277f6818cf26effb173dd08ccf9f"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_gauntlets.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/knight_gauntlets.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "79dcb270efb52d27b7d027f83eedb7b3e634b05367c13da6a0774186b943dd53",
+      "uid": "uid://cx372brit1i7v",
+      "used_joint_names": [
+        "clavicle_l",
+        "clavicle_r",
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "neck_01",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "spine_02",
+        "spine_03",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 7140,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "knight_greaves": {
+      "artifact_sha256": "da8c9e370a97f66c4c210b7c4d5937db43483bf2df125570a4193562966fda77",
+      "clearance_meters": 0.02905369657919186,
+      "clearance_ratio": 0.016,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "726e300f2f0762907433d769a9278416cf26e4349ef2bb65da746835c2e1ca81",
+          "mesh_path": "Armature/Skeleton3D/Male_Knight_Legs_Armor",
+          "surface_index": 0,
+          "vertex_count": 2567
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.016,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Legs_Armor.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Knight_Legs_Armor.gltf-07751f6a8be533e6d60f9c08e44020f7.scn": "ec01b2e4a256a4ccbc472293207d839cfc3bae46426dc1a7a1451c408f3b38ca",
+          ".godot/imported/T_Knight_BaseColor.png-2b7b3ae9e65784bc25544a9d287fb231.s3tc.ctex": "9457cf7d243187637a4e71c7379acdcb30f30075b43a241276b67ddcac0b9705",
+          ".godot/imported/T_Knight_Normal.png-e017256777d4a95f96ebdf0f23035015.s3tc.ctex": "4368cafa784bbedfc208a9d2f030753881c2b01ada8731ba2c643074f6fd8ed8",
+          ".godot/imported/T_Knight_ORM.png-7a2cc3962b8888dd0070ac33d28b7fc6.s3tc.ctex": "5cbe0685c96ed5ae0ed4bca9f8ea05cd313cbde0c57663f64f20213b9600c053",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Legs_Armor.bin": "5bbb474a58fc52893673af81def7a02fa08893a0c8176d2ead04c0de8888651e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Legs_Armor.gltf": "003b6227d75baf0ebfac785984926a74fe52e130418ff54acc6bd7ed84811e36",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Legs_Armor.gltf.import": "6b5988cc3a57939b10e80a96d43d22d518a10165d01658667ff4350a9ee5b9e0",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png": "ea7f3691c41d5130096fb18196c2448fbde5ad372d9aab7c33852e4019483460",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png.import": "cc8131668560bbd88fb9192485d6ce9bbf2b6d2f88ebc152217e23fbf1467bd6",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png": "b3ced7c1405acfc9945455696e8dbc44c298cd9aa992fd78cb574aa27810f5d5",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png.import": "875df67f226cc3414ddc084a6841ef7496611742737bf72271630268fadb499e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png": "3633bd33a1ededb46b0bdabb3aa35e1d0e6993962ed1e7e2d45f9f3ad0dc064f",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png.import": "6dc25a037aafc855f8ccaea7fed04e475069277f6818cf26effb173dd08ccf9f"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_greaves.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/knight_greaves.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "afd333a08941e81db2da5c695f281333909e1694c8c12eaca544d20b80ccc94b",
+      "uid": "uid://bmhu1f1pyfipv",
+      "used_joint_names": [
+        "calf_l",
+        "calf_r",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "thigh_l",
+        "thigh_r"
+      ],
+      "vertices": 2567,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "knight_horned_helm": {
+      "artifact_sha256": "fe884ab0915b00c4764e3c5c333a3dc7d08cf08cc50ae2d5cb66659c14a8fa8b",
+      "clearance_meters": 0.007263424144797965,
+      "clearance_ratio": 0.004,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "98b08d06cee7585f5c220618dfd28ccd4823b1b1027888e92f9546ca71aec663",
+          "mesh_path": "Armature/Skeleton3D/Male_Knight_Head_Horns",
+          "surface_index": 0,
+          "vertex_count": 1530
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.004,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Head_Horns.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Knight_Head_Horns.gltf-85f73adc3b4d582af2ed3dc3db8d0f33.scn": "767a109326ad6407470e9fa2e8e8e1ee090c2b89e336e6c2be734a1a3ab83d40",
+          ".godot/imported/T_Knight_BaseColor.png-2b7b3ae9e65784bc25544a9d287fb231.s3tc.ctex": "9457cf7d243187637a4e71c7379acdcb30f30075b43a241276b67ddcac0b9705",
+          ".godot/imported/T_Knight_Normal.png-e017256777d4a95f96ebdf0f23035015.s3tc.ctex": "4368cafa784bbedfc208a9d2f030753881c2b01ada8731ba2c643074f6fd8ed8",
+          ".godot/imported/T_Knight_ORM.png-7a2cc3962b8888dd0070ac33d28b7fc6.s3tc.ctex": "5cbe0685c96ed5ae0ed4bca9f8ea05cd313cbde0c57663f64f20213b9600c053",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Head_Horns.bin": "8807ece2c9a51b9a259be5df106f0ea0334d12668869716149a0fed8f58c4481",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Head_Horns.gltf": "634fe9acff060860ea42e92566fd60c96725e2ab8318795633217711b51f8212",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Head_Horns.gltf.import": "0f331ef949aedd55508aa3ff1f7591e14d0d302a85236f28defcf625e00cc82b",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png": "ea7f3691c41d5130096fb18196c2448fbde5ad372d9aab7c33852e4019483460",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png.import": "cc8131668560bbd88fb9192485d6ce9bbf2b6d2f88ebc152217e23fbf1467bd6",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png": "b3ced7c1405acfc9945455696e8dbc44c298cd9aa992fd78cb574aa27810f5d5",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png.import": "875df67f226cc3414ddc084a6841ef7496611742737bf72271630268fadb499e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png": "3633bd33a1ededb46b0bdabb3aa35e1d0e6993962ed1e7e2d45f9f3ad0dc064f",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png.import": "6dc25a037aafc855f8ccaea7fed04e475069277f6818cf26effb173dd08ccf9f"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_horned_helm.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/knight_horned_helm.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "8c20810047ce9014752ba2a73bdf1bd309f1844279ca415a11f209e497b0cc27",
+      "uid": "uid://dui3v7n2f6eak",
+      "used_joint_names": [
+        "Head"
+      ],
+      "vertices": 1530,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "knight_sabatons": {
+      "artifact_sha256": "e450b67aaaccc0c053d7e49e5bb72775e47f6aa22ff0b96f49fe5f03eb41b8b4",
+      "clearance_meters": 0.021790272434393895,
+      "clearance_ratio": 0.012,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "4fac3f8f600a9759a7a8798cde8d74a0e2be68f18c2a5147e6f25961d227f97b",
+          "mesh_path": "Armature/Skeleton3D/Male_Knight_Feet_Armor",
+          "surface_index": 0,
+          "vertex_count": 1954
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.012,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Feet_Armor.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Knight_Feet_Armor.gltf-a4d5c96d7e2e719a9e339876d6af1294.scn": "06aabc60ec41b73a7de9e17cc01ea9fd92b712f527e0bd8844de212c3992d683",
+          ".godot/imported/T_Knight_BaseColor.png-2b7b3ae9e65784bc25544a9d287fb231.s3tc.ctex": "9457cf7d243187637a4e71c7379acdcb30f30075b43a241276b67ddcac0b9705",
+          ".godot/imported/T_Knight_Normal.png-e017256777d4a95f96ebdf0f23035015.s3tc.ctex": "4368cafa784bbedfc208a9d2f030753881c2b01ada8731ba2c643074f6fd8ed8",
+          ".godot/imported/T_Knight_ORM.png-7a2cc3962b8888dd0070ac33d28b7fc6.s3tc.ctex": "5cbe0685c96ed5ae0ed4bca9f8ea05cd313cbde0c57663f64f20213b9600c053",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Feet_Armor.bin": "b43c229d16c58939c6d8104ceeeaf228ac5b8cad533b857b3f308a49b066d299",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Feet_Armor.gltf": "ab7c4bc6d7c38ae1f2e6a9e52e6a6c71b45f2f4d046c52e758aac92b5ed85656",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Feet_Armor.gltf.import": "056af3630ce4bad802dfc3d6d36455b542b20b13124c4b1a5858abbc0806171f",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png": "ea7f3691c41d5130096fb18196c2448fbde5ad372d9aab7c33852e4019483460",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_BaseColor.png.import": "cc8131668560bbd88fb9192485d6ce9bbf2b6d2f88ebc152217e23fbf1467bd6",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png": "b3ced7c1405acfc9945455696e8dbc44c298cd9aa992fd78cb574aa27810f5d5",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_Normal.png.import": "875df67f226cc3414ddc084a6841ef7496611742737bf72271630268fadb499e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png": "3633bd33a1ededb46b0bdabb3aa35e1d0e6993962ed1e7e2d45f9f3ad0dc064f",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Knight_ORM.png.import": "6dc25a037aafc855f8ccaea7fed04e475069277f6818cf26effb173dd08ccf9f"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/knight_sabatons.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/knight_sabatons.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "5d1093939981b05cdef29108b6cc3aac58f6583ac0e852f599d3cab5840cfebb",
+      "uid": "uid://dhwf6rjatpvu",
+      "used_joint_names": [
+        "ball_l",
+        "ball_leaf_l",
+        "ball_leaf_r",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "foot_l",
+        "foot_r"
+      ],
+      "vertices": 1954,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "noble_crown": {
+      "artifact_sha256": "e8b2dcc4d3d2618b6bb013b2b650bde9eba85d942f3e42b0e2dfee9867738331",
+      "clearance_meters": 0.007263424144797965,
+      "clearance_ratio": 0.004,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "8c65008cba55ab80c00ec3e607d2224636c198d4fba0a4b305b03f4885c52230",
+          "mesh_path": "Armature/Skeleton3D/Male_Noble_Head_Crown",
+          "surface_index": 0,
+          "vertex_count": 3980
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.004,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Head_Crown.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Noble_Head_Crown.gltf-ea7f67f708b84426405f58c44d021a7f.scn": "4e82df2b10af19dfce8141e80d45bdf59c64b13d3e31b987a432f81e8b726159",
+          ".godot/imported/T_Noble_BaseColor.png-182a49f9d0bcaf4e750144b9b446ace5.s3tc.ctex": "6d49021d5a3f8424022c9ef40389377a4023d2d3cbe14a65dd448b4eb47b68b0",
+          ".godot/imported/T_Noble_Normal.png-0bf3c9f4b05f2522b7021f4dd6e423d8.s3tc.ctex": "cb53f88f916e3436e3fdcdb01cdec66bc6e2f8ada8c824f74e6b2bea80123c0e",
+          ".godot/imported/T_Noble_ORM.png-7ad30c561dc9a755dd62abb944c419c2.s3tc.ctex": "4afbba8b231e903eb5a11bc1ad6bc46efcfb0a5092a801d00430b895ff8f0e81",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Head_Crown.bin": "20afca8e8c09820fb77043dd3ff558ea4c5e3ab037637a491d3f382b1a473bea",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Head_Crown.gltf": "9793659fc9825364b93619da2a20e4c3a288817e8263e19b2dba8661304ac59f",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Head_Crown.gltf.import": "68b335638166350709a6ee4b2899511f639429a7663605303c671c6ad91ee659",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_BaseColor.png": "5c4f6d4ce321c948f7800dd1241013e48d1c9a11bbb7d35ad0d2ec9d1b2ca1d9",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_BaseColor.png.import": "ed7724352196da6c7c289ea264786d633b349df8f4823ce345fcf37e6c0f1e0e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_Normal.png": "c250472a7715a0058221980f68d5e42f61e0ac9d7b889a91ca8fd86c04a66a08",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_Normal.png.import": "3bb6cd4d8044896fc3152da80699e183ce1fddea60846f2850cd0347b143fbf4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_ORM.png": "1f7ecbda5e2b55371a4ab690d85eb87a8b442b74158529d57554bd3f48164126",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_ORM.png.import": "799e9f3850069b70160184da0a4744e2b4b774c986c1d60262c0aa50f0c88ffd"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/noble_crown.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/noble_crown.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "2a772749e2abf671d49242e02c0903f97e865afa3bb07051b8cbc5505767dd19",
+      "uid": "uid://dy5amncfvnjgk",
+      "used_joint_names": [
+        "Head"
+      ],
+      "vertices": 3980,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "noble_doublet": {
+      "artifact_sha256": "fed5a122a69783579883aad67c4783f3035d4e5ffc356cd4ef7149f60e170176",
+      "clearance_meters": 0.018158560361994914,
+      "clearance_ratio": 0.01,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "ddd3522260ce1dd0318cd5db8fc8467071e44ff965b514b281d5883adc5af58e",
+          "mesh_path": "Armature/Skeleton3D/Male_Noble_Body",
+          "surface_index": 0,
+          "vertex_count": 4531
+        },
+        {
+          "arrays_sha256": "b48710a4a1a7911d9008a3dd839f5c08f2976105581b459fe57a6d26d949cc18",
+          "mesh_path": "Armature/Skeleton3D/Male_Noble_Body_Belt",
+          "surface_index": 0,
+          "vertex_count": 1348
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.01,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Body.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Noble_Body.gltf-5f0ecb167f8aab932c3d55fa03d01922.scn": "5fe8a9bbed1aa896bd127fa22b24b7a9d58f68443097df03d5251c2305ae5e94",
+          ".godot/imported/T_Noble_BaseColor.png-182a49f9d0bcaf4e750144b9b446ace5.s3tc.ctex": "6d49021d5a3f8424022c9ef40389377a4023d2d3cbe14a65dd448b4eb47b68b0",
+          ".godot/imported/T_Noble_Normal.png-0bf3c9f4b05f2522b7021f4dd6e423d8.s3tc.ctex": "cb53f88f916e3436e3fdcdb01cdec66bc6e2f8ada8c824f74e6b2bea80123c0e",
+          ".godot/imported/T_Noble_ORM.png-7ad30c561dc9a755dd62abb944c419c2.s3tc.ctex": "4afbba8b231e903eb5a11bc1ad6bc46efcfb0a5092a801d00430b895ff8f0e81",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Body.bin": "4ab167d2cbe66d7dad136f0014dadd01e0cd892cb3ed4ae07a0203e5144dd2c6",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Body.gltf": "160854613fb39793a7cfcb583387ab9e06a264877b1c8f42a6f24f9cbae55989",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Body.gltf.import": "e7abc64aa4e68b8da2e33be084ebb5f9b4479f57bec1f5bfcf2b01398b605ce8",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_BaseColor.png": "5c4f6d4ce321c948f7800dd1241013e48d1c9a11bbb7d35ad0d2ec9d1b2ca1d9",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_BaseColor.png.import": "ed7724352196da6c7c289ea264786d633b349df8f4823ce345fcf37e6c0f1e0e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_Normal.png": "c250472a7715a0058221980f68d5e42f61e0ac9d7b889a91ca8fd86c04a66a08",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_Normal.png.import": "3bb6cd4d8044896fc3152da80699e183ce1fddea60846f2850cd0347b143fbf4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_ORM.png": "1f7ecbda5e2b55371a4ab690d85eb87a8b442b74158529d57554bd3f48164126",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_ORM.png.import": "799e9f3850069b70160184da0a4744e2b4b774c986c1d60262c0aa50f0c88ffd"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/noble_doublet.tres"
+      ],
+      "legacy_equipped_transform": "Transform3D(1.045, 0, 0, 0, 1, 0, 0, 0, 1.065, 0, 0, 0)",
+      "path": "res://assets/items/equipment/wardrobe_bindings/noble_doublet.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "cdfa7e2973ab215417f3396362e0e167d9ae4a85021e8e177197b97ad526f3c3",
+      "uid": "uid://cs5jgkvd1l3tp",
+      "used_joint_names": [
+        "Head",
+        "clavicle_l",
+        "clavicle_r",
+        "neck_01",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 5879,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "noble_shoes": {
+      "artifact_sha256": "c709baa851c81b03c092de6cd489dac98bfd8d7fc6bb278eabb69ef7668cc1bf",
+      "clearance_meters": 0.021790272434393895,
+      "clearance_ratio": 0.012,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "987d3d9e1c675eff7731139f47fb5a1ca197498e669582c3d15c2c0e98b658dc",
+          "mesh_path": "Armature/Skeleton3D/Male_Noble_Feet",
+          "surface_index": 0,
+          "vertex_count": 3840
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.012,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Feet.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Noble_Feet.gltf-d2ae1b3e39ed0fec8cdcdb81e367c84e.scn": "927d016bfb16d5406933967853b02a4a999715bce085d4d6af13532c0d3f5fd4",
+          ".godot/imported/T_Noble_BaseColor.png-182a49f9d0bcaf4e750144b9b446ace5.s3tc.ctex": "6d49021d5a3f8424022c9ef40389377a4023d2d3cbe14a65dd448b4eb47b68b0",
+          ".godot/imported/T_Noble_Normal.png-0bf3c9f4b05f2522b7021f4dd6e423d8.s3tc.ctex": "cb53f88f916e3436e3fdcdb01cdec66bc6e2f8ada8c824f74e6b2bea80123c0e",
+          ".godot/imported/T_Noble_ORM.png-7ad30c561dc9a755dd62abb944c419c2.s3tc.ctex": "4afbba8b231e903eb5a11bc1ad6bc46efcfb0a5092a801d00430b895ff8f0e81",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Feet.bin": "e0f446f4654da1f3cca0a77075afce08c998dd2f641e62bcdcacf26929fd2799",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Feet.gltf": "676dc3b14eb9ce9a8d9bc8a4157f296c7179604309143277f9e417b1640aea08",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Feet.gltf.import": "312d955fc8c60ab943b97bc2bd13cc204378062c903234893b0f1b04dbc5f251",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_BaseColor.png": "5c4f6d4ce321c948f7800dd1241013e48d1c9a11bbb7d35ad0d2ec9d1b2ca1d9",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_BaseColor.png.import": "ed7724352196da6c7c289ea264786d633b349df8f4823ce345fcf37e6c0f1e0e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_Normal.png": "c250472a7715a0058221980f68d5e42f61e0ac9d7b889a91ca8fd86c04a66a08",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_Normal.png.import": "3bb6cd4d8044896fc3152da80699e183ce1fddea60846f2850cd0347b143fbf4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_ORM.png": "1f7ecbda5e2b55371a4ab690d85eb87a8b442b74158529d57554bd3f48164126",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_ORM.png.import": "799e9f3850069b70160184da0a4744e2b4b774c986c1d60262c0aa50f0c88ffd"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/noble_shoes.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/noble_shoes.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "a011c2fd83af0e122196c03137ebb52cb6498732c71c30704452e29b940311d7",
+      "uid": "uid://bt1fbow6t31lv",
+      "used_joint_names": [
+        "ball_l",
+        "ball_leaf_l",
+        "ball_leaf_r",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "foot_l",
+        "foot_r"
+      ],
+      "vertices": 3840,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "noble_sleeves": {
+      "artifact_sha256": "5c0a68699d0aebaf7a20be84291a641040c9a559b7a0a177138800c2b5b83c09",
+      "clearance_meters": 0.02542198450679288,
+      "clearance_ratio": 0.014,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "6ad80876092694f5594d6dab0b0fdcd360d39a5fc472ffad97a44cff5008003d",
+          "mesh_path": "Armature/Skeleton3D/Male_Noble_Arms",
+          "surface_index": 0,
+          "vertex_count": 3354
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.014,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Arms.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Noble_Arms.gltf-675be183d4644b692ebcb21e4b966d08.scn": "76d3a6dfb91a5c3bd3c20883064cb67df542731c2c436c3430b0195cd46eca90",
+          ".godot/imported/T_Noble_BaseColor.png-182a49f9d0bcaf4e750144b9b446ace5.s3tc.ctex": "6d49021d5a3f8424022c9ef40389377a4023d2d3cbe14a65dd448b4eb47b68b0",
+          ".godot/imported/T_Noble_Normal.png-0bf3c9f4b05f2522b7021f4dd6e423d8.s3tc.ctex": "cb53f88f916e3436e3fdcdb01cdec66bc6e2f8ada8c824f74e6b2bea80123c0e",
+          ".godot/imported/T_Noble_ORM.png-7ad30c561dc9a755dd62abb944c419c2.s3tc.ctex": "4afbba8b231e903eb5a11bc1ad6bc46efcfb0a5092a801d00430b895ff8f0e81",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Arms.bin": "a6109a1298f63e71748b341e6d5e177b8f424f66a04c0201df037575e651e65b",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Arms.gltf": "40950c3baa1d0df890ddac2087a208a84efbf8ff8c5bb50b9ef16aae1edc359b",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Arms.gltf.import": "b0d8d1c0bbe0e9ab43441cf6040db7e133c9017eded95fd61ce6d9ab047414ec",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_BaseColor.png": "5c4f6d4ce321c948f7800dd1241013e48d1c9a11bbb7d35ad0d2ec9d1b2ca1d9",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_BaseColor.png.import": "ed7724352196da6c7c289ea264786d633b349df8f4823ce345fcf37e6c0f1e0e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_Normal.png": "c250472a7715a0058221980f68d5e42f61e0ac9d7b889a91ca8fd86c04a66a08",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_Normal.png.import": "3bb6cd4d8044896fc3152da80699e183ce1fddea60846f2850cd0347b143fbf4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_ORM.png": "1f7ecbda5e2b55371a4ab690d85eb87a8b442b74158529d57554bd3f48164126",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_ORM.png.import": "799e9f3850069b70160184da0a4744e2b4b774c986c1d60262c0aa50f0c88ffd"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/noble_sleeves.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/noble_sleeves.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "df193475e145e6c4a9c770fc75e90c879594a78cfbab4d370e47f31c299d5b1b",
+      "uid": "uid://ciudw7mnr3e0",
+      "used_joint_names": [
+        "clavicle_l",
+        "clavicle_r",
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "neck_01",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "pinky_04_leaf_l",
+        "pinky_04_leaf_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "spine_02",
+        "spine_03",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "thumb_04_leaf_l",
+        "thumb_04_leaf_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 3354,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "noble_trousers": {
+      "artifact_sha256": "12d4c77a65262d9e7c4ce972d4159819f515c24482a134777b963e0e07df5155",
+      "clearance_meters": 0.02905369657919186,
+      "clearance_ratio": 0.016,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "b2f7fc371652169b5746dddf27f121e0699ac1e448712f8aec4557d542fc543f",
+          "mesh_path": "Armature/Skeleton3D/Male_Noble_Legs",
+          "surface_index": 0,
+          "vertex_count": 876
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.016,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Legs.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Noble_Legs.gltf-615527b7d2f1f1118ff8fdc3f84a5d9f.scn": "ff55bbada2ae278b96b95b37c727f7696382a67b15f6e6761b2d08b990cd4d93",
+          ".godot/imported/T_Noble_BaseColor.png-182a49f9d0bcaf4e750144b9b446ace5.s3tc.ctex": "6d49021d5a3f8424022c9ef40389377a4023d2d3cbe14a65dd448b4eb47b68b0",
+          ".godot/imported/T_Noble_Normal.png-0bf3c9f4b05f2522b7021f4dd6e423d8.s3tc.ctex": "cb53f88f916e3436e3fdcdb01cdec66bc6e2f8ada8c824f74e6b2bea80123c0e",
+          ".godot/imported/T_Noble_ORM.png-7ad30c561dc9a755dd62abb944c419c2.s3tc.ctex": "4afbba8b231e903eb5a11bc1ad6bc46efcfb0a5092a801d00430b895ff8f0e81",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Legs.bin": "946af9291be4e7d6cf93dbfc408e413a582e4cb3bba96a5eb74a0bf7bf41f029",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Legs.gltf": "030a25ca71d0b2ec4672731ddb1fa37bc8bab2afd84ca63545abbd22a9422fa6",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Legs.gltf.import": "d85ed481288b424b90d0bfa2e3de9d4bfe90ed2e4eaa8c758e24afb5445a8a88",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_BaseColor.png": "5c4f6d4ce321c948f7800dd1241013e48d1c9a11bbb7d35ad0d2ec9d1b2ca1d9",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_BaseColor.png.import": "ed7724352196da6c7c289ea264786d633b349df8f4823ce345fcf37e6c0f1e0e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_Normal.png": "c250472a7715a0058221980f68d5e42f61e0ac9d7b889a91ca8fd86c04a66a08",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_Normal.png.import": "3bb6cd4d8044896fc3152da80699e183ce1fddea60846f2850cd0347b143fbf4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_ORM.png": "1f7ecbda5e2b55371a4ab690d85eb87a8b442b74158529d57554bd3f48164126",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Noble_ORM.png.import": "799e9f3850069b70160184da0a4744e2b4b774c986c1d60262c0aa50f0c88ffd"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/noble_trousers.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/noble_trousers.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "1512b24b355e67933f8cbe275f1482c4a36f98a2c655fb137ceb3bb58cb289fe",
+      "uid": "uid://fa3djv88uoil",
+      "used_joint_names": [
+        "calf_l",
+        "calf_r",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "thigh_l",
+        "thigh_r"
+      ],
+      "vertices": 876,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "peasant_shoes": {
+      "artifact_sha256": "63a626b3a1df147d789f65135c260e54ae1a99d078ded20cf25e56d8b91c0fd4",
+      "clearance_meters": 0.03268540865159084,
+      "clearance_ratio": 0.018,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "2eb59950da0b775c8297dc16a8bf3df7aa8fbafd68123da023df9cbbc7e03a96",
+          "mesh_path": "Armature/Skeleton3D/Male_Peasant_Feet",
+          "surface_index": 0,
+          "vertex_count": 1878
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.018,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Feet.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Peasant_Feet.gltf-dd8abd608f8c2a1b98cf643edfbbd60e.scn": "afd9d9ce9b3f31bd04e7c6afbeb13a044b31d20174551b33cd9170393afcc060",
+          ".godot/imported/T_Peasant_BaseColor.png-ad601a8995314c195148d849ba9183cf.s3tc.ctex": "60e4f1dcfd67dfac0fcba519cd888cc93a0f77c13b2c17932c8ce3b60e043198",
+          ".godot/imported/T_Peasant_Normal.png-477715a67ce98945ec719b4549eb4954.s3tc.ctex": "57b09c02d6c60a13257331d57101c05734340ed0ab76f7e13d1a2d8c45d5d69d",
+          ".godot/imported/T_Peasant_ORM.png-c483effc603ad27cfdf2c43bb7030da2.s3tc.ctex": "b7fedab2c984aa24e0460796cd5e908c0e1c5619f95716d42b3001c72aff2172",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Feet.bin": "cb35f50fb3e784cac5e3193ed82034454af550a9e7f33d01345ce615d7b05add",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Feet.gltf": "191a2d70d6c2e550669bb7b1fc1c07be650d7168512e18eb2acb0e55d0535c52",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Feet.gltf.import": "c3b44e3b16c0d203daf1fdbef7b51c5f566423e0390207e666e0cc9b32026ad1",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_BaseColor.png": "a43635628d95571cd62fd4db0cc3a6ea32778b2bc02f242dda224c89d07f1ade",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_BaseColor.png.import": "faa87ce5ff37246e684af85be5940a96bfed232f1b281adaf0aa6894b100d6a4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_Normal.png": "7598fa7b63e46fd4dac29708bf5a81e05eb9a67280f7b13c61e28a9110eeb679",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_Normal.png.import": "a0a7482e5c934a7fa34bc4eaf9cb36a6a15a666a8853950a53f50a90f1351327",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_ORM.png": "e1932f5f91104afca89c501416a5fec09069b8552734237fc09045fabc4ca9b4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_ORM.png.import": "8b5f7763618b7b45252704e828bd2f1105609f0ff9bfb7f56c93fed14eff59ce"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/peasant_shoes.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/peasant_shoes.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "6186edf9987f6c5e2f139e27abfd0474feae2437769b9bee8a9950e80250cff8",
+      "uid": "uid://b4au15igbt78i",
+      "used_joint_names": [
+        "ball_l",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "foot_l",
+        "foot_r",
+        "root"
+      ],
+      "vertices": 1878,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "peasant_trousers": {
+      "artifact_sha256": "66f2e2895cc095840c3c875b8921f0f0db58f859dbe0ac9cfb719b963e7f7261",
+      "clearance_meters": 0.02905369657919186,
+      "clearance_ratio": 0.016,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "29b8194d64a84c7d15720e25235ac9c51437d2417c188b944f7bf4b3652a3aff",
+          "mesh_path": "Armature/Skeleton3D/Male_Peasant_Legs",
+          "surface_index": 0,
+          "vertex_count": 656
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.016,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Legs.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Peasant_Legs.gltf-70186986df9900ec3a4e84bc6376407e.scn": "5a349e8a0576e2c8fabd94dc81af802a82d807085cfb8b665f06254950bd0efa",
+          ".godot/imported/T_Peasant_BaseColor.png-ad601a8995314c195148d849ba9183cf.s3tc.ctex": "60e4f1dcfd67dfac0fcba519cd888cc93a0f77c13b2c17932c8ce3b60e043198",
+          ".godot/imported/T_Peasant_Normal.png-477715a67ce98945ec719b4549eb4954.s3tc.ctex": "57b09c02d6c60a13257331d57101c05734340ed0ab76f7e13d1a2d8c45d5d69d",
+          ".godot/imported/T_Peasant_ORM.png-c483effc603ad27cfdf2c43bb7030da2.s3tc.ctex": "b7fedab2c984aa24e0460796cd5e908c0e1c5619f95716d42b3001c72aff2172",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Legs.bin": "529bfc210a2de7e7ef6e704b59a11f88704068726cdda7d3b8db8e705273d5dc",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Legs.gltf": "207933393b7a2ef436c0ffea65b70e35feaee084992e798c3eb31e0c771fabb0",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Legs.gltf.import": "bbe0157544eb01672a199295dd51c5b770f551482dcd573c96f453ba74d40e1d",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_BaseColor.png": "a43635628d95571cd62fd4db0cc3a6ea32778b2bc02f242dda224c89d07f1ade",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_BaseColor.png.import": "faa87ce5ff37246e684af85be5940a96bfed232f1b281adaf0aa6894b100d6a4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_Normal.png": "7598fa7b63e46fd4dac29708bf5a81e05eb9a67280f7b13c61e28a9110eeb679",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_Normal.png.import": "a0a7482e5c934a7fa34bc4eaf9cb36a6a15a666a8853950a53f50a90f1351327",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_ORM.png": "e1932f5f91104afca89c501416a5fec09069b8552734237fc09045fabc4ca9b4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_ORM.png.import": "8b5f7763618b7b45252704e828bd2f1105609f0ff9bfb7f56c93fed14eff59ce"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/peasant_trousers.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/peasant_trousers.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "e65a835d152c5201055d5c3755f7ed53254f1b826f8ce462180ad6690193d333",
+      "uid": "uid://l2kocr4gwxem",
+      "used_joint_names": [
+        "calf_l",
+        "calf_r",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "thigh_l",
+        "thigh_r"
+      ],
+      "vertices": 656,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "peasant_tunic": {
+      "artifact_sha256": "47feae44fadc7d8962ddb037a9680343bc59dd43514375e56295cd6a406f9d99",
+      "clearance_meters": 0.03268540865159084,
+      "clearance_ratio": 0.018,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "684ed182505404c96b4c394a8382e0193b7f7ca92584670bac5e2d2cd245bd39",
+          "mesh_path": "Armature/Skeleton3D/Male_Peasant_Body",
+          "surface_index": 0,
+          "vertex_count": 3006
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.018,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Body.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Peasant_Body.gltf-47d1f75995d2a97de3c39c9ced94b517.scn": "a6edb717b1a18d6b375a684c29d08d372f4ccd56d97d337e5f1a262cbc5dd89f",
+          ".godot/imported/T_Peasant_BaseColor.png-ad601a8995314c195148d849ba9183cf.s3tc.ctex": "60e4f1dcfd67dfac0fcba519cd888cc93a0f77c13b2c17932c8ce3b60e043198",
+          ".godot/imported/T_Peasant_Normal.png-477715a67ce98945ec719b4549eb4954.s3tc.ctex": "57b09c02d6c60a13257331d57101c05734340ed0ab76f7e13d1a2d8c45d5d69d",
+          ".godot/imported/T_Peasant_ORM.png-c483effc603ad27cfdf2c43bb7030da2.s3tc.ctex": "b7fedab2c984aa24e0460796cd5e908c0e1c5619f95716d42b3001c72aff2172",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Body.bin": "d9b380153cbac7850ab3c65c95e831164873f1f7ff696cf8d20a9532c8a45e0f",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Body.gltf": "daaa452abe8762c3bee7b1b30066c76d62077873c72cbf826de1a0f575ac3cb0",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Peasant_Body.gltf.import": "71142471e1053001a1b34b2e2f7296d225356a5345cc838d0736f86c9efdca51",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_BaseColor.png": "a43635628d95571cd62fd4db0cc3a6ea32778b2bc02f242dda224c89d07f1ade",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_BaseColor.png.import": "faa87ce5ff37246e684af85be5940a96bfed232f1b281adaf0aa6894b100d6a4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_Normal.png": "7598fa7b63e46fd4dac29708bf5a81e05eb9a67280f7b13c61e28a9110eeb679",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_Normal.png.import": "a0a7482e5c934a7fa34bc4eaf9cb36a6a15a666a8853950a53f50a90f1351327",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_ORM.png": "e1932f5f91104afca89c501416a5fec09069b8552734237fc09045fabc4ca9b4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Peasant_ORM.png.import": "8b5f7763618b7b45252704e828bd2f1105609f0ff9bfb7f56c93fed14eff59ce"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/peasant_tunic.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/peasant_tunic.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "891282d732ad6bf10ef5b2100e1018f34d426581cf88fc644341612bfb3f1fa5",
+      "uid": "uid://b8a76jxty8wrl",
+      "used_joint_names": [
+        "Head",
+        "clavicle_l",
+        "clavicle_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "neck_01",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 3006,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "ranger_boots": {
+      "artifact_sha256": "319164b554b3da3caf7a6c320f13116037db3548566cedf33926b2d933d93e2a",
+      "clearance_meters": 0.021790272434393895,
+      "clearance_ratio": 0.012,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "a2553abeacc2732a3bf90a9c7c21db237e10cd89d871aa7f67b779554aba6633",
+          "mesh_path": "Armature/Skeleton3D/Male_Ranger_Feet_Boots",
+          "surface_index": 0,
+          "vertex_count": 10174
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.012,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Feet_Boots.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Ranger_Feet_Boots.gltf-70da9217e21ae1c3bd9afd1248b6dabe.scn": "bced37e36c6a376002f1a7a13d43c7d9f8541241d7ab54787570f67cbb42163e",
+          ".godot/imported/T_Ranger_BaseColor.png-9b382f500ee6c478d68bfd41d14ead8a.s3tc.ctex": "13b6140ab04418b9c943228902b5d61c92cb745f248217140f54af7d0ccca442",
+          ".godot/imported/T_Ranger_Normal.png-bc9757b57644c3cc6dcf42fec467de8f.s3tc.ctex": "4f10fcb94728decf681ef2c8524edf2f5c2c89f6a1af1db5f88452a58129e313",
+          ".godot/imported/T_Ranger_ORM.png-f52a0dbe289b669603ee07c774f8d084.s3tc.ctex": "45808bf5099664bc2a847aa54e59e1da03f7eafb6faa04e8db73a51a756156af",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Feet_Boots.bin": "8079ffa4ac2c9a3522a6aa08386e6df92f2de900ece8102d12cdeb96e4476625",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Feet_Boots.gltf": "e71cd92792aeabca0dd1621556c54945dd97d154147790a5cb1afd75415a4e02",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Feet_Boots.gltf.import": "60aca7b33d03e20aa0931f2c574eee863de4c3fff49ae2e8613fa145c80fc3e5",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_BaseColor.png": "846ef2170b04ee584ad83bb8a1e86dab57a9a43b1193204505912c274d949925",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_BaseColor.png.import": "a78c629cef81ba523052912d7084e99fda6a4685dc923986d57cd25e7dee05f2",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_Normal.png": "dd64da2af3180f0c8f0b721cfc5f0d2720c351b97da8285c6cf49e7717c84147",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_Normal.png.import": "e3f2870607508ddd2948055ff29410788123b10420abd47560ea53e831f3ca93",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_ORM.png": "aca03d2fba12508ef07d5968ca22267fb207ea26ae898b6b2def8a296bd44f1c",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_ORM.png.import": "12afe9e1238932e1fe19139bf259d30a24eb58562f0215408f0dcd982c5a843c"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/ranger_boots.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/ranger_boots.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "6adef4759660fe608d3393a48cb5613e97aaa1645c096dd0cf30253f756c8405",
+      "uid": "uid://dwql81omhltt3",
+      "used_joint_names": [
+        "ball_l",
+        "ball_leaf_l",
+        "ball_leaf_r",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "foot_l",
+        "foot_r",
+        "root",
+        "thigh_l",
+        "thigh_r"
+      ],
+      "vertices": 10174,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "ranger_hood": {
+      "artifact_sha256": "bbac3dece4a1509cb121627d1b32f005216bd306d063b53838689bb0cf836e22",
+      "clearance_meters": 0.007263424144797965,
+      "clearance_ratio": 0.004,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "6d96f5c1f41b4787fc4037abe7770bf29a132f6d289b321dbe7366ef771211e6",
+          "mesh_path": "Armature/Skeleton3D/Male_Ranger_Head_Hood",
+          "surface_index": 0,
+          "vertex_count": 1240
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.004,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Head_Hood.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Ranger_Head_Hood.gltf-c431382459ac26ebd117cee0882e4d32.scn": "ace462ae8b9741ed47a679ed0affd26d47b5db180530763aa0fa66559d4582a3",
+          ".godot/imported/T_Ranger_BaseColor.png-9b382f500ee6c478d68bfd41d14ead8a.s3tc.ctex": "13b6140ab04418b9c943228902b5d61c92cb745f248217140f54af7d0ccca442",
+          ".godot/imported/T_Ranger_Normal.png-bc9757b57644c3cc6dcf42fec467de8f.s3tc.ctex": "4f10fcb94728decf681ef2c8524edf2f5c2c89f6a1af1db5f88452a58129e313",
+          ".godot/imported/T_Ranger_ORM.png-f52a0dbe289b669603ee07c774f8d084.s3tc.ctex": "45808bf5099664bc2a847aa54e59e1da03f7eafb6faa04e8db73a51a756156af",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Head_Hood.bin": "d126c2e0438508983ca092847b772691c3cd6a80fc355c7ea7921324c1ff8053",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Head_Hood.gltf": "57affa34c145d2c1a02a3d9b17066e22b84eb4ce2bb79c6c7b90588af00846b6",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Head_Hood.gltf.import": "8f4efc4ee78eb99078f9c751bc1b674cc5f3a24de542e2165e07827fd4cad842",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_BaseColor.png": "846ef2170b04ee584ad83bb8a1e86dab57a9a43b1193204505912c274d949925",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_BaseColor.png.import": "a78c629cef81ba523052912d7084e99fda6a4685dc923986d57cd25e7dee05f2",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_Normal.png": "dd64da2af3180f0c8f0b721cfc5f0d2720c351b97da8285c6cf49e7717c84147",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_Normal.png.import": "e3f2870607508ddd2948055ff29410788123b10420abd47560ea53e831f3ca93",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_ORM.png": "aca03d2fba12508ef07d5968ca22267fb207ea26ae898b6b2def8a296bd44f1c",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_ORM.png.import": "12afe9e1238932e1fe19139bf259d30a24eb58562f0215408f0dcd982c5a843c"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/ranger_hood.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/ranger_hood.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "2774fa98552c206c0f13e49bc627f75acb2349be91a9f65d99a833b894b10d7e",
+      "uid": "uid://bvjc64jvvqxtc",
+      "used_joint_names": [
+        "Head",
+        "clavicle_l",
+        "clavicle_r",
+        "neck_01",
+        "spine_03"
+      ],
+      "vertices": 1240,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "ranger_jerkin": {
+      "artifact_sha256": "1a9ef6932c6aeae139cdd3ad21e0e2ab185972fd85e8c2ae8362e9b33eeb8ccc",
+      "clearance_meters": 0.03268540865159084,
+      "clearance_ratio": 0.018,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "5bf2319960c919b78f79c81c7fc3fd7749d44d50a026f69afcce153b418fa9e0",
+          "mesh_path": "Armature/Skeleton3D/Male_Ranger_Body",
+          "surface_index": 0,
+          "vertex_count": 2825
+        },
+        {
+          "arrays_sha256": "740c439dcb459092b7767d3d55e2a296fd6f3a5e373fbff119c7808078e7dd75",
+          "mesh_path": "Armature/Skeleton3D/Male_Ranger_Body_Belt_1",
+          "surface_index": 0,
+          "vertex_count": 928
+        },
+        {
+          "arrays_sha256": "b36c57ae37f3468056840d4bd837dacd66a862ac78d59e58ea2aee0257854822",
+          "mesh_path": "Armature/Skeleton3D/Male_Ranger_Body_Belt_2",
+          "surface_index": 0,
+          "vertex_count": 928
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.018,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Body.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Ranger_Body.gltf-f1e78812d3061fdc2f78f03cf6ac1dfb.scn": "eab1c7c0880c062d3e5fd887a9989d21be7d138421580f761a197bd8b67955f2",
+          ".godot/imported/T_Ranger_BaseColor.png-9b382f500ee6c478d68bfd41d14ead8a.s3tc.ctex": "13b6140ab04418b9c943228902b5d61c92cb745f248217140f54af7d0ccca442",
+          ".godot/imported/T_Ranger_Normal.png-bc9757b57644c3cc6dcf42fec467de8f.s3tc.ctex": "4f10fcb94728decf681ef2c8524edf2f5c2c89f6a1af1db5f88452a58129e313",
+          ".godot/imported/T_Ranger_ORM.png-f52a0dbe289b669603ee07c774f8d084.s3tc.ctex": "45808bf5099664bc2a847aa54e59e1da03f7eafb6faa04e8db73a51a756156af",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Body.bin": "e3ebad21b1865c37e46b93c9249d0eb58949498ad99773e9db415b48d8df925e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Body.gltf": "c5bb520006116222bad30533bd39e0f215abbf8d44e3fa1769ebad12043eac57",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Body.gltf.import": "2bcaff115e26f111018eb34d4e0c8b0dc91b716b330ae681d559ee641b4bfbcc",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_BaseColor.png": "846ef2170b04ee584ad83bb8a1e86dab57a9a43b1193204505912c274d949925",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_BaseColor.png.import": "a78c629cef81ba523052912d7084e99fda6a4685dc923986d57cd25e7dee05f2",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_Normal.png": "dd64da2af3180f0c8f0b721cfc5f0d2720c351b97da8285c6cf49e7717c84147",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_Normal.png.import": "e3f2870607508ddd2948055ff29410788123b10420abd47560ea53e831f3ca93",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_ORM.png": "aca03d2fba12508ef07d5968ca22267fb207ea26ae898b6b2def8a296bd44f1c",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_ORM.png.import": "12afe9e1238932e1fe19139bf259d30a24eb58562f0215408f0dcd982c5a843c"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/ranger_jerkin.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/ranger_jerkin.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "42f89ac49145830624595297e184a6e43a5cc34b3aea2cf243a16b0cc71db490",
+      "uid": "uid://d1kdijpr1yecj",
+      "used_joint_names": [
+        "clavicle_l",
+        "clavicle_r",
+        "neck_01",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 4681,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "ranger_leggings": {
+      "artifact_sha256": "2c97f5f31843b8273767b41d0340d873522f16401d26bae002c7dcb2f7082606",
+      "clearance_meters": 0.02905369657919186,
+      "clearance_ratio": 0.016,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "682b51b35f561d204d7a1d2ddd9fbfadb17573be4a9ef4b7293600660eda4aef",
+          "mesh_path": "Armature/Skeleton3D/Male_Ranger_Legs",
+          "surface_index": 0,
+          "vertex_count": 644
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.016,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Legs.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Ranger_Legs.gltf-bf438a457c764defe16754f344de2b9c.scn": "91dd0ac5145de201d307fc0aaa5c4cbbbe109a169224deffd846c02e5ec023a9",
+          ".godot/imported/T_Ranger_BaseColor.png-9b382f500ee6c478d68bfd41d14ead8a.s3tc.ctex": "13b6140ab04418b9c943228902b5d61c92cb745f248217140f54af7d0ccca442",
+          ".godot/imported/T_Ranger_Normal.png-bc9757b57644c3cc6dcf42fec467de8f.s3tc.ctex": "4f10fcb94728decf681ef2c8524edf2f5c2c89f6a1af1db5f88452a58129e313",
+          ".godot/imported/T_Ranger_ORM.png-f52a0dbe289b669603ee07c774f8d084.s3tc.ctex": "45808bf5099664bc2a847aa54e59e1da03f7eafb6faa04e8db73a51a756156af",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Legs.bin": "74691dd17e15f755436fafdc75da25ddc156c7c7811c43f08a4b9f55eba90666",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Legs.gltf": "c415a01384d34b77a98ff4b0d01d42453dfe98bee259e58a328a803d36ac9df2",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Legs.gltf.import": "dfe4fd9db3f12a958c26d21afe5a9c570df0a887e41139f2f03bdf1a4c3ad9a4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_BaseColor.png": "846ef2170b04ee584ad83bb8a1e86dab57a9a43b1193204505912c274d949925",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_BaseColor.png.import": "a78c629cef81ba523052912d7084e99fda6a4685dc923986d57cd25e7dee05f2",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_Normal.png": "dd64da2af3180f0c8f0b721cfc5f0d2720c351b97da8285c6cf49e7717c84147",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_Normal.png.import": "e3f2870607508ddd2948055ff29410788123b10420abd47560ea53e831f3ca93",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_ORM.png": "aca03d2fba12508ef07d5968ca22267fb207ea26ae898b6b2def8a296bd44f1c",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Ranger_ORM.png.import": "12afe9e1238932e1fe19139bf259d30a24eb58562f0215408f0dcd982c5a843c"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/ranger_leggings.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/ranger_leggings.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "0c57a27c1740d558863234ee79f4abc42ad445a87e7d7da43c42f4d2fb4046ee",
+      "uid": "uid://cfbwyq0l1uo6w",
+      "used_joint_names": [
+        "calf_l",
+        "calf_r",
+        "pelvis",
+        "spine_01",
+        "thigh_l",
+        "thigh_r"
+      ],
+      "vertices": 644,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "traveler_hide_boots": {
+      "artifact_sha256": "4b8f6757ecf500413733e6f5b5f204b36076f9f8527ca892d20e79e01e166c65",
+      "clearance_meters": 0.0,
+      "clearance_ratio": 0.0,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "3fda1624c6b259a830bbb89cfce29f8ed901ea8cc22c7208858dcb246849eda0",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Boots_001",
+          "surface_index": 0,
+          "vertex_count": 9002
+        },
+        {
+          "arrays_sha256": "944dcefbdea0cacd5f8cd80e06e957a6277b3cbe7da27ec942c935a3143d38b4",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Boots_001",
+          "surface_index": 1,
+          "vertex_count": 954
+        },
+        {
+          "arrays_sha256": "c538d15d9e2067ad7466fa71499ffa9ee8cab20d151cd36793d6b7b95b3c637b",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Boots_001",
+          "surface_index": 2,
+          "vertex_count": 25910
+        },
+        {
+          "arrays_sha256": "9db5bf3e8559b126390930cca199e0dbf7b1327f034a1d16653537dd26c36de4",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Boots_001",
+          "surface_index": 3,
+          "vertex_count": 16546
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.0,
+          "reference_body_id": "male_regular",
+          "source_scene_path": "res://assets/items/equipment/traveler_hide_boots/male_regular.glb"
+        },
+        "reference_digest": "c86da979e19eb7f0f1c4d5ab1df9c2bf2c90c316408febc741c5cd5940588eed",
+        "scene_dependencies": {
+          ".godot/imported/male_regular.glb-536e1dd214d2275fd9f06d666559b60c.scn": "b2add7371e2e352d133d377776cf480b32925530979bfda62cd52c8c03f0f652",
+          "assets/items/equipment/traveler_hide_boots/male_regular.glb": "6bbc0a7f0c22f632714d7e5b8dadbfa3aa7ef2728f4e2d4bf256ac7684b4410c",
+          "assets/items/equipment/traveler_hide_boots/male_regular.glb.import": "99ae9e7a82006d0efc5fdafda92b02ce5d461a687caea1b1ce187d8cf86360fa"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/traveler_hide_boots.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/traveler_hide_boots.res",
+      "reference_body_id": "male_regular",
+      "source_digest": "548b907c8b9a03c767db876001cbe23060e7b2f2da2ade97143b41983064fb16",
+      "uid": "uid://gahem6evgqpj",
+      "used_joint_names": [
+        "ball_l",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "foot_l",
+        "foot_r",
+        "root"
+      ],
+      "vertices": 52412,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "traveler_hide_gloves": {
+      "artifact_sha256": "6195468ff9cf467f344eea3357da49c9b9ca51219243f377c331d2a19dbc1da4",
+      "clearance_meters": 0.0,
+      "clearance_ratio": 0.0,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "a89daf9cc428623a17764d91eaeefc88fbfd8e0854dcff63c7067ab0f51b9940",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Gloves_001",
+          "surface_index": 0,
+          "vertex_count": 2702
+        },
+        {
+          "arrays_sha256": "55be475df9c49cb02168c5e2b04347fb8294c3b6f838226c1c7ef8fe72869f21",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Gloves_001",
+          "surface_index": 1,
+          "vertex_count": 1320
+        },
+        {
+          "arrays_sha256": "4939c3a53710cc27c09b848a3bb71c39a25df83d558bf0afd6fdd5a713dc99fb",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Gloves_001",
+          "surface_index": 2,
+          "vertex_count": 4646
+        },
+        {
+          "arrays_sha256": "0dc4074ccbd5879b28b98ccb89a9608ab4175bd1da7f5b688a05516ab06b1bb7",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Gloves_001",
+          "surface_index": 3,
+          "vertex_count": 1896
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.0,
+          "reference_body_id": "male_regular",
+          "source_scene_path": "res://assets/items/equipment/traveler_hide_gloves/male_regular.glb"
+        },
+        "reference_digest": "c86da979e19eb7f0f1c4d5ab1df9c2bf2c90c316408febc741c5cd5940588eed",
+        "scene_dependencies": {
+          ".godot/imported/male_regular.glb-8d9b1318894c55f9e8d7544d84babd9a.scn": "9bd59d8775611327722e0dd3158526939009e261b26d8a74d25b5f527fbba1ae",
+          "assets/items/equipment/traveler_hide_gloves/male_regular.glb": "f4e1e0feda29f0f9c3f55d3dc323361ada356cd48660709c5573b8e1914613b5",
+          "assets/items/equipment/traveler_hide_gloves/male_regular.glb.import": "6460dc92bed4fb5bf951a8dda0c83cae89213e70aab6070776867dabc3d212f7"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/traveler_hide_gloves.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/traveler_hide_gloves.res",
+      "reference_body_id": "male_regular",
+      "source_digest": "a82f4646c23f8ad0ce321007dc48b12575c537eb9c5d2a976c17fc5684eaf0c8",
+      "uid": "uid://cbc36aswnsauv",
+      "used_joint_names": [
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 10564,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "traveler_leather_jacket": {
+      "artifact_sha256": "d264b3144da2edeb1f662822534ba5a724609a0493352972776c9d91b2cbcd19",
+      "clearance_meters": 0.0,
+      "clearance_ratio": 0.0,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "5455e1453a7ebe283d8282c24f28b09eef70fe9bc577ef6b976a09c89fe718de",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Jacket_001",
+          "surface_index": 0,
+          "vertex_count": 2530
+        },
+        {
+          "arrays_sha256": "add6fa34691c27c068d053f0bbed30b8713d07eb51c5ca5cba8c956bc50af213",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Jacket_001",
+          "surface_index": 1,
+          "vertex_count": 508
+        },
+        {
+          "arrays_sha256": "5144b580ee3e208c2a9fc70fa371e4a4c82f050e187df7e3d692176903aab8db",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Jacket_001",
+          "surface_index": 2,
+          "vertex_count": 3122
+        },
+        {
+          "arrays_sha256": "1d0e7cced3db5b2c98e0ace68f6e424466511391365d76d69a9be4e5615dbd73",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Jacket_001",
+          "surface_index": 3,
+          "vertex_count": 2919
+        },
+        {
+          "arrays_sha256": "3d92851c3bba3660aa10a0e6eb8ae0202db3bc5365be992c32954f531ae48777",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Jacket_001",
+          "surface_index": 4,
+          "vertex_count": 2124
+        },
+        {
+          "arrays_sha256": "12fde3d682f4db65fb00c0640b13c199e49e7f7a3840d7b9fe849be3a3be559a",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Jacket_001",
+          "surface_index": 5,
+          "vertex_count": 324
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.0,
+          "reference_body_id": "male_regular",
+          "source_scene_path": "res://assets/items/equipment/traveler_leather_jacket/body_fits/male_regular.glb"
+        },
+        "reference_digest": "c86da979e19eb7f0f1c4d5ab1df9c2bf2c90c316408febc741c5cd5940588eed",
+        "scene_dependencies": {
+          ".godot/imported/male_regular.glb-ba7ed0d1d4964242284110c91ac135c2.scn": "d8a089e2c375d9a71ee22693682f00a9ccea9072a391978faef4a7a1338ade22",
+          "assets/items/equipment/traveler_leather_jacket/body_fits/male_regular.glb": "b2edf0897a862b36d68b4c9f626a8418e4c925b51b9656a3087ac262f88ba0ed",
+          "assets/items/equipment/traveler_leather_jacket/body_fits/male_regular.glb.import": "78a67d2c9b006061adc5a5dace6b3fee69c3ec572bcb27e34273bd9c052bead4"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/traveler_leather_jacket.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/traveler_leather_jacket.res",
+      "reference_body_id": "male_regular",
+      "source_digest": "3aa774a8a2032743a9a896645ec3678f174836e340f2e4ab1cd636e82939f25d",
+      "uid": "uid://duvoo861qbw6c",
+      "used_joint_names": [
+        "Head",
+        "clavicle_l",
+        "clavicle_r",
+        "hand_l",
+        "hand_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "neck_01",
+        "pelvis",
+        "pinky_01_l",
+        "pinky_01_r",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "thumb_01_l",
+        "thumb_01_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 11527,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "traveler_trousers": {
+      "artifact_sha256": "63c52b7acf96c9928d05e9dd0db17589ac960c71040c5393ccf28f142ef366cd",
+      "clearance_meters": 0.0036317124884256225,
+      "clearance_ratio": 0.002,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "d796a15dd10a4d36893c5c765b23fb04fb638bd27662bddb8a36f2a2d07dd73c",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Trousers_001",
+          "surface_index": 0,
+          "vertex_count": 3065
+        },
+        {
+          "arrays_sha256": "af9da8e5c3a9e0ba14a3ad94e1fc29ab70f3003ef48d5d20258f93bfe0bc54e0",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Trousers_001",
+          "surface_index": 1,
+          "vertex_count": 2235
+        },
+        {
+          "arrays_sha256": "6c3bd4e1804a1dd459959b9dcd8d03d2e2e7e0b305c3e2079d4d7d5e0b23625d",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Trousers_001",
+          "surface_index": 2,
+          "vertex_count": 1161
+        },
+        {
+          "arrays_sha256": "dc62b05d04d4f3ea06f05a581151b304b2071a685b3a80f7ade5d3156304abab",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Trousers_001",
+          "surface_index": 3,
+          "vertex_count": 8439
+        },
+        {
+          "arrays_sha256": "4cb6c5bf134bc4b03e789b7a8953116b9bba7f4a922d588ac36bd4b84902adc3",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Trousers_001",
+          "surface_index": 4,
+          "vertex_count": 5980
+        },
+        {
+          "arrays_sha256": "241c199babfe2f173b3700692c2797f53006d5f70574dcf69f47bf6623210f4b",
+          "mesh_path": "Armature/Skeleton3D/Traveler_Hide_Trousers_001",
+          "surface_index": 5,
+          "vertex_count": 418
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.002,
+          "reference_body_id": "male_regular",
+          "source_scene_path": "res://assets/items/equipment/traveler_trousers/male_regular.glb"
+        },
+        "reference_digest": "c86da979e19eb7f0f1c4d5ab1df9c2bf2c90c316408febc741c5cd5940588eed",
+        "scene_dependencies": {
+          ".godot/imported/male_regular.glb-caa4f190287928c1f95331192bd2de94.scn": "613660afeed8a30a283e7e665c23d69d782ba8486574390d58a33ed64ceeda03",
+          "assets/items/equipment/traveler_trousers/male_regular.glb": "8a78c67dafd76ac77fbb2566c1a079b84e52b7942db446e7bcd3708e080a7432",
+          "assets/items/equipment/traveler_trousers/male_regular.glb.import": "5c00f426d825b78ccf68e4d21f898d179cf3a0146a4a56af9d713f8ebcc1aeb4"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/traveler_trousers.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/traveler_trousers.res",
+      "reference_body_id": "male_regular",
+      "source_digest": "06404cbd2bb82a069589fac2ec757d5252a0b8c8fba28d83e0f8976172da2734",
+      "uid": "uid://cf4rbayrvgv85",
+      "used_joint_names": [
+        "calf_l",
+        "calf_r",
+        "foot_l",
+        "foot_r",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "thigh_l",
+        "thigh_r"
+      ],
+      "vertices": 21298,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "wizard_robes": {
+      "artifact_sha256": "f47d684871258bd4e0f572911d662cf4ecba6db1c8be26abc800c4c0a5dfecca",
+      "clearance_meters": 0.03268540865159084,
+      "clearance_ratio": 0.018,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "527d459810f330b785628f3e4bce361bfc92d28431062af59bb655e89b2e26c5",
+          "mesh_path": "Armature/Skeleton3D/Male_Wizard_Body",
+          "surface_index": 0,
+          "vertex_count": 2949
+        },
+        {
+          "arrays_sha256": "e1a11610780318b73730d73d3446c84d6667737d21f8403326cc94ee5269ba2e",
+          "mesh_path": "Armature/Skeleton3D/Male_Wizard_Body_Belt",
+          "surface_index": 0,
+          "vertex_count": 705
+        },
+        {
+          "arrays_sha256": "ed6e64076c9f8738da9a0b1d08202aa4bba3ef6c0816ef7dda5dcbf9786602a7",
+          "mesh_path": "Armature/Skeleton3D/Male_Wizard_Body_BeltOrnament",
+          "surface_index": 0,
+          "vertex_count": 1211
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.018,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Body.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Wizard_Body.gltf-0c5dc7ef5ea898c839c9e88757c6917b.scn": "8cc0ffb17298c2e72161cb5e9a595462e3ea68ab3dfa53f5d4e4e7c111a495c3",
+          ".godot/imported/T_Wizard_BaseColor.png-baca3b63ccd669c19fab1a1e8f89ac4f.s3tc.ctex": "a50b86e33de6e4600370f85c585d1c9c1480831cfcfbeac38d66cfd72a3a5e35",
+          ".godot/imported/T_Wizard_Normal.png-97ea84b1cc217e8be153f9cc568f6ce1.s3tc.ctex": "300c9b24b49a95658c98af5ddbf8a4aca4ffdef1ee201219edcbcb5da7704be9",
+          ".godot/imported/T_Wizard_ORM.png-4b7f08f55f0a4c3634d4e905b009e88d.s3tc.ctex": "39e016d9a7a3001a9e2620f1d8cf338954681eeca57c5c293b00e53298224f7c",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Body.bin": "28615deecbb5687ec24abb2c5d9ed6ed7654e2c2fa9bcd89b248a543164e3065",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Body.gltf": "98d576e14917f793d4694bb770cce074ea45969b0c342be9d13ae4e4ad3b6256",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Body.gltf.import": "41f4d6079fe8b9dc6fa3675e10bcc842d2976c9bd4c9662fae922a88c5131e86",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_BaseColor.png": "3f30e17e1b7c386330ff7f57b92d8be15064287ff16945f6ac5851eceb8a01a4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_BaseColor.png.import": "762726034f66467517c6558f694328719a1c14df6480657be185693c575197ab",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_Normal.png": "b920e07d39229e2a6194c90c2d4654736fc271eaf0f617b4ced37b00626d5a18",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_Normal.png.import": "17b639b09ddf8537e756320dc791c4b7deb99247a977af69f2bde01268094b94",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_ORM.png": "366b3059a09ae52785da607d540a57bef7131fc9a75d07365afddff1521b3e94",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_ORM.png.import": "ae43a4042e948e6aa2e6b460e2c6f6a85d428d97ef0f243914a4b5c12664f1e4"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/wizard_robes.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/wizard_robes.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "b3bf66054def788308873e5114ea2e88273a56d1e6ce2a61bd48e306fe76f89c",
+      "uid": "uid://cufrmjow7rkf",
+      "used_joint_names": [
+        "Head",
+        "clavicle_l",
+        "clavicle_r",
+        "neck_01",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "spine_03",
+        "thigh_l",
+        "thigh_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 4865,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "wizard_shoes": {
+      "artifact_sha256": "d7a8b66c421b2c21620c3409255bade097c3d90d3a37c111f9b43f55fc0cf06c",
+      "clearance_meters": 0.021790272434393895,
+      "clearance_ratio": 0.012,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "357fb20bdb04330098b591e7eca9c3a7d8f2b049737236449749a1304fee63e6",
+          "mesh_path": "Armature/Skeleton3D/Male_Wizard_Feet",
+          "surface_index": 0,
+          "vertex_count": 1510
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.012,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Feet.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Wizard_Feet.gltf-5c66ce7f825a573027297855f0aa88ef.scn": "01df229c9c0f41ba56b3487c8b07b749de9c71347b993bc3618d2ac3e2afceac",
+          ".godot/imported/T_Wizard_BaseColor.png-baca3b63ccd669c19fab1a1e8f89ac4f.s3tc.ctex": "a50b86e33de6e4600370f85c585d1c9c1480831cfcfbeac38d66cfd72a3a5e35",
+          ".godot/imported/T_Wizard_Normal.png-97ea84b1cc217e8be153f9cc568f6ce1.s3tc.ctex": "300c9b24b49a95658c98af5ddbf8a4aca4ffdef1ee201219edcbcb5da7704be9",
+          ".godot/imported/T_Wizard_ORM.png-4b7f08f55f0a4c3634d4e905b009e88d.s3tc.ctex": "39e016d9a7a3001a9e2620f1d8cf338954681eeca57c5c293b00e53298224f7c",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Feet.bin": "f3db8171c0f016c2a9fe6577e2d3ef8964e796c4dc1900ab154e482b44179912",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Feet.gltf": "0a9e93c05eb871216f19389437b2f5b1125c7749da2989ab89a260511e0553fb",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Feet.gltf.import": "0b4a7ce6c89e4d518e01a99f208213dd043d000ac7f2ba56aed3bc46c42d442e",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_BaseColor.png": "3f30e17e1b7c386330ff7f57b92d8be15064287ff16945f6ac5851eceb8a01a4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_BaseColor.png.import": "762726034f66467517c6558f694328719a1c14df6480657be185693c575197ab",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_Normal.png": "b920e07d39229e2a6194c90c2d4654736fc271eaf0f617b4ced37b00626d5a18",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_Normal.png.import": "17b639b09ddf8537e756320dc791c4b7deb99247a977af69f2bde01268094b94",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_ORM.png": "366b3059a09ae52785da607d540a57bef7131fc9a75d07365afddff1521b3e94",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_ORM.png.import": "ae43a4042e948e6aa2e6b460e2c6f6a85d428d97ef0f243914a4b5c12664f1e4"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/wizard_shoes.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/wizard_shoes.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "410fb8a660c3d9c624427f0086af18d14a9503ec2d335df0866a854184959390",
+      "uid": "uid://bmlabxl5363qn",
+      "used_joint_names": [
+        "ball_l",
+        "ball_r",
+        "calf_l",
+        "calf_r",
+        "foot_l",
+        "foot_r"
+      ],
+      "vertices": 1510,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "wizard_sleeves": {
+      "artifact_sha256": "a1278757c83d7c87ff58135d7a38da5defd20e26055f86ef08f393ec153cd8e0",
+      "clearance_meters": 0.02542198450679288,
+      "clearance_ratio": 0.014,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "bed07b55beb35e15562dace1061a80c998dbae6ed68b2c9f4dc0127d37db7e20",
+          "mesh_path": "Armature/Skeleton3D/Male_Wizard_Arms",
+          "surface_index": 0,
+          "vertex_count": 2068
+        },
+        {
+          "arrays_sha256": "6719922c380dfad440f75fbc4dfb01207f7073302681b50f8a976590bcaaff50",
+          "mesh_path": "Armature/Skeleton3D/Male_Wizard_Arms",
+          "surface_index": 1,
+          "vertex_count": 1332
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.014,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Arms.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Wizard_Arms.gltf-bd2cd09a198c5e5b255687231c7f21ce.scn": "eb19beec6dcb3ed8a9e3997ef99d66dd9b1961bb32d6881a5eb603a668bbdf4b",
+          ".godot/imported/T_Regular_Male_Dark_BaseColor.png-819236b807ae245dc5aa4f93400bb640.s3tc.ctex": "c30643e28f8ecd35bf4f9a7b7f024c721370867b6fcfebfa9a5ec75290b325d5",
+          ".godot/imported/T_Regular_Male_Normal.png-c57d2a935ad154320fc5f50e37eacf54.s3tc.ctex": "c9c2a214ecfa99a58b7d559a19f802d3cde7df152c34e74d7d07d7fd88857315",
+          ".godot/imported/T_Regular_Male_Roughness.png-e199b6770817460a2c1375e4008c2676.s3tc.ctex": "d0c9497cc0b0ebead124f557022670e0884e3cd85123f15428d9a2c2fcd68412",
+          ".godot/imported/T_Wizard_BaseColor.png-baca3b63ccd669c19fab1a1e8f89ac4f.s3tc.ctex": "a50b86e33de6e4600370f85c585d1c9c1480831cfcfbeac38d66cfd72a3a5e35",
+          ".godot/imported/T_Wizard_Normal.png-97ea84b1cc217e8be153f9cc568f6ce1.s3tc.ctex": "300c9b24b49a95658c98af5ddbf8a4aca4ffdef1ee201219edcbcb5da7704be9",
+          ".godot/imported/T_Wizard_ORM.png-4b7f08f55f0a4c3634d4e905b009e88d.s3tc.ctex": "39e016d9a7a3001a9e2620f1d8cf338954681eeca57c5c293b00e53298224f7c",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Arms.bin": "d09880fa2e0bc009716e8186f316226ddc5efa8a801aaa0610ac11a0d8e9fddf",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Arms.gltf": "a00f6b12232fb1b01289a94cc5ed8f528839aa167f565827f7f211fef76d4dd8",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Arms.gltf.import": "754fadc8049b267744288f44d3546d48846c3939bf0eb6c9e9bdbb48b4b0c4b4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Regular_Male_Dark_BaseColor.png": "b4dcc0f4139aab548d7c070c4655bd2080ef16caeaaabee6c4aeb693c524e802",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Regular_Male_Dark_BaseColor.png.import": "ed4d335676453f8190f5f3b826be301cc0fd4eeb7ddfd7156af3cdb8d005c634",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Regular_Male_Normal.png": "10cd71e2453e577fdd43e912b6016a99baf64964f0593e524bdd304855e15e2a",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Regular_Male_Normal.png.import": "41d21e62890c288c6fba5d0a7b9d3aaad24d648bec754a43f88ca2b38d77b5c9",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Regular_Male_Roughness.png": "086c2eb25bddfdb77d8e639ccbffb8df723ef4a1910d8e1b217e852f8668bfe5",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Regular_Male_Roughness.png.import": "6e0af3892b511adc44c355218f2ffee5daed298a5276928259dd48d6a31db8f3",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_BaseColor.png": "3f30e17e1b7c386330ff7f57b92d8be15064287ff16945f6ac5851eceb8a01a4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_BaseColor.png.import": "762726034f66467517c6558f694328719a1c14df6480657be185693c575197ab",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_Normal.png": "b920e07d39229e2a6194c90c2d4654736fc271eaf0f617b4ced37b00626d5a18",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_Normal.png.import": "17b639b09ddf8537e756320dc791c4b7deb99247a977af69f2bde01268094b94",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_ORM.png": "366b3059a09ae52785da607d540a57bef7131fc9a75d07365afddff1521b3e94",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_ORM.png.import": "ae43a4042e948e6aa2e6b460e2c6f6a85d428d97ef0f243914a4b5c12664f1e4"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/wizard_sleeves.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/wizard_sleeves.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "8dc0d262277f2d2ddd4b08d654b9764736cb10aa86042baa106a6757582ada1d",
+      "uid": "uid://bh7624og5nrwy",
+      "used_joint_names": [
+        "clavicle_l",
+        "clavicle_r",
+        "hand_l",
+        "hand_r",
+        "index_01_l",
+        "index_01_r",
+        "index_02_l",
+        "index_02_r",
+        "index_03_l",
+        "index_03_r",
+        "index_04_leaf_l",
+        "index_04_leaf_r",
+        "lowerarm_l",
+        "lowerarm_r",
+        "middle_01_l",
+        "middle_01_r",
+        "middle_02_l",
+        "middle_02_r",
+        "middle_03_l",
+        "middle_03_r",
+        "middle_04_leaf_l",
+        "middle_04_leaf_r",
+        "neck_01",
+        "pinky_01_l",
+        "pinky_01_r",
+        "pinky_02_l",
+        "pinky_02_r",
+        "pinky_03_l",
+        "pinky_03_r",
+        "pinky_04_leaf_l",
+        "pinky_04_leaf_r",
+        "ring_01_l",
+        "ring_01_r",
+        "ring_02_l",
+        "ring_02_r",
+        "ring_03_l",
+        "ring_03_r",
+        "ring_04_leaf_l",
+        "ring_04_leaf_r",
+        "spine_02",
+        "spine_03",
+        "thumb_01_l",
+        "thumb_01_r",
+        "thumb_02_l",
+        "thumb_02_r",
+        "thumb_03_l",
+        "thumb_03_r",
+        "thumb_04_leaf_l",
+        "thumb_04_leaf_r",
+        "upperarm_l",
+        "upperarm_r"
+      ],
+      "vertices": 3400,
+      "visual_acceptance": "not established by binding generation"
+    },
+    "wizard_trousers": {
+      "artifact_sha256": "9bd12d1263329b49d43ab8170140d8fbe852467c00fd479b1bf0b9155bc794cb",
+      "clearance_meters": 0.02905369657919186,
+      "clearance_ratio": 0.016,
+      "imported_surfaces": [
+        {
+          "arrays_sha256": "e9590a90fada1a42dd4ba7f342d2f70b414acc99fd8cc5590638796f44027c6e",
+          "mesh_path": "Armature/Skeleton3D/Male_Wizard_Legs",
+          "surface_index": 0,
+          "vertex_count": 810
+        }
+      ],
+      "inputs": {
+        "garment": {
+          "clearance_ratio": 0.016,
+          "reference_body_id": "original_male_regular",
+          "source_scene_path": "res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Legs.gltf"
+        },
+        "reference_digest": "5ab72075053ee702977ae7d23f44de2c7befda33518872e8f50f4f6a32fa0496",
+        "scene_dependencies": {
+          ".godot/imported/Male_Wizard_Legs.gltf-61a47835a3a7db4a1c829df3d0e75137.scn": "00d71d7a4e0bbdc1607cf202a45d44041398328f105d9a092321e14612720bf8",
+          ".godot/imported/T_Wizard_BaseColor.png-baca3b63ccd669c19fab1a1e8f89ac4f.s3tc.ctex": "a50b86e33de6e4600370f85c585d1c9c1480831cfcfbeac38d66cfd72a3a5e35",
+          ".godot/imported/T_Wizard_Normal.png-97ea84b1cc217e8be153f9cc568f6ce1.s3tc.ctex": "300c9b24b49a95658c98af5ddbf8a4aca4ffdef1ee201219edcbcb5da7704be9",
+          ".godot/imported/T_Wizard_ORM.png-4b7f08f55f0a4c3634d4e905b009e88d.s3tc.ctex": "39e016d9a7a3001a9e2620f1d8cf338954681eeca57c5c293b00e53298224f7c",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Legs.bin": "42f7ca7005fac6ddb3896efa273407b39cf1d09d315a21f27b14825e97e54118",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Legs.gltf": "ba276ba77fe21252557f0cd81ae5574ca5997d4f6f3d4b7da7bdaaa8689035b8",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Legs.gltf.import": "ccf47d10c1ef70d71686a9d2244b7820feef608f022ba6bcc3a4916320b05e96",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_BaseColor.png": "3f30e17e1b7c386330ff7f57b92d8be15064287ff16945f6ac5851eceb8a01a4",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_BaseColor.png.import": "762726034f66467517c6558f694328719a1c14df6480657be185693c575197ab",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_Normal.png": "b920e07d39229e2a6194c90c2d4654736fc271eaf0f617b4ced37b00626d5a18",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_Normal.png.import": "17b639b09ddf8537e756320dc791c4b7deb99247a977af69f2bde01268094b94",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_ORM.png": "366b3059a09ae52785da607d540a57bef7131fc9a75d07365afddff1521b3e94",
+          "assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/T_Wizard_ORM.png.import": "ae43a4042e948e6aa2e6b460e2c6f6a85d428d97ef0f243914a4b5c12664f1e4"
+        },
+        "settings": {
+          "bind_transform_tolerance": 1e-05,
+          "influences": 12,
+          "skin_weight_penalty": 0.004,
+          "squared_distance_epsilon": 1e-06
+        },
+        "toolchain": {
+          "engine": "4.7.2.stable.nixpkgs.ed1daf0bf",
+          "implementation": "d3a90572f94064771b22f15390cc12198bf89097388fdfc146458b819a8ee64f",
+          "numpy": "2.5.2",
+          "scipy": "1.18.1"
+        }
+      },
+      "item_resource_paths": [
+        "res://features/inventory/resources/items/wizard_trousers.tres"
+      ],
+      "legacy_equipped_transform": "identity",
+      "path": "res://assets/items/equipment/wardrobe_bindings/wizard_trousers.res",
+      "reference_body_id": "original_male_regular",
+      "source_digest": "5d2aa71c68ef1e379a9e0c7dd6382f0e281c29cc98b6dafce3438f52a276c38b",
+      "uid": "uid://bvxb0n111otde",
+      "used_joint_names": [
+        "calf_l",
+        "calf_r",
+        "pelvis",
+        "spine_01",
+        "spine_02",
+        "thigh_l",
+        "thigh_r"
+      ],
+      "vertices": 810,
+      "visual_acceptance": "not established by binding generation"
+    }
+  },
+  "schema_version": 1
+}

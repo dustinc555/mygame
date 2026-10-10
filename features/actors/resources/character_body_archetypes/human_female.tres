@@ -1,10 +1,13 @@
 [gd_resource type="Resource" script_class="CharacterBodyArchetypeDefinition" format=3 uid="uid://63d1ddh3frua"]
 
 [ext_resource type="Script" uid="uid://sa213mic48vf" path="res://features/actors/resources/character_body_archetypes/character_body_archetype_definition.gd" id="1_script"]
-[ext_resource type="PackedScene" uid="uid://vn76mtt8q137" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Regular_Female_FullBody.gltf" id="2_regular"]
-[ext_resource type="PackedScene" uid="uid://q8elrj0lpnj3" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Female_FullBody.gltf" id="3_heroic"]
-[ext_resource type="PackedScene" uid="uid://duxmvcjwj32ih" path="res://assets/vendor/quaternius/universal_base_characters/base_characters/Teen_Female_FullBody.gltf" id="4_teen"]
+[ext_resource type="PackedScene" uid="uid://cyl7y8o4t3gqq" path="res://assets/characters/humans/frontier_regular/female_regular.glb" id="2_regular"]
+[ext_resource type="PackedScene" uid="uid://dp7xbdjwjm44r" path="res://assets/characters/humans/frontier_variants/female_heroic.glb" id="3_heroic"]
+[ext_resource type="PackedScene" uid="uid://d4l72mrks0ivn" path="res://assets/characters/humans/frontier_variants/female_teen.glb" id="4_teen"]
 [ext_resource type="Resource" uid="uid://dalkever0wmlw" path="res://features/actors/resources/humanoid_grip_socket_profiles/human_female.tres" id="5_grip"]
+[ext_resource type="Resource" uid="uid://bwqpvmnln4j30" path="res://assets/characters/wardrobe/female_heroic.res" id="wardrobe_heroic"]
+[ext_resource type="Resource" uid="uid://bagl7b1q2j7xo" path="res://assets/characters/wardrobe/female_regular.res" id="wardrobe_regular"]
+[ext_resource type="Resource" uid="uid://bah8ge5oudam8" path="res://assets/characters/wardrobe/female_teen.res" id="wardrobe_teen"]
 
 [resource]
 script = ExtResource("1_script")
@@ -20,3 +23,8 @@ visual_body_type = 3
 bone_pose_position_offsets = {
 "Head": Vector3(0, -0.04, 0)
 }
+wardrobe_profiles = Dictionary[String, Resource]({
+"res://assets/characters/humans/frontier_regular/female_regular.glb": ExtResource("wardrobe_regular"),
+"res://assets/characters/humans/frontier_variants/female_heroic.glb": ExtResource("wardrobe_heroic"),
+"res://assets/characters/humans/frontier_variants/female_teen.glb": ExtResource("wardrobe_teen")
+})

@@ -11,4 +11,5 @@ display_name = "Fine"
 slot = 2
 visual_scene = ExtResource("2_adult")
 teen_visual_scene = ExtResource("3_teen")
+embedded_mesh_name = &"BrowDetail"
 allowed_body_types = PackedStringArray("female")

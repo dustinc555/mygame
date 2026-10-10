@@ -1441,7 +1441,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=1643235018]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=1407555800]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1450,7 +1450,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=64963068]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=895398406]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1459,7 +1459,7 @@ transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 2.98
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=201675926]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=2031606169]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1623,6 +1623,22 @@ stock_overrides = {
 },
 "res://features/inventory/resources/items/iron_dagger.tres": {
 "quantity": 1,
+"replenishes": true
+},
+"res://features/inventory/resources/items/traveler_hide_boots.tres": {
+"quantity": 2,
+"replenishes": true
+},
+"res://features/inventory/resources/items/traveler_hide_gloves.tres": {
+"quantity": 2,
+"replenishes": true
+},
+"res://features/inventory/resources/items/traveler_leather_jacket.tres": {
+"quantity": 2,
+"replenishes": true
+},
+"res://features/inventory/resources/items/traveler_trousers.tres": {
+"quantity": 2,
 "replenishes": true
 }
 }
@@ -1884,7 +1900,7 @@ metadata/furnish_generated = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
 shape = SubResource("CylinderShape3D_ofq5q")
 
-[node name="Barrel2" type="Node3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container4/ModelRoot" index="0" unique_id=1045175980 instance=ExtResource("99_mmxot")]
+[node name="Barrel2" type="Node3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container4/ModelRoot" index="0" unique_id=1304505289 instance=ExtResource("99_mmxot")]
 
 [node name="Shelf1" parent="Towns/Canyon/CanyonTradeStation/Furniture" unique_id=1415947144 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, -4.9180274, 1.6, -3.76997)
@@ -2270,10 +2286,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -82.89324, -0.14691734, -368.
 resource_node_id = "deposit_22aec349d797e076182aa5783a7c1cb6"
 
 [node name="Camp" type="Node3D" parent="." unique_id=2001040978]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -133.86136, -0.1411972, -376.99927)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -241.27235, -0.1411972, -382.95068)
 script = ExtResource("110_dyfv2")
 camp_id = "camp_du8voe75ykcwl"
-camp_size = 2
+camp_size = 0
 roaming_radius = 440.0
 camp_radius = 100.0
 operational_radius = 440.0

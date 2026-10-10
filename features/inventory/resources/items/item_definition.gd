@@ -93,19 +93,30 @@ func fits_race(race_id: String) -> bool:
 	return compatible_races.is_empty() or compatible_races.has(race_id)
 
 
-func get_equipment_visual_for_body_archetype(body_archetype: Resource) -> Resource:
+func get_equipment_visual_for_body_archetype(body_archetype: Resource, body_scene_path: String = "") -> Resource:
 	if body_archetype == null:
 		return null
 	for visual in equipped_visuals:
 		if visual != null and visual.has_method("matches_body_archetype") and visual.matches_body_archetype(body_archetype):
+			if not body_scene_path.is_empty() and visual.has_method("for_body_scene"):
+				return visual.for_body_scene(body_scene_path)
 			return visual
 	return null
 
 
-func get_equipped_scene_for_body_archetype(body_archetype: Resource) -> PackedScene:
-	var visual := get_equipment_visual_for_body_archetype(body_archetype)
+func get_equipped_scene_for_body_archetype(body_archetype: Resource, body_scene_path: String = "") -> PackedScene:
+	var visual := get_equipment_visual_for_body_archetype(body_archetype, body_scene_path)
 	if visual != null:
 		var visual_scene := visual.get("visual_scene") as PackedScene
 		if visual_scene != null:
 			return visual_scene
+	if has_clothing_binding():
+		return null
 	return equipped_scene
+
+
+func has_clothing_binding() -> bool:
+	for visual: Resource in equipped_visuals:
+		if visual != null and visual.get("clothing_binding") != null:
+			return true
+	return false

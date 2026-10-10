@@ -66,6 +66,19 @@ func setup_visual() -> void:
 		apply_cinder_burned_visuals()
 
 
+func refresh_equipment_slots(changed_slots: Array) -> void:
+	super.refresh_equipment_slots(changed_slots)
+	if actor != null and _actor.is_cinder_burned():
+		apply_cinder_burned_visuals()
+
+
+func _remove_clothing_equipment_slot(slot_name: String) -> void:
+	var visual_root := get_visual_root()
+	if visual_root != null:
+		_strip_meshes_for_exit(visual_root.get_node_or_null("Equipped_%s" % slot_name.capitalize()))
+	super._remove_clothing_equipment_slot(slot_name)
+
+
 func get_combat_animation_set(stance_id: String):
 	# Select real zombie clips before the actor calculates attack/impact timing.
 	# Their import/retargeting remains in _copy_character_animations below.

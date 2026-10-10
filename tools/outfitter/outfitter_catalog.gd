@@ -3,6 +3,12 @@ extends RefCounted
 const RACES := preload("res://features/world_sim/resources/population_appearance_profile.gd")
 const PROFILES := "res://features/world_sim/resources/population_appearance_profiles"
 const ITEMS := "res://features/inventory/resources/items"
+# Representative inspection contexts; production rules resolve the actual scene.
+const BUILD_CONTEXTS := {
+	"regular": {"age_years": CharacterVisualRules.DEFAULT_ADULT_AGE, "toughness_level": SkillRules.DEFAULT_LEVEL},
+	"heroic": {"age_years": CharacterVisualRules.DEFAULT_ADULT_AGE, "toughness_level": CharacterVisualRules.HEROIC_TOUGHNESS_LEVEL},
+	"teen": {"age_years": 15, "toughness_level": SkillRules.DEFAULT_LEVEL},
+}
 var races: Array[Resource] = []
 var items: Array[ItemDefinition] = []
 var profiles: Array[Resource] = []
@@ -42,7 +48,13 @@ func actor_script_for(race: Resource, body: Resource) -> Script:
 		return load("res://features/actors/projection/humanoid/humanoid_character.gd")
 	return null
 
-func create_actor(race: Resource, body: Resource) -> WorldActor:
+func builds(body: Resource) -> Array[String]:
+	var result: Array[String] = []
+	for build in BUILD_CONTEXTS:
+		if build == "regular" or (body != null and body.get(build + "_visual_scene") != null): result.append(build)
+	return result
+
+func create_actor(race: Resource, body: Resource, build: String = "regular") -> WorldActor:
 	var script := actor_script_for(race, body)
 	if script == null: return null
 	var actor := script.new() as WorldActor
@@ -50,6 +62,9 @@ func create_actor(race: Resource, body: Resource) -> WorldActor:
 	appearance.character_race = race
 	appearance.body_archetype = body
 	appearance.visual_body_type = body.visual_body_type
+	var context: Dictionary = BUILD_CONTEXTS[build if builds(body).has(build) else "regular"]
+	appearance.visual_age_years = context.age_years
+	appearance.visual_toughness_level = context.toughness_level
 	actor.set("character_race", race)
 	actor.set("body_archetype", body)
 	actor.set("visual_body_type", body.visual_body_type)

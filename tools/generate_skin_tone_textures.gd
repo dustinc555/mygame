@@ -7,6 +7,8 @@ const DEFAULT_RACE_IDS := ["human", "rustdead"]
 
 # Repair missing files without recoloring or rewriting any existing output:
 # --skin-race=rustdead --missing-only
+# Regenerate just the approved regular-male human palette:
+# --skin-race=human --skin-body=male --skin-variant=regular
 var _missing_only := false
 var _generated_count := 0
 var _skipped_count := 0
@@ -18,6 +20,12 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_missing_only = OS.get_cmdline_user_args().has("--missing-only")
+	var body_ids := _get_requested_values("--skin-body=", ["male", "female"])
+	var body_variants := _get_requested_values("--skin-variant=", SKIN_TEXTURE_BUILDER.get_supported_body_variants())
+	if body_ids.is_empty() or body_variants.is_empty():
+		push_error("Invalid --skin-body or --skin-variant; no palettes were written.")
+		quit(1)
+		return
 	for race_id in _get_requested_race_ids():
 		var output_dir := ProjectSettings.globalize_path(SKIN_TEXTURE_BUILDER.get_generated_skin_texture_dir(race_id))
 		var error := DirAccess.make_dir_recursive_absolute(output_dir)
@@ -25,13 +33,27 @@ func _run() -> void:
 			push_error("Could not create generated skin texture directory: %s" % SKIN_TEXTURE_BUILDER.get_generated_skin_texture_dir(race_id))
 			quit(1)
 			return
-		for body_variant in SKIN_TEXTURE_BUILDER.get_supported_body_variants():
-			for body_type in [SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_MALE, SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_FEMALE]:
+		for body_variant in body_variants:
+			for body_id in body_ids:
+				var body_type: int = SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_MALE if body_id == "male" else SKIN_TEXTURE_BUILDER.VISUAL_BODY_TYPE_FEMALE
 				if not _generate_for_body_type(race_id, body_type, body_variant):
 					quit(1)
 					return
 	print("GENERATED_SKIN_TONE_TEXTURES_OK generated=%d skipped=%d" % [_generated_count, _skipped_count])
 	quit(0)
+
+
+func _get_requested_values(option: String, supported: Array) -> Array[String]:
+	var result: Array[String] = []
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with(option):
+			var value := argument.substr(option.length())
+			if not supported.has(value):
+				return []
+			result.assign([value])
+			return result
+	result.assign(supported)
+	return result
 
 
 func _get_requested_race_ids() -> Array[String]:
@@ -77,9 +99,16 @@ func _generate_for_body_type(race_id: String, body_type: int, body_variant: Stri
 			tone_indices.append(tone_index)
 	if tone_indices.is_empty():
 		return true
-	var source_texture_path: String = SKIN_TEXTURE_BUILDER.get_source_texture_path(body_type, body_variant)
-	var source_texture := load(source_texture_path) as Texture2D
-	var base_image := _get_readable_image(source_texture)
+	var source_texture_path: String = SKIN_TEXTURE_BUILDER.get_source_texture_path(body_type, body_variant, race_id)
+	var base_image: Image
+	if FileAccess.file_exists(source_texture_path + ".import"):
+		# Keep the existing decode path for all vendor artwork, including Rustdead.
+		base_image = _get_readable_image(load(source_texture_path) as Texture2D)
+	else:
+		# Authoring PNGs under .gdignore are offline inputs, not runtime resources.
+		base_image = Image.load_from_file(ProjectSettings.globalize_path(source_texture_path))
+		if base_image != null:
+			base_image.convert(Image.FORMAT_RGBA8)
 	if base_image == null:
 		push_error("Could not read base skin texture for race '%s' body type %d" % [race_id, body_type])
 		return false

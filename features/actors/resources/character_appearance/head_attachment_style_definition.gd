@@ -14,7 +14,10 @@ enum Slot {
 @export var slot: Slot = Slot.HAIR
 @export var visual_scene: PackedScene
 @export var teen_visual_scene: PackedScene
+## Reuse this fitted body mesh when present; otherwise use the external scenes.
+@export var embedded_mesh_name: StringName
 @export var colorize := true
+## Reference color already baked into an embedded mesh's albedo; recoloring is relative to it.
 @export var default_color := Color(0.16, 0.11, 0.07, 1.0)
 @export var allowed_body_types: PackedStringArray = PackedStringArray()
 

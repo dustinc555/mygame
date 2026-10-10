@@ -14,7 +14,6 @@ var _icon: TextureRect
 var _highlight := false
 var _active_drag_data: Dictionary = {}
 var _inventory_grid: InventoryGridControl
-var _display_dimensions := Vector2i(2, 2)
 var item_provider: Callable
 var drag_provider: Callable
 var drop_validator: Callable
@@ -22,6 +21,9 @@ var drop_validator: Callable
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	# Old saves may contain oversized gear. Keep it removable without letting
+	# its art spill over adjacent slots; new equips enforce the slot capacity.
+	clip_contents = true
 	_update_target_size()
 	var panel := StyleBoxFlat.new()
 	panel.bg_color = Color(0.105, 0.095, 0.08, 1)
@@ -109,12 +111,7 @@ func _cell_gap() -> float:
 
 
 func _update_target_size() -> void:
-	_display_dimensions = grid_dimensions
-	var item = _get_equipped_item()
-	if item != null:
-		# Preserve the existing equip rules. Expand the display, never compress an item.
-		_display_dimensions = _display_dimensions.max(item.grid_size)
-	custom_minimum_size = InventoryGridControl.grid_pixel_size(_display_dimensions, _cell_size(), _cell_gap())
+	custom_minimum_size = InventoryGridControl.grid_pixel_size(grid_dimensions, _cell_size(), _cell_gap())
 
 
 func get_equipped_item_rect() -> Rect2:
@@ -141,12 +138,12 @@ func _layout_icon() -> void:
 func _draw() -> void:
 	var cells := _cell_size()
 	var stride := cells + Vector2.ONE * _cell_gap()
-	for y in range(_display_dimensions.y):
-		for x in range(_display_dimensions.x):
+	for y in range(grid_dimensions.y):
+		for x in range(grid_dimensions.x):
 			var rect := Rect2(Vector2(x, y) * stride, cells)
 			draw_rect(rect, Color(0.065, 0.06, 0.048), true)
 			draw_rect(rect, Color(0.23, 0.205, 0.16), false, 1.0)
-	var occupied := get_equipped_item_rect()
+	var occupied := get_equipped_item_rect().intersection(Rect2(Vector2.ZERO, custom_minimum_size))
 	if occupied.has_area():
 		draw_rect(occupied, Color(0.16, 0.14, 0.095), true)
 		draw_rect(occupied, Color(0.49, 0.40, 0.24), false, 1.0)

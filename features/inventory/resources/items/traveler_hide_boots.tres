@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="2_visual"]
+[ext_resource type="Texture2D" path="res://assets/items/equipment/traveler_hide_boots/traveler_hide_boots.png" id="3_icon"]
+[ext_resource type="PackedScene" path="res://assets/items/equipment/traveler_hide_boots/male_regular.glb" id="4_male"]
+[ext_resource type="Resource" path="res://assets/items/equipment/wardrobe_bindings/traveler_hide_boots.res" id="wardrobe_binding"]
+
+[sub_resource type="Resource" id="Visual_shared"]
+script = ExtResource("2_visual")
+visual_scene = ExtResource("4_male")
+surface_offset_ratio = 0.0
+clothing_binding = ExtResource("wardrobe_binding")
+visual_layer = "underlayer"
+visual_coverage = "feet"
+replaces_body_slots = PackedStringArray()
+visual_notes = "Calf-high lace-up hide boots with rounded feet, low soles and stitched welts. The full-length trouser hem can overlap the boot shaft. One source garment adapted through shared body registration; no body hiding or extra inflation."
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Traveler Hide Boots"
+item_id = "traveler_hide_boots"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(2, 2)
+unit_weight = 0.9
+max_stack = 1
+equip_slot = "feet"
+alternate_equip_slots = PackedStringArray()
+compatible_races = PackedStringArray("human")
+world_scene = ExtResource("4_male")
+equipped_visuals = Array[Resource]([SubResource("Visual_shared")])
+tool_tags = PackedStringArray()
+access_key_ids = PackedStringArray()

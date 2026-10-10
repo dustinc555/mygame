@@ -46,6 +46,57 @@ static func instantiate_head_attachment(style: Resource, age_years: int, color: 
 	return root
 
 
+## Returns true when the style is already part of the body (including its lashes).
+## Duplicate materials, not meshes or textures, so recoloring never edits the import.
+static func apply_embedded_head_attachment(root: Node, style: Resource, color: Color) -> bool:
+	var mesh_instance := get_embedded_head_attachment(root, style)
+	if mesh_instance == null or mesh_instance.mesh == null:
+		return false
+	var definition := style as HeadAttachmentStyleDefinition
+	mesh_instance.visible = true
+	if definition.colorize:
+		for surface_index in range(mesh_instance.mesh.get_surface_count()):
+			var source := mesh_instance.mesh.surface_get_material(surface_index) as BaseMaterial3D
+			if source == null:
+				continue
+			var material := source.duplicate() as BaseMaterial3D
+			# The texture already contains the authored default color. A plain
+			# multiplicative tint would darken it twice and make blond brows black.
+			var reference := definition.default_color
+			material.albedo_color = source.albedo_color * Color(
+				color.r / maxf(reference.r, 0.001),
+				color.g / maxf(reference.g, 0.001),
+				color.b / maxf(reference.b, 0.001),
+				color.a)
+			mesh_instance.set_surface_override_material(surface_index, material)
+	return true
+
+
+static func get_embedded_head_attachment(root: Node, style: Resource) -> MeshInstance3D:
+	if root == null or not (style is HeadAttachmentStyleDefinition):
+		return null
+	var definition := style as HeadAttachmentStyleDefinition
+	if definition.embedded_mesh_name.is_empty():
+		return null
+	return root.find_child(str(definition.embedded_mesh_name), true, false) as MeshInstance3D
+
+
+static func is_base_eyebrow_visual(node: Node) -> bool:
+	if not (node is MeshInstance3D):
+		return false
+	var mesh_name := str(node.name).to_lower()
+	return mesh_name.contains("eyebrow") or mesh_name == "browdetail"
+
+
+static func set_base_eyebrows_visible(root: Node, visible_flag: bool) -> void:
+	if root == null:
+		return
+	if is_base_eyebrow_visual(root):
+		(root as MeshInstance3D).visible = visible_flag
+	for child in root.get_children():
+		set_base_eyebrows_visible(child, visible_flag)
+
+
 static func _apply_color_material(root: Node, color: Color) -> void:
 	if root is MeshInstance3D:
 		var material := StandardMaterial3D.new()
