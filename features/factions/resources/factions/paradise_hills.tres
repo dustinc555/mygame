@@ -1,27 +1,29 @@
 [gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://b4vo3ehw0kwo7"]
 
 [ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://features/factions/resources/faction_definition.gd" id="1_faction"]
-[ext_resource type="Texture2D" path="res://features/factions/resources/icons/paradise_hills.svg" id="2_icon"]
 [ext_resource type="Resource" uid="uid://dop3nplurk2vm" path="res://features/world_sim/resources/behavior_profiles/paradise_hills_camp.tres" id="2_behavior"]
+[ext_resource type="Texture2D" uid="uid://b5qs3i0kom5ld" path="res://features/factions/resources/icons/paradise_hills.svg" id="2_icon"]
 [ext_resource type="Resource" uid="uid://mw8njq6ugn5d" path="res://features/factions/resources/personality_profiles/paradise_hills_slavers.tres" id="3_personality"]
 [ext_resource type="Resource" uid="uid://tqkaqrllihd0" path="res://features/factions/resources/law_profiles/paradise_hills_law.tres" id="4_law"]
 [ext_resource type="Resource" uid="uid://pjw2qb2u0hbw" path="res://features/world_sim/resources/population_name_profiles/raider_names.tres" id="5_names"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/raider_scrapper.tres" id="9_appearance"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="99_types"]
+[ext_resource type="Resource" uid="uid://cqiaromu2uqj3" path="res://features/world_sim/resources/population_appearance_profiles/raider_scrapper.tres" id="9_appearance"]
+[ext_resource type="Resource" uid="uid://clyogl1gl5cec" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="99_types"]
 
 [resource]
 script = ExtResource("1_faction")
-icon = ExtResource("2_icon")
 faction_id = "ParadiseHills"
 display_name = "Paradise Hills"
 description = "A slaver camp faction whose laws treat slavery as legal property order."
+icon = ExtResource("2_icon")
 primary_color = Color(0.72, 0.48, 0.16, 1)
-default_hostile_faction_ids = null
-starting_war_faction_ids = null
+default_hostile_faction_ids = PackedStringArray()
+starting_war_faction_ids = PackedStringArray()
 open_access = false
+active_zone_ids = PackedStringArray()
+owned_settlement_ids = PackedStringArray()
 behavior_profile = ExtResource("2_behavior")
 personality_profile = ExtResource("3_personality")
 law_profile = ExtResource("4_law")
-population_appearance_profile = ExtResource("9_appearance")
 population_name_profile = ExtResource("5_names")
+population_appearance_profile = ExtResource("9_appearance")
 character_type_set = ExtResource("99_types")

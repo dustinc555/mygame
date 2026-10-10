@@ -5,6 +5,11 @@
     "timeout_seconds": 90
   },
   "tests": {
+    "tests/validation/validate_camp_squad_orders.gd": {
+      "mode": "case",
+      "timeout_seconds": 180,
+      "reason": "Real World Sim menu input, camp squad travel/combat, camera LOD destruction/recreation and full-session save/load."
+    },
     "tests/validation/validate_camp_runtime.gd": {
       "mode": "case",
       "timeout_seconds": 180,

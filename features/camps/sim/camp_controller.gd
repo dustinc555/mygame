@@ -85,22 +85,61 @@ func _generate(marker: Node3D) -> void:
 	_refresh_squad_counts(state)
 
 func _spawn_member(state: Dictionary, slot_index: int) -> void:
-	var faction: Resource = load(str(state.faction_path))
-	var definition: Resource = load(str(state.type_path))
 	var slot: Dictionary = state.slots[slot_index]
 	state.generation_index = int(state.generation_index) + 1
-	var context := {
-		"population_appearance_profile": faction.call("get_character_realizer"),
-		"population_name_profile": faction.get("population_name_profile"),
-		"character_type": definition.get("warrior_type"), "race_weights": faction.get("race_weights"),
-		"faction_id": state.faction_id, "squad_name": slot.squad_id,
-		"role_id": "camp_leader" if slot_index == 0 else "camp_warrior",
-		"available_for_work": false, "combat_stance": NpcRules.CombatStance.AGGRESSIVE,
-		"spawn_position": state.position, "generation_seed": state.seed,
-	}
+	var context := _member_generation_context(state, str(slot.squad_id), slot_index == 0)
 	var record: Dictionary = _population.ensure_authored_record(str(state.camp_id), "camp", int(state.generation_index), context, {})
 	if not record.is_empty():
 		slot.actor_id = record.actor_id
+
+func _member_generation_context(state: Dictionary, squad_id: String, leader: bool = false) -> Dictionary:
+	var faction: Resource = load(str(state.faction_path))
+	var definition: Resource = load(str(state.type_path))
+	return {
+		"population_appearance_profile": faction.call("get_character_realizer"),
+		"population_name_profile": faction.get("population_name_profile"),
+		"character_type": definition.get("warrior_type"), "race_weights": faction.get("race_weights"),
+		"faction_id": state.faction_id, "squad_name": squad_id,
+		"role_id": "camp_leader" if leader else "camp_warrior",
+		"available_for_work": false, "combat_stance": NpcRules.CombatStance.AGGRESSIVE,
+		"spawn_position": state.position, "generation_seed": state.seed,
+	}
+
+## A simulation command, not a separate debug actor-spawning path. Projection,
+## combat, persistence and casualties consume these ordinary population records.
+func spawn_attack_squad(camp_id: String, target_settlement_id: String, fighter_count: int) -> Dictionary:
+	var state: Dictionary = _gecs.get_camp_state(camp_id)
+	var town: Dictionary = _gecs.get_settlement_states().get(target_settlement_id, {})
+	if state.is_empty() or str(state.get("status", "")) != "occupied":
+		return {"ok": false, "message": "Choose an occupied camp."}
+	if town.is_empty() or not town.get("world_position", Vector3.INF).is_finite():
+		return {"ok": false, "message": "Choose a town with a known location."}
+	if fighter_count < 1:
+		return {"ok": false, "message": "Fighters must be at least 1."}
+	if not _context.require(&"faction").are_hostile(str(state.faction_id), str(town.get("faction_id", ""))):
+		return {"ok": false, "message": "These factions are not hostile. Their relations were not changed."}
+	var sequence := int(state.get("attack_sequence", 0)) + 1
+	var squad_id := "%s.assault.%d" % [camp_id, sequence]
+	var records: Array = _population.ensure_generated_population(camp_id, "assault.%d" % sequence, fighter_count, _member_generation_context(state, squad_id))
+	for record in records:
+		state.slots.append({"actor_id": record.actor_id, "squad_id": squad_id, "resident_index": -1, "replace_on_death": false})
+	state["attack_sequence"] = sequence
+	_gecs.upsert_camp_state(state)
+	var definition: Resource = load(str(state.type_path))
+	_gecs.upsert_world_sim_squad({
+		"squad_id": squad_id, "owner_kind": "camp", "owner_id": camp_id,
+		"faction_id": state.faction_id, "member_count": records.size(),
+		"objective": "assault", "target_settlement_id": target_settlement_id,
+		"position": state.position, "home_position": state.position,
+		"target_position": town.world_position, "patrol_radius": state.operational_radius,
+		"move_speed": definition.get("patrol_speed"), "state": "active",
+		"phase": "", "phase_timer": 0.0, "decision": "",
+	})
+	var target_name := str(town.get("display_name", ""))
+	if target_name.is_empty():
+		target_name = target_settlement_id
+	_gecs.log_world_event("camp", "%s sent %d fighters to %s" % [str(state.faction_id), records.size(), target_name], {"squad_id": squad_id, "target_settlement_id": target_settlement_id})
+	return {"ok": true, "squad_id": squad_id, "fighter_count": records.size(), "message": "Spawned %d fighters. Their squad is heading to %s." % [records.size(), target_name]}
 
 func _roll_layout(state: Dictionary, definition: Resource) -> Array:
 	var rng := RandomNumberGenerator.new()
@@ -178,6 +217,13 @@ func world_sim_tick(_dt: float, _bridge: Node, squads: Array, _reference: Vector
 		if str(squad.get("owner_kind", "")) != "camp" or int(squad.get("member_count", 0)) == 0:
 			continue
 		var position: Vector3 = squad.position
+		# Camp survivors keep their records after returning; generic faction raids
+		# retire their squad at home, which would orphan these camp-owned members.
+		if str(squad.get("objective", "")) == "return" and position.distance_to(squad.home_position) <= 3.0:
+			squad.objective = "patrol"
+			squad.target_settlement_id = ""
+		if str(squad.get("objective", "")) != "patrol":
+			continue
 		if position.distance_to(squad.target_position) <= 3.0:
 			squad.target_position = get_patrol_target(squad)
 			_gecs.upsert_world_sim_squad(squad)
@@ -187,15 +233,19 @@ func advance_camp(id: String, now: float) -> void:
 	if state.is_empty():
 		return
 	var survivors := 0
+	var replacement_survivors := 0
 	var vacant: Array[int] = []
 	for index in state.slots.size():
+		var replace_on_death := bool(state.slots[index].get("replace_on_death", true))
 		var record: Dictionary = _population.get_actor_record(str(state.slots[index].actor_id))
 		if not record.is_empty() and int(record.get("life_state", 0)) != NpcRules.LifeState.DEAD:
 			survivors += 1
-		else:
+			if replace_on_death:
+				replacement_survivors += 1
+		elif replace_on_death:
 			vacant.append(index)
 	var previous_status := str(state.status)
-	var replacements: int = RULES.advance_lifecycle(state, survivors, now)
+	var replacements: int = RULES.advance_lifecycle(state, survivors, now, replacement_survivors)
 	for index in replacements:
 		_spawn_member(state, vacant[index])
 	_gecs.upsert_camp_state(state)
@@ -235,7 +285,7 @@ func _refresh_squad_counts(state: Dictionary) -> void:
 			var definition: Resource = load(str(state.type_path))
 			squad = {"squad_id": id, "owner_id": state.camp_id, "owner_kind": "camp", "faction_id": state.faction_id, "objective": "patrol", "position": state.position, "home_position": state.position, "target_position": state.position, "patrol_radius": state.operational_radius, "move_speed": definition.get("patrol_speed")}
 		squad.patrol_radius = state.operational_radius
-		if squad.target_position.distance_to(squad.home_position) > float(state.operational_radius):
+		if str(squad.get("objective", "")) == "patrol" and squad.target_position.distance_to(squad.home_position) > float(state.operational_radius):
 			squad.target_position = squad.home_position
 		squad.member_count = counts[id]
 		_gecs.upsert_world_sim_squad(squad)
@@ -278,7 +328,7 @@ func update_lod_swap(bridge: Node, squads: Array, anchors: Array[Vector3], radiu
 
 func resolve_offscreen_skirmish(squad: Dictionary) -> void:
 	var combat := _context.get_optional(&"faction_world_sim")
-	if combat == null or int(squad.get("member_count", 0)) <= 0:
+	if combat == null or int(squad.get("member_count", 0)) <= 0 or str(squad.get("objective", "")) == "return":
 		return
 	# A retained live member means physical combat still owns consequences.
 	for record in _population.get_records_for_squad(str(squad.squad_id)):
@@ -306,6 +356,8 @@ func resolve_offscreen_skirmish(squad: Dictionary) -> void:
 		_population.apply_offscreen_squad_casualties(str(squad.squad_id), int(outcome.survivors), squad.position)
 		squad.member_count = int(outcome.survivors)
 		squad.target_position = squad.home_position
+		if str(squad.get("objective", "")) == "assault":
+			squad.objective = "return"
 		_gecs.upsert_world_sim_squad(squad)
 		_gecs.log_world_event("camp", "%s patrol fought near %s" % [str(squad.faction_id), str(town.get("display_name", town.settlement_id))], {"squad_id": squad.squad_id, "survivors": outcome.survivors})
 		return

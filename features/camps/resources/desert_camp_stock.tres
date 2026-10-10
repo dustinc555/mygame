@@ -5,8 +5,8 @@
 [ext_resource type="Resource" uid="uid://cighg4y750kcr" path="res://features/inventory/resources/items/food.tres" id="food"]
 [ext_resource type="Resource" uid="uid://bhx1scgadb5d7" path="res://features/inventory/resources/items/silver.tres" id="silver"]
 [ext_resource type="Script" uid="uid://binw0mrkk6ac2" path="res://features/settlements/resources/furnishing/container_stock_table.gd" id="table"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/tomato_seeds.tres" id="tomato_seeds"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/wheat_seeds.tres" id="wheat_seeds"]
+[ext_resource type="Resource" uid="uid://cou0y2rmthogj" path="res://features/inventory/resources/items/tomato_seeds.tres" id="tomato_seeds"]
+[ext_resource type="Resource" uid="uid://brhnp6c48r3mt" path="res://features/inventory/resources/items/wheat_seeds.tres" id="wheat_seeds"]
 
 [sub_resource type="Resource" id="Entry_food"]
 script = ExtResource("entry")

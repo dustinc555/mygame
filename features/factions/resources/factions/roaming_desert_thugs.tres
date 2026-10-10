@@ -1,16 +1,24 @@
-[gd_resource type="Resource" format=3]
-[ext_resource type="Script" path="res://features/factions/resources/faction_definition.gd" id="1"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/desert_thugs.tres" id="2"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/population_name_profiles/raider_names.tres" id="3"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="4"]
+[gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://idfwwbccljjq"]
+
+[ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://features/factions/resources/faction_definition.gd" id="1"]
+[ext_resource type="Resource" uid="uid://rsudkm2j5m7o" path="res://features/world_sim/resources/population_appearance_profiles/desert_thugs.tres" id="2"]
+[ext_resource type="Resource" uid="uid://pjw2qb2u0hbw" path="res://features/world_sim/resources/population_name_profiles/raider_names.tres" id="3"]
+[ext_resource type="Resource" uid="uid://clyogl1gl5cec" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="4"]
+
 [resource]
 script = ExtResource("1")
 faction_id = "roaming_desert_thugs"
 display_name = "Roaming Desert Thugs"
 primary_color = Color(0.62, 0.35, 0.15, 1)
+default_hostile_faction_ids = PackedStringArray()
+starting_war_faction_ids = PackedStringArray()
 permanently_hostile = true
-race_weights = Dictionary[String, float]({"human": 0.7, "desert_puglin": 0.3})
-settlement_approach_chance = 0.01
-population_appearance_profile = ExtResource("2")
+race_weights = Dictionary[String, float]({
+"desert_puglin": 0.3,
+"human": 0.7
+})
+active_zone_ids = PackedStringArray()
+owned_settlement_ids = PackedStringArray()
 population_name_profile = ExtResource("3")
+population_appearance_profile = ExtResource("2")
 character_type_set = ExtResource("4")

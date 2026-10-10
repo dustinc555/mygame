@@ -61,7 +61,7 @@ func update_lod_swap(_bridge: Node, squads: Array, anchors: Array[Vector3], radi
 		for slot in state.slots:
 			if not keep and not bool(active_squads.get(str(slot.squad_id), false)):
 				continue
-			var record: Dictionary = _population.get_actor_record(str(slot.actor_id))
+			var record: Dictionary = _gecs.get_population_presence(str(slot.actor_id))
 			if record.is_empty() or int(record.get("life_state", 0)) == NpcRules.LifeState.DEAD:
 				continue
 			records[str(slot.actor_id)] = record

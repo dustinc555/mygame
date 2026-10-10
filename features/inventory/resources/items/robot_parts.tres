@@ -1,10 +1,14 @@
-[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://58u6dbw6alxe"]
 
-[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_jcaff"]
 
 [resource]
 script = ExtResource("1_item")
 display_name = "Robot Parts"
 grid_size = Vector2i(2, 2)
 unit_weight = 2.2
-max_stack = 1
+alternate_equip_slots = PackedStringArray()
+compatible_races = PackedStringArray()
+tool_tags = PackedStringArray()
+access_key_ids = PackedStringArray()

@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="PopulationAppearanceProfile" format=3]
+[gd_resource type="Resource" script_class="PopulationAppearanceProfile" format=3 uid="uid://dbeb04ypqtu8o"]
 
+[ext_resource type="Script" uid="uid://dratuf56j3uee" path="res://features/actors/projection/humanoid/faction_humanoid.gd" id="1_actor"]
 [ext_resource type="Script" uid="uid://c8m6ocw1f8juc" path="res://features/world_sim/resources/population_appearance_profile.gd" id="1_profile"]
-[ext_resource type="Script" path="res://features/actors/projection/humanoid/faction_humanoid.gd" id="1_actor"]
 [ext_resource type="Resource" uid="uid://cdrfbo0gr4b2k" path="res://features/actors/resources/character_appearance/hair_buzzed.tres" id="2_hair_buzzed"]
 [ext_resource type="Resource" uid="uid://bnjatfuysejds" path="res://features/actors/resources/character_appearance/hair_simple_parted.tres" id="3_hair_parted"]
 [ext_resource type="Resource" uid="uid://jn3yk6pk7rua" path="res://features/actors/resources/character_appearance/hair_long.tres" id="4_hair_long"]

@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://btsfkpboaij1p"]
 
-[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
-[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Book_Open.gltf" id="2"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://it4gb0rvjaia" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Book_Open.gltf" id="2"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_y2b7g"]
 
 [resource]
 script = ExtResource("1")
@@ -9,8 +10,12 @@ display_name = "Town Ledger"
 item_id = "administration.town_ledger"
 grid_size = Vector2i(3, 2)
 unit_weight = 1.2
+alternate_equip_slots = PackedStringArray()
+compatible_races = PackedStringArray()
 world_scene = ExtResource("2")
 world_visual_long_axis_meters = 0.52
+tool_tags = PackedStringArray()
+access_key_ids = PackedStringArray()
 sellable = false
 read_behavior = 2
 read_title = "Town Ledger"

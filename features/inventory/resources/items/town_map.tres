@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://ee3etc8wrb1v"]
 
-[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/world/props/keep/ruler_map_markings.svg" id="2"]
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://ctubt6pvc2ns4" path="res://assets/world/props/keep/ruler_map_markings.svg" id="2"]
 [ext_resource type="PackedScene" path="res://features/world/projection/items/town_map_visual.tscn" id="3"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="3_ul4rk"]
 
 [resource]
 script = ExtResource("1")
@@ -11,7 +12,11 @@ item_id = "administration.town_map"
 icon = ExtResource("2")
 grid_size = Vector2i(3, 2)
 unit_weight = 0.3
+alternate_equip_slots = PackedStringArray()
+compatible_races = PackedStringArray()
 world_scene = ExtResource("3")
 world_visual_long_axis_meters = 0.48
+tool_tags = PackedStringArray()
+access_key_ids = PackedStringArray()
 read_behavior = 1
 read_title = "Parchment Map"

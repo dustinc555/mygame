@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="DoorDefinition" format=3]
+[gd_resource type="Resource" script_class="DoorDefinition" format=3 uid="uid://d1w3j88qvietd"]
 
-[ext_resource type="Script" path="res://features/doors/resources/door_definition.gd" id="1_lp71n"]
+[ext_resource type="Script" uid="uid://brvumn33cmepp" path="res://features/doors/resources/door_definition.gd" id="1_lp71n"]
 
 [resource]
 script = ExtResource("1_lp71n")

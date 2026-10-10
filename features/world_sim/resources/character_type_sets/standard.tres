@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="CharacterTypeSet" format=3 uid="uid://clyogl1gl5cec"]
 
 [ext_resource type="Script" uid="uid://cfqg2ontgfete" path="res://features/world_sim/resources/character_type_set.gd" id="1_set"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/character_types/civilian.tres" id="2_civilian"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/character_types/soldier.tres" id="3_soldier"]
+[ext_resource type="Resource" uid="uid://c3tslehrcu552" path="res://features/world_sim/resources/character_types/civilian.tres" id="2_civilian"]
+[ext_resource type="Resource" uid="uid://escxju1xy8fv" path="res://features/world_sim/resources/character_types/soldier.tres" id="3_soldier"]
 
 [resource]
 script = ExtResource("1_set")

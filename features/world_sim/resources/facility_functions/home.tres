@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3]
+[gd_resource type="Resource" script_class="FacilityFunctionDefinition" format=3 uid="uid://d0ee2uo762msa"]
 
-[ext_resource type="Script" path="res://features/world_sim/resources/facility_function_definition.gd" id="1_function"]
+[ext_resource type="Script" uid="uid://cugx5hdqn8thn" path="res://features/world_sim/resources/facility_function_definition.gd" id="1_function"]
 
 [resource]
 script = ExtResource("1_function")
@@ -9,4 +9,5 @@ display_name = "Home"
 facility_type = "housing"
 description = "A private residence with beds, dining furniture, storage, shelves, and lighting."
 default_housing_capacity = 2
+expected_service_points = PackedStringArray()
 expected_activity_types = PackedStringArray("residential")

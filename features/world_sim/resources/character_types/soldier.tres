@@ -1,9 +1,9 @@
-[gd_resource type="Resource" script_class="CharacterTypeDefinition" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="CharacterTypeDefinition" format=3 uid="uid://escxju1xy8fv"]
 
-[ext_resource type="Script" path="res://features/world_sim/resources/character_type_definition.gd" id="1_type"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/hatchet.tres" id="2_hatchet"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/round_shield.tres" id="3_shield"]
-[ext_resource type="Resource" path="res://features/inventory/resources/items/bandage.tres" id="4_bandage"]
+[ext_resource type="Script" uid="uid://x6vk23ab1rfc" path="res://features/world_sim/resources/character_type_definition.gd" id="1_type"]
+[ext_resource type="Resource" uid="uid://b6veme7h5ihjl" path="res://features/inventory/resources/items/hatchet.tres" id="2_hatchet"]
+[ext_resource type="Resource" uid="uid://bxqy0b4qsh6xe" path="res://features/inventory/resources/items/round_shield.tres" id="3_shield"]
+[ext_resource type="Resource" uid="uid://dnguysxebop3d" path="res://features/inventory/resources/items/bandage.tres" id="4_bandage"]
 
 [resource]
 script = ExtResource("1_type")

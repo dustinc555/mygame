@@ -84,6 +84,9 @@ var is_orbiting := false
 var is_left_mouse_down := false
 var is_right_mouse_down := false
 var is_hold_move_active := false
+var _move_group_ids := PackedInt64Array()
+var _move_group_destination := Vector3.INF
+var _move_group_targets: Dictionary = {}
 var hold_move_repeat_remaining := 0.0
 var hold_move_indicator_remaining := 0.0
 var is_drag_selecting := false
@@ -572,7 +575,7 @@ func _process_hold_move(delta: float) -> void:
 	if _is_hold_move_blocked(screen_position):
 		return
 	var show_indicator := hold_move_indicator_remaining <= 0.0
-	if issue_move_command(screen_position, show_indicator) and show_indicator:
+	if issue_move_command(screen_position, show_indicator, true) and show_indicator:
 		hold_move_indicator_remaining = hold_move_indicator_seconds
 
 
@@ -866,7 +869,7 @@ func _is_inspectable_node(node: Node) -> bool:
 		or node.get("display_name") != null
 
 
-func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -> bool:
+func issue_move_command(screen_position: Vector2, show_indicator: bool = true, repeat_existing: bool = false) -> bool:
 	if party_manager.selected_members.is_empty():
 		return false
 	var ground_hit := _pick_ground_hit(screen_position)
@@ -874,15 +877,32 @@ func issue_move_command(screen_position: Vector2, show_indicator: bool = true) -
 		return false
 	var target: Vector3 = ground_hit["position"]
 	var surface_normal: Vector3 = ground_hit.get("normal", Vector3.UP)
-	return issue_move_command_at_world(target, show_indicator, surface_normal)
+	return issue_move_command_at_world(target, show_indicator, surface_normal, repeat_existing)
 
 
-func issue_move_command_at_world(target: Vector3, show_indicator: bool = true, surface_normal: Vector3 = Vector3.UP) -> bool:
+func issue_move_command_at_world(target: Vector3, show_indicator: bool = true, surface_normal: Vector3 = Vector3.UP, repeat_existing: bool = false) -> bool:
 	if party_manager.selected_members.is_empty():
 		return false
 	var indicator_position := target + surface_normal.normalized() * 0.08
 	if show_indicator:
 		_spawn_move_command_indicator(indicator_position)
+	var member_ids := PackedInt64Array()
+	for member in party_manager.selected_members:
+		member_ids.append(member.get_instance_id())
+	# Only held input may reuse an order. A deliberate new click must still
+	# interrupt combat, seating or work, including at the previous destination.
+	if repeat_existing and member_ids == _move_group_ids and target.distance_squared_to(_move_group_destination) <= 0.0025:
+		var unchanged := true
+		for member in party_manager.selected_members:
+			var previous: Vector3 = _move_group_targets.get(member.get_instance_id(), Vector3.INF)
+			if not member.has_active_player_order() or not member.has_move_target() or member.get_move_target() != previous or member._combat_navigation_owned:
+				unchanged = false
+				break
+		if unchanged:
+			return true
+	_move_group_ids = member_ids
+	_move_group_destination = target
+	_move_group_targets.clear()
 	var center := Vector3.ZERO
 	for member in party_manager.selected_members:
 		center += member.global_position
@@ -908,6 +928,7 @@ func issue_move_command_at_world(target: Vector3, show_indicator: bool = true, s
 		if member.has_method("stop_container_interaction"):
 			member.call("stop_container_interaction")
 		member.set_move_target(member_target)
+		_move_group_targets[member.get_instance_id()] = member_target
 		member_index += 1
 	return true
 
@@ -941,7 +962,7 @@ func _project_move_command_target(candidate: Vector3, fallback: Vector3, target_
 	var navigation_map: RID = world_3d.navigation_map
 	if NavigationServer3D.map_get_iteration_id(navigation_map) == 0:
 		return candidate
-	var closest := NavigationServer3D.map_get_closest_point(navigation_map, candidate)
+	var closest := preload("res://features/core/navigation/world_navigation_queries.gd").closest_point(self, navigation_map, candidate)
 	if absf(closest.y - target_y) > MOVE_COMMAND_NAV_PROJECTION_VERTICAL_TOLERANCE:
 		return fallback
 	var horizontal_offset := Vector2(closest.x - candidate.x, closest.z - candidate.z).length()

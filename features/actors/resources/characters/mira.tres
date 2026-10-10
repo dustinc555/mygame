@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="CharacterRecordDefinition" format=3]
+[gd_resource type="Resource" script_class="CharacterRecordDefinition" format=3 uid="uid://c7cn8wcwtnfl4"]
 
-[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="1_wqxry"]
+[ext_resource type="Script" uid="uid://d2t5ft20rp0gl" path="res://features/world_sim/resources/character_record_definition.gd" id="1_wqxry"]
 
 [resource]
 script = ExtResource("1_wqxry")
@@ -60,7 +60,9 @@ equipment_slots = {
 "weapon": "res://features/inventory/resources/items/steel_sword.tres"
 }
 inventory_entries = [{
-"contained_item_counts": {"res://features/inventory/resources/items/silver.tres": 10},
+"contained_item_counts": {
+"res://features/inventory/resources/items/silver.tres": 10
+},
 "count": 1,
 "grid_position": Vector2i(0, 0),
 "item_id": "res://features/inventory/resources/items/silver_pouch.tres",

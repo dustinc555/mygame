@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="WorkSchedule" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WorkSchedule" format=3 uid="uid://chrn13ao7j150"]
 
-[ext_resource type="Script" path="res://features/settlements/resources/work_schedule.gd" id="1_schedule"]
+[ext_resource type="Script" uid="uid://wiudrd07nii7" path="res://features/settlements/resources/work_schedule.gd" id="1_schedule"]
 
 [resource]
 script = ExtResource("1_schedule")

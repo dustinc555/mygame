@@ -1,19 +1,21 @@
 [gd_resource type="Resource" script_class="FactionDefinition" format=3 uid="uid://dhmpw325gf3wi"]
 
 [ext_resource type="Script" uid="uid://bb33lwvxvtuxf" path="res://features/factions/resources/faction_definition.gd" id="1_faction"]
-[ext_resource type="Texture2D" path="res://features/factions/resources/icons/player_drifters.svg" id="2_icon"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/population_name_profiles/farmer_names.tres" id="3_names"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/population_appearance_profiles/settler_common.tres" id="4_realizer"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="99_types"]
+[ext_resource type="Texture2D" uid="uid://bmouq8a6qkrf5" path="res://features/factions/resources/icons/player_drifters.svg" id="2_icon"]
+[ext_resource type="Resource" uid="uid://4464sf7u02lx" path="res://features/world_sim/resources/population_name_profiles/farmer_names.tres" id="3_names"]
+[ext_resource type="Resource" uid="uid://dbeb04ypqtu8o" path="res://features/world_sim/resources/population_appearance_profiles/settler_common.tres" id="4_realizer"]
+[ext_resource type="Resource" uid="uid://clyogl1gl5cec" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="99_types"]
 
 [resource]
 script = ExtResource("1_faction")
-icon = ExtResource("2_icon")
 faction_id = "Player"
 display_name = "Homeless Drifters"
 description = "A nobody faction with no settlement, land, or political weight."
-default_hostile_faction_ids = null
-starting_war_faction_ids = null
+icon = ExtResource("2_icon")
+default_hostile_faction_ids = PackedStringArray()
+starting_war_faction_ids = PackedStringArray()
+active_zone_ids = PackedStringArray()
+owned_settlement_ids = PackedStringArray()
 population_name_profile = ExtResource("3_names")
 population_appearance_profile = ExtResource("4_realizer")
 character_type_set = ExtResource("99_types")

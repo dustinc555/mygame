@@ -1,9 +1,7 @@
-[gd_resource type="Resource" script_class="" load_steps=2 format=3]
+[gd_resource type="Resource" format=3 uid="uid://dfr2qlyc0k0du"]
 
-[ext_resource type="Script" path="res://features/world/resources/resource_deposit_settings.gd" id="1_settings"]
+[ext_resource type="Script" uid="uid://di21twbh567mk" path="res://features/world/resources/resource_deposit_settings.gd" id="1_settings"]
 
 [resource]
 resource_name = "Resource Refill Performance"
 script = ExtResource("1_settings")
-max_refills_per_frame = 32
-refill_budget_milliseconds = 1.5

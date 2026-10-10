@@ -1,11 +1,12 @@
-[gd_resource type="Resource" script_class="FacilityRoleDefinition" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="FacilityRoleDefinition" format=3 uid="uid://dto16yhwibt06"]
 
-[ext_resource type="Script" path="res://features/settlements/resources/facility_role_definition.gd" id="1_role"]
+[ext_resource type="Script" uid="uid://g2ol0vkeudyd" path="res://features/settlements/resources/facility_role_definition.gd" id="1_role"]
+[ext_resource type="Resource" uid="uid://ccimsf7byv4vi" path="res://features/settlements/resources/default_work_schedule.tres" id="2_sn8tw"]
 
 [resource]
 script = ExtResource("1_role")
 role_id = "resident"
 display_name = "Resident"
 assignment_domain = "residence"
-default_character_type_id = "default"
 assignment_exclusivity_group = "residence"
+allowed_job_entry_ids = PackedStringArray()

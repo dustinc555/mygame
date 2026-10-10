@@ -1,13 +1,22 @@
-[gd_resource type="Resource" script_class="MerchantProfile" format=3]
+[gd_resource type="Resource" script_class="MerchantProfile" format=3 uid="uid://ccwmw77dsoofl"]
 
-[ext_resource type="Script" path="res://features/settlements/resources/merchant_profile.gd" id="1"]
+[ext_resource type="Script" uid="uid://cv4s4d68p04rs" path="res://features/settlements/resources/merchant_profile.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Weapons Trader"
 buys_any_sellable_item = false
 stock = {
-"res://features/inventory/resources/items/iron_dagger.tres": {"quantity": 2, "replenishes": true},
-"res://features/inventory/resources/items/spear.tres": {"quantity": 2, "replenishes": true},
-"res://features/inventory/resources/items/wooden_bow.tres": {"quantity": 2, "replenishes": true}
+"res://features/inventory/resources/items/iron_dagger.tres": {
+"quantity": 2,
+"replenishes": true
+},
+"res://features/inventory/resources/items/spear.tres": {
+"quantity": 2,
+"replenishes": true
+},
+"res://features/inventory/resources/items/wooden_bow.tres": {
+"quantity": 2,
+"replenishes": true
+}
 }

@@ -38,7 +38,7 @@
 [ext_resource type="PackedScene" path="res://features/settlements/bridge/venues/facility_guard_post.tscn" id="36_xo48a"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/throne/simple_town_throne.tscn" id="38_kiev5"]
 [ext_resource type="Script" uid="uid://wpyxu6bik6ao" path="res://features/settlements/bridge/settlement_facility_instance.gd" id="39_xo48a"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/home.tres" id="40_3rkdy"]
+[ext_resource type="Resource" uid="uid://d0ee2uo762msa" path="res://features/world_sim/resources/facility_functions/home.tres" id="40_3rkdy"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_1.tscn" id="40_amlfp"]
 [ext_resource type="PackedScene" uid="uid://bux4sxu7v7iiu" path="res://features/world/projection/buildings/shells/modular/small_wood_cottage.tscn" id="41_crisj"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_stocked.tscn" id="42_xh5ub"]
@@ -51,7 +51,7 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/chair_2.tscn" id="49_xh5ub"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bed_twin_2.tscn" id="50_jdtbr"]
 [ext_resource type="Script" uid="uid://ukjf4vtbquwi" path="res://features/settlements/resources/facility_role_slot_definition.gd" id="53_role_slot"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/granary.tres" id="54_bggen"]
+[ext_resource type="Resource" uid="uid://kqj53qbukllh" path="res://features/world_sim/resources/facility_functions/granary.tres" id="54_bggen"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/resident.tres" id="54_resident"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/barkeeper.tres" id="55_barkeeper"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/barber.tres" id="56_barber"]
@@ -79,12 +79,12 @@
 [ext_resource type="Texture2D" uid="uid://b2bq0yufv6apf" path="res://assets/icons/storage_markers/french_beans.svg" id="72_dt8ex"]
 [ext_resource type="Script" uid="uid://hqb2w3j2ydkh" path="res://features/settlements/bridge/settlement_single_object_facility.gd" id="75_ex0ji"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/tank.tscn" id="76_g1tot"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/tank.tres" id="77_0wc3m"]
+[ext_resource type="Resource" uid="uid://cu400pwvgm3a7" path="res://features/world_sim/resources/facility_functions/tank.tres" id="77_0wc3m"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/water/well_1.tscn" id="78_0wc3m"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/well_1.tres" id="79_8f8ek"]
+[ext_resource type="Resource" uid="uid://dftaj46xii0i0" path="res://features/world_sim/resources/facility_functions/well_1.tres" id="79_8f8ek"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_simple.tscn" id="79_dp625"]
 [ext_resource type="Script" uid="uid://c3i5pqrwjhihq" path="res://features/settlements/bridge/settlement_shop.gd" id="80_30bxb"]
-[ext_resource type="Resource" path="res://features/world_sim/resources/facility_functions/shop.tres" id="81_wyvsv"]
+[ext_resource type="Resource" uid="uid://ccvns4k70q4ak" path="res://features/world_sim/resources/facility_functions/shop.tres" id="81_wyvsv"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/merchant.tres" id="82_s4vlm"]
 [ext_resource type="Resource" path="res://features/settlements/resources/roles/mercenary.tres" id="83_wyvsv"]
 [ext_resource type="PackedScene" path="res://features/world/bridge/resource_nodes/copper_node.tscn" id="84_x5ne4"]
@@ -1441,7 +1441,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=1561772727]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=1117298839]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1450,7 +1450,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=2016140005]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=1764081254]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1459,7 +1459,7 @@ transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 2.98
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=1745061143]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=1381926597]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1884,7 +1884,7 @@ metadata/furnish_generated = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
 shape = SubResource("CylinderShape3D_ofq5q")
 
-[node name="Barrel2" type="Node3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container4/ModelRoot" index="0" unique_id=1224673734 instance=ExtResource("99_mmxot")]
+[node name="Barrel2" type="Node3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container4/ModelRoot" index="0" unique_id=670374464 instance=ExtResource("99_mmxot")]
 
 [node name="Shelf1" parent="Towns/Canyon/CanyonTradeStation/Furniture" unique_id=1415947144 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, -4.9180274, 1.6, -3.76997)
@@ -2270,10 +2270,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -82.89324, -0.14691734, -368.
 resource_node_id = "deposit_22aec349d797e076182aa5783a7c1cb6"
 
 [node name="Camp" type="Node3D" parent="." unique_id=2001040978]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -133.86136, -0.1411972, -388.99927)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -133.86136, -0.1411972, -376.99927)
 script = ExtResource("110_dyfv2")
 camp_id = "camp_du8voe75ykcwl"
-camp_size = 0
+camp_size = 2
 roaming_radius = 440.0
 camp_radius = 100.0
 operational_radius = 440.0

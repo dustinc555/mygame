@@ -552,8 +552,8 @@ func _set_actions(actions: Array) -> void:
 		var button := action_buttons[index]
 		if button == null:
 			continue
-		_set_action_button_destructive(button, false)
 		if index >= actions.size():
+			_set_action_button_destructive(button, false)
 			button.visible = false
 			button.disabled = true
 			button.set_meta("inspector_action_key", "")
@@ -569,9 +569,11 @@ func _set_actions(actions: Array) -> void:
 
 func _set_action_button_destructive(button: Button, destructive: bool) -> void:
 	for color_name in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
-		button.remove_theme_color_override(color_name)
 		if destructive:
-			button.add_theme_color_override(color_name, DESTRUCTIVE_ACTION_COLOR)
+			if not button.has_theme_color_override(color_name) or button.get_theme_color(color_name) != DESTRUCTIVE_ACTION_COLOR:
+				button.add_theme_color_override(color_name, DESTRUCTIVE_ACTION_COLOR)
+		elif button.has_theme_color_override(color_name):
+			button.remove_theme_color_override(color_name)
 
 
 func _on_action_button_pressed(button: Button) -> void:

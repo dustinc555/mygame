@@ -1,13 +1,22 @@
-[gd_resource type="Resource" script_class="MerchantProfile" format=3]
+[gd_resource type="Resource" script_class="MerchantProfile" format=3 uid="uid://mb18qkr4ued1"]
 
-[ext_resource type="Script" path="res://features/settlements/resources/merchant_profile.gd" id="1"]
+[ext_resource type="Script" uid="uid://cv4s4d68p04rs" path="res://features/settlements/resources/merchant_profile.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
 display_name = "Scrap Trader"
 buys_any_sellable_item = false
 stock = {
-"res://features/inventory/resources/items/scrap_metal.tres": {"quantity": 30, "replenishes": true},
-"res://features/inventory/resources/items/copper_wire.tres": {"quantity": 20, "replenishes": true},
-"res://features/inventory/resources/items/copper_ore.tres": {"quantity": 10, "replenishes": true}
+"res://features/inventory/resources/items/copper_ore.tres": {
+"quantity": 10,
+"replenishes": true
+},
+"res://features/inventory/resources/items/copper_wire.tres": {
+"quantity": 20,
+"replenishes": true
+},
+"res://features/inventory/resources/items/scrap_metal.tres": {
+"quantity": 30,
+"replenishes": true
+}
 }

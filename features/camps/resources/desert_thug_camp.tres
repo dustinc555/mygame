@@ -1,8 +1,8 @@
 [gd_resource type="Resource" format=3 uid="uid://g5rtiq0rfc6c"]
 
-[ext_resource type="Resource" path="res://features/camps/resources/sizes/large.tres" id="10_jngll"]
-[ext_resource type="Resource" path="res://features/camps/resources/sizes/medium.tres" id="11_s5alj"]
-[ext_resource type="Resource" path="res://features/camps/resources/sizes/small.tres" id="13_2pqaw"]
+[ext_resource type="Resource" uid="uid://urexqmk31i5s" path="res://features/camps/resources/sizes/large.tres" id="10_jngll"]
+[ext_resource type="Resource" uid="uid://f7malanoehvq" path="res://features/camps/resources/sizes/medium.tres" id="11_s5alj"]
+[ext_resource type="Resource" uid="uid://dinih8h65lyk0" path="res://features/camps/resources/sizes/small.tres" id="13_2pqaw"]
 [ext_resource type="Resource" uid="uid://d3fjapry2n2mg" path="res://features/camps/resources/desert_camp_stock.tres" id="loot"]
 [ext_resource type="Script" uid="uid://oxg2u8sq25jn" path="res://features/camps/resources/camp_furnishing.gd" id="recipe"]
 [ext_resource type="PackedScene" path="res://features/camps/projection/campfire_tripod.tscn" id="scene0"]
@@ -13,7 +13,7 @@
 [ext_resource type="PackedScene" path="res://features/settlements/bridge/venues/facility_guard_post.tscn" id="scene5"]
 [ext_resource type="PackedScene" path="res://features/camps/projection/satchel.tscn" id="scene6"]
 [ext_resource type="Script" uid="uid://cnjl10o0j3v2c" path="res://features/camps/resources/camp_type.gd" id="type"]
-[ext_resource type="Resource" path="res://features/camps/resources/desert_thug_warrior.tres" id="warrior"]
+[ext_resource type="Resource" uid="uid://cvc6ckksln3eb" path="res://features/camps/resources/desert_thug_warrior.tres" id="warrior"]
 
 [sub_resource type="Resource" id="Recipe0"]
 script = ExtResource("recipe")
@@ -68,4 +68,3 @@ type_id = "desert_thug_camp"
 display_name = "Desert Thug Camp"
 warrior_type = ExtResource("warrior")
 furnishings = Array[Resource]([SubResource("Recipe0"), SubResource("Recipe1"), SubResource("Recipe2"), SubResource("Recipe3"), SubResource("Recipe4"), SubResource("Recipe5"), SubResource("Recipe6")])
-seating_radius = null

@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="SkillProgressionDefinition" format=3]
+[gd_resource type="Resource" script_class="SkillProgressionDefinition" format=3 uid="uid://bawwwjakqgh7w"]
 
-[ext_resource type="Script" path="res://features/skills/resources/skill_progression_definition.gd" id="1_progression"]
+[ext_resource type="Script" uid="uid://b0prdca7534ms" path="res://features/skills/resources/skill_progression_definition.gd" id="1_progression"]
 
 [resource]
 script = ExtResource("1_progression")

@@ -96,6 +96,11 @@ var _source_revision := 1
 
 # Tile bookkeeping. Key: Vector2i grid coordinate.
 var _tiles: Dictionary[Vector2i, Tile] = {}
+const QUERY_PATH_CACHE_LIMIT := 256
+var _query_paths: Dictionary = {}
+var _query_map: RID
+var _query_map_iteration := -1
+var _movement_routes: RefCounted
 var _inflight: Dictionary[int, BakeTask] = {}
 var _settings_generation := 0
 var _initial_ready := false
@@ -194,6 +199,7 @@ func _activate() -> void:
 
 func _exit_tree() -> void:
 	_shutting_down = true
+	_movement_routes = null
 	set_process(false)
 	var tree := get_tree()
 	if tree.node_added.is_connected(_on_scene_node_added):
@@ -255,6 +261,57 @@ func notify_content_changed_at(global_position: Vector3) -> void:
 	var coord := PIPELINE.tile_coord(global_position, size)
 	var bounds := AABB(Vector3(coord.x * size, -effective_settings.tile_height * 0.5, coord.y * size), Vector3(size, effective_settings.tile_height, size))
 	notify_geometry_changed(bounds, bounds)
+
+
+## Shared, derived native maps for movement on the installed tile grid.
+func get_movement_route(map: RID, start: Vector3, finish: Vector3, retry: int = 0) -> RefCounted:
+	if _mode != Mode.TILED or settings == null or not is_inside_tree():
+		return null
+	var world := get_viewport().find_world_3d()
+	if world == null or world.navigation_map != map:
+		return null
+	if _movement_routes == null:
+		_movement_routes = preload("res://features/core/navigation/world_navigation_routes.gd").new(self)
+	return _movement_routes.acquire(map, start, finish, retry)
+
+
+## Broad phase for local native queries. Reuse the bake grid rather than
+## maintaining a second spatial index. An empty result asks the caller to use
+## the full map (legacy/authored maps, other worlds, or no installed tiles).
+func get_query_regions(map: RID, bounds: AABB) -> Array[RID]:
+	var regions: Array[RID] = []
+	if _mode != Mode.TILED or settings == null or not is_inside_tree():
+		return regions
+	var world := get_viewport().find_world_3d()
+	if world == null or world.navigation_map != map:
+		return regions
+	for coord in PIPELINE.affected_tile_coords(bounds, settings):
+		var tile: Tile = _tiles.get(coord)
+		if tile == null or not is_instance_valid(tile.region) or not tile.region.enabled:
+			continue
+		var region := tile.region
+		if region.navigation_mesh == null or region.navigation_mesh.get_polygon_count() == 0:
+			continue
+		if NavigationServer3D.region_get_map(region.get_rid()) == map:
+			regions.append(region.get_rid())
+	return regions
+
+
+## Exact endpoints only. Physics/strike/occupancy checks remain live at the
+## caller; this cache retains navigation connectivity, not permission to stand.
+func get_cached_query_path(map: RID, start: Vector3, finish: Vector3) -> Variant:
+	var iteration := NavigationServer3D.map_get_iteration_id(map)
+	if _query_map != map or _query_map_iteration != iteration:
+		_query_paths.clear()
+		_query_map = map
+		_query_map_iteration = iteration
+	return _query_paths.get(PackedVector3Array([start, finish]))
+
+
+func cache_query_path(start: Vector3, finish: Vector3, path: PackedVector3Array) -> void:
+	if _query_paths.size() >= QUERY_PATH_CACHE_LIMIT:
+		_query_paths.erase(_query_paths.keys()[0])
+	_query_paths[PackedVector3Array([start, finish])] = path
 
 
 func is_baking() -> bool:

@@ -18,6 +18,7 @@ const EXIT_FLOOR_PROBE_UP := 0.35
 const EXIT_FLOOR_PROBE_DOWN := 0.8
 const EXIT_MAX_NAV_SNAP_DISTANCE := 0.65
 const EXIT_CLEARANCE_LIFT := 0.08
+const NAV_QUERIES := preload("res://features/core/navigation/world_navigation_queries.gd")
 
 var _sitter: HumanoidCharacter
 var _bar_service_area: BarServiceArea
@@ -76,7 +77,7 @@ func get_safe_stand_position(member: HumanoidCharacter, preferred_position := Ve
 	if world != null:
 		var nav_map: RID = world.navigation_map
 		if NavigationServer3D.map_get_iteration_id(nav_map) > 0 and not NavigationServer3D.map_get_regions(nav_map).is_empty():
-			nearest_nav_exit = NavigationServer3D.map_get_closest_point(nav_map, global_position)
+			nearest_nav_exit = NAV_QUERIES.closest_point(self, nav_map, global_position)
 			var nav_exit_distance := Vector2(nearest_nav_exit.x - global_position.x, nearest_nav_exit.z - global_position.z).length()
 			if nearest_nav_exit.is_finite() and nav_exit_distance <= 3.0:
 				candidates.append(nearest_nav_exit)
@@ -114,14 +115,14 @@ func _anchor_has_connected_nav(member: HumanoidCharacter, actor_origin: Vector3)
 	var nav_map: RID = world.navigation_map
 	if NavigationServer3D.map_get_iteration_id(nav_map) == 0 or NavigationServer3D.map_get_regions(nav_map).is_empty():
 		return true
-	var anchor_nav := NavigationServer3D.map_get_closest_point(nav_map, actor_origin)
+	var anchor_nav := NAV_QUERIES.closest_point(self, nav_map, actor_origin)
 	if Vector2(anchor_nav.x - actor_origin.x, anchor_nav.z - actor_origin.z).length() > EXIT_MAX_NAV_SNAP_DISTANCE:
 		return false
 	var door_targets := _door_navigation_targets()
 	if not door_targets.is_empty():
 		for target_position in door_targets:
-			var door_nav := NavigationServer3D.map_get_closest_point(nav_map, target_position)
-			var door_path := NavigationServer3D.map_get_path(nav_map, anchor_nav, door_nav, true)
+			var door_nav := NAV_QUERIES.closest_point(self, nav_map, target_position)
+			var door_path := NAV_QUERIES.path(self, nav_map, anchor_nav, door_nav)
 			if not door_path.is_empty() and door_path[door_path.size() - 1].distance_to(door_nav) <= 0.35 \
 					and _nav_path_has_actor_clearance(member, door_path):
 				return true
@@ -129,10 +130,10 @@ func _anchor_has_connected_nav(member: HumanoidCharacter, actor_origin: Vector3)
 	for direction_value in [Vector3.RIGHT, Vector3.LEFT, Vector3.FORWARD, Vector3.BACK]:
 		var local_direction: Vector3 = direction_value
 		var distant_probe: Vector3 = global_position + global_basis * (local_direction * 3.5)
-		var distant_nav := NavigationServer3D.map_get_closest_point(nav_map, distant_probe)
+		var distant_nav := NAV_QUERIES.closest_point(self, nav_map, distant_probe)
 		if Vector2(distant_nav.x - anchor_nav.x, distant_nav.z - anchor_nav.z).length() < 1.5:
 			continue
-		var path := NavigationServer3D.map_get_path(nav_map, anchor_nav, distant_nav, true)
+		var path := NAV_QUERIES.path(self, nav_map, anchor_nav, distant_nav)
 		if not path.is_empty() and path[path.size() - 1].distance_to(distant_nav) <= 0.35 \
 				and _nav_path_has_actor_clearance(member, path):
 			return true
@@ -175,11 +176,11 @@ func _resolve_exit_floor(member: HumanoidCharacter, candidate: Vector3) -> Vecto
 	var floor_hint := candidate
 	var nav_map: RID = world.navigation_map
 	if NavigationServer3D.map_get_iteration_id(nav_map) > 0 and not NavigationServer3D.map_get_regions(nav_map).is_empty():
-		var nav_position := NavigationServer3D.map_get_closest_point(nav_map, candidate)
+		var nav_position := NAV_QUERIES.closest_point(self, nav_map, candidate)
 		var nav_flat_delta := Vector2(nav_position.x - candidate.x, nav_position.z - candidate.z)
 		if nav_flat_delta.length() <= EXIT_MAX_NAV_SNAP_DISTANCE and absf(nav_position.y - candidate.y) <= 0.8:
-			var nav_start := NavigationServer3D.map_get_closest_point(nav_map, get_interaction_position(member))
-			var exit_path := NavigationServer3D.map_get_path(nav_map, nav_start, nav_position, true)
+			var nav_start := NAV_QUERIES.closest_point(self, nav_map, get_interaction_position(member))
+			var exit_path := NAV_QUERIES.path(self, nav_map, nav_start, nav_position)
 			if not exit_path.is_empty() and exit_path[exit_path.size() - 1].distance_to(nav_position) <= 0.35:
 				floor_hint = nav_position
 	var query := PhysicsRayQueryParameters3D.create(

@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3 uid="uid://bc5fqqi44fq0n"]
 
 [ext_resource type="PackedScene" path="res://scenes/building_pieces/quaternius/medieval_village/prop_chimney_2.tscn" id="1_x5ql1"]
-[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_73tm7"]
-[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Chimney2.gltf" id="3_2h566"]
+[ext_resource type="Script" uid="uid://5qjh45y7sqoe" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_73tm7"]
+[ext_resource type="PackedScene" uid="uid://blmfrdhhosfka" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Prop_Chimney2.gltf" id="3_2h566"]
 
 [resource]
 script = ExtResource("2_73tm7")
