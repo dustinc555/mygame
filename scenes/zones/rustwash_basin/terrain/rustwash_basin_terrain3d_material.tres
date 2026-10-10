@@ -24,10 +24,10 @@ seamless = true
 [resource]
 _shader_parameters = {
 &"bias_distance": null,
-&"blend_sharpness": null,
+&"blend_sharpness": 0.62,
 &"depth_blur": null,
 &"enable_macro_variation": null,
-&"enable_projection": null,
+&"enable_projection": true,
 &"flat_terrain_normals": null,
 &"macro_variation1": null,
 &"macro_variation2": null,
@@ -38,6 +38,6 @@ _shader_parameters = {
 &"noise1_scale": null,
 &"noise2_scale": null,
 &"noise_texture": SubResource("NoiseTexture2D_eqdbv"),
-&"projection_threshold": null
+&"projection_threshold": 0.82
 }
 world_background = 0

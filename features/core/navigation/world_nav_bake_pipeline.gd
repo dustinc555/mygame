@@ -17,7 +17,7 @@ class_name WorldNavBakePipeline
 const POSTPROCESS := preload("res://features/core/navigation/navigation_mesh_postprocess.gd")
 
 const CACHE_DIR_NAME := "navcache"
-const MANIFEST_VERSION := 3
+const MANIFEST_VERSION := 4 # Stable border rounding; exact native tile joins.
 
 ## Recast silently returns an EMPTY mesh past roughly 4096 heightfield cells
 ## per side; tile_size is clamped so a tile can never cross it.

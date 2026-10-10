@@ -34,7 +34,11 @@ static func _round_vertices(nav_mesh: NavigationMesh) -> PackedVector3Array:
 	var round_factor := cell_size * 1.001
 	var vertices: PackedVector3Array = nav_mesh.get_vertices()
 	for i in range(vertices.size()):
-		vertices[i] = (vertices[i] / round_factor).floor() * round_factor
+		# Recast's adjacent bake volumes can produce +epsilon and -epsilon
+		# for the same border. Flooring those independently separates tiles by
+		# an entire cell, notably at zero. Bias by a ten-thousandth of a cell
+		# (10 micrometers at 0.1m resolution), not a walkable gap tolerance.
+		vertices[i] = (vertices[i] / round_factor + Vector3.ONE * 0.0001).floor() * round_factor
 	return vertices
 
 

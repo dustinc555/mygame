@@ -203,6 +203,16 @@ func _dispose(controller: Node) -> void:
 	await process_frame
 
 
+func _await_initial_navigation(controller: Node) -> void:
+	# These fixtures manually drive the controller to control worker races.
+	# A completed bake is not a synchronized, queryable native navigation map.
+	var deadline := Time.get_ticks_msec() + 15000
+	while controller.is_initial_navigation_pending() and Time.get_ticks_msec() < deadline:
+		await physics_frame
+		controller._process(0.0)
+	_expect(not controller.is_initial_navigation_pending(), "native navigation installation completes within deadline")
+
+
 func _test_dirty_during_bake() -> void:
 	var controller := _fixture()
 	var floor_body := _floor(controller.root_scene)
@@ -357,7 +367,11 @@ func _test_full_scene_lifecycle() -> void:
 	var region: NavigationRegion3D = controller._full_scene_region
 	var previous := region.navigation_mesh
 	_expect(previous != null and controller._has_navmesh, "full-scene mode installs real floor geometry")
+	await _await_initial_navigation(controller)
 	_expect(ready_events.size() == 1, "first full-scene bake releases startup exactly once")
+	var map := controller.get_viewport().find_world_3d().navigation_map
+	var path := NavigationServer3D.map_get_path(map, Vector3(22.0, 0.0, 24.0), Vector3(26.0, 0.0, 24.0), true)
+	_expect(not path.is_empty() and path[-1].distance_to(Vector3(26.0, 0.0, 24.0)) < 0.5, "released full-scene startup has a usable native path")
 	controller.notify_world_geometry_changed()
 	_expect(not controller.is_idle(), "full-scene pending source change is not idle")
 	controller._process(0.0)
@@ -375,6 +389,7 @@ func _test_full_scene_lifecycle() -> void:
 	controller = _full_fixture()
 	controller._process(0.0)
 	await _drain(controller)
+	await _await_initial_navigation(controller)
 	_expect(not controller.is_initial_navigation_pending() and controller.gate_tiles_pending() == 0, "initial empty full-scene bake releases startup gate")
 	await _dispose(controller)
 	controller = _full_fixture()
@@ -388,6 +403,7 @@ func _test_full_scene_lifecycle() -> void:
 	_expect(controller.is_initial_navigation_pending(), "stale full-scene completion cannot release startup")
 	controller._process(0.0)
 	await _drain(controller)
+	await _await_initial_navigation(controller)
 	_expect(controller._has_navmesh and not controller.is_initial_navigation_pending(), "full-scene new settings generation installs")
 	await _dispose(controller)
 
