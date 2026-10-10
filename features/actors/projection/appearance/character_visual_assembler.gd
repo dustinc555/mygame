@@ -17,9 +17,19 @@ static func instantiate_body(body_archetype: Resource, appearance: Resource, rac
 		instance.queue_free()
 		return null
 	var root := instance as Node3D
-	if appearance != null and bool(appearance.get("skin_color_customized")):
-		SkinTextureBuilder.apply_custom_skin_materials(root, race_id, body_type, appearance.get("skin_color"))
+	apply_skin(root, appearance, race_id, body_type)
 	return root
+
+
+static func apply_skin(root: Node, appearance: Resource, race_id: String, body_type: int) -> bool:
+	if appearance == null:
+		return false
+	var race: Resource = appearance.get("character_race")
+	if race != null and race.has_method("apply_skin_palette") and race.call("apply_skin_palette", root, appearance.get("skin_color")):
+		return true
+	if bool(appearance.get("skin_color_customized")) and race_id in ["human", "rustdead"]:
+		return SkinTextureBuilder.apply_custom_skin_materials(root, race_id, body_type, appearance.get("skin_color"))
+	return false
 
 
 static func instantiate_head_attachment(style: Resource, age_years: int, color: Color) -> Node3D:

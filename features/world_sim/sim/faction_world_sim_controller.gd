@@ -296,6 +296,7 @@ func _generate_squad_records(population: Node, definition, faction_id: String, s
 		"combat_stance": NpcRules.CombatStance.AGGRESSIVE,
 		"population_appearance_profile": definition.get("population_appearance_profile"),
 		"population_name_profile": definition.get("population_name_profile"),
+		"race_weights": definition.get("race_weights"),
 	}
 	return population.ensure_generated_population(squad_id, squad_id, size, context)
 

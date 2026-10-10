@@ -8,6 +8,7 @@ class_name CGameFactionState
 @export var diplomatic_states: Dictionary = {}
 @export var faction_outlooks: Dictionary = {}
 @export var help_allies := false
+@export var permanently_hostile_faction_ids: PackedStringArray = PackedStringArray()
 
 
 func apply_state(source: Dictionary) -> void:
@@ -17,6 +18,7 @@ func apply_state(source: Dictionary) -> void:
 	diplomatic_states = (source.get("diplomatic_states", diplomatic_states) as Dictionary).duplicate(true)
 	faction_outlooks = (source.get("faction_outlooks", faction_outlooks) as Dictionary).duplicate(true)
 	help_allies = bool(source.get("help_allies", help_allies))
+	permanently_hostile_faction_ids = PackedStringArray(source.get("permanently_hostile_faction_ids", permanently_hostile_faction_ids))
 
 
 func to_state() -> Dictionary:
@@ -27,4 +29,5 @@ func to_state() -> Dictionary:
 		"diplomatic_states": diplomatic_states.duplicate(true),
 		"faction_outlooks": faction_outlooks.duplicate(true),
 		"help_allies": help_allies,
+		"permanently_hostile_faction_ids": Array(permanently_hostile_faction_ids),
 	}

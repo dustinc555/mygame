@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="CharacterRaceDefinition" format=3]
+[ext_resource type="Script" path="res://features/actors/resources/character_races/character_race_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://features/actors/resources/character_body_archetypes/desert_puglin.tres" id="2"]
+[ext_resource type="Resource" path="res://features/world/resources/bleed_fluids/human_blood.tres" id="3"]
+[ext_resource type="Texture2D" path="res://assets/actors/desert_puglin/sand.png" id="4"]
+[ext_resource type="Texture2D" path="res://assets/actors/desert_puglin/ochre.png" id="5"]
+[ext_resource type="Texture2D" path="res://assets/actors/desert_puglin/clay.png" id="6"]
+[resource]
+script = ExtResource("1")
+race_id = "desert_puglin"
+display_name = "Desert Puglin"
+equipment_slots = PackedStringArray("weapon", "offhand")
+bleed_fluid = ExtResource("3")
+default_male_archetype = ExtResource("2")
+default_female_archetype = ExtResource("2")
+skin_tones = Array[Color]([Color(0.85,0.72,0.44,1), Color(0.75,0.50,0.20,1), Color(0.55,0.31,0.21,1)])
+skin_textures = Array[Texture2D]([ExtResource("4"), ExtResource("5"), ExtResource("6")])
+skin_mesh_names = PackedStringArray("Puglin_Body", "Puglin_Tusks")

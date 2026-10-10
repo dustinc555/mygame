@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+[ext_resource type="Script" path="res://features/world_sim/resources/character_type_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/hatchet.tres" id="2"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/round_shield.tres" id="3"]
+[resource]
+script = ExtResource("1")
+type_id = "desert_thug_warrior"
+display_name = "Desert Thug Warrior"
+starting_equipment = Array[Resource]([ExtResource("2"), ExtResource("3")])
+starting_skill_ranges = {
+"attribute.dexterity": Vector2i(25, 45),
+"attribute.endurance": Vector2i(25, 45),
+"attribute.strength": Vector2i(25, 45),
+"attribute.toughness": Vector2i(25, 45),
+"combat.axes_one_handed": Vector2i(25, 45),
+"combat.shields": Vector2i(25, 45),
+"combat.unarmed": Vector2i(25, 45)
+}

@@ -1,0 +1,14 @@
+[gd_scene load_steps=4 format=3]
+[ext_resource type="PackedScene" path="res://features/world/projection/containers/container.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Pouch_Large.gltf" id="2"]
+[sub_resource type="BoxShape3D" id="Shape"]
+size = Vector3(0.45, 0.4, 0.28)
+[node name="Satchel" instance=ExtResource("1")]
+display_name = "Satchel"
+inventory_columns = 6
+inventory_rows = 4
+supports_locking = false
+interaction_distance = 1.6
+visual_scene = ExtResource("2")
+collision_shape = SubResource("Shape")
+collision_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)

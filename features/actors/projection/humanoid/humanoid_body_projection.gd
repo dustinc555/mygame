@@ -326,11 +326,11 @@ func rebuild_visual_for_appearance() -> void:
 
 
 func apply_appearance_materials(root: Node, body_type: int) -> void:
-	if appearance_data == null or not bool(appearance_data.skin_color_customized):
+	if appearance_data == null:
 		return
 	var race := _get_character_race()
 	var race_id := str(race.get("race_id")) if race != null else ""
-	SKIN_TEXTURE_BUILDER.apply_custom_skin_materials(root, race_id, body_type, appearance_data.skin_color)
+	CharacterVisualAssembler.apply_skin(root, appearance_data, race_id, body_type)
 
 
 func _get_bone_pose_position_offsets(target_body_archetype: Resource) -> Dictionary:

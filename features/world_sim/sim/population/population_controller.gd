@@ -1245,7 +1245,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		push_error("Population generation rejected: settlement=%s source=%s has no valid character realizer" % [settlement_id, spawner_id])
 		return {}
 	var appearance_rng := _make_rng(actor_id, "appearance", generation_seed)
-	var appearance = appearance_profile.call("create_appearance", appearance_rng)
+	var appearance = appearance_profile.call("create_appearance", appearance_rng, context.get("race_weights", {}))
 	if appearance == null:
 		push_error("Population generation rejected: character realizer %s produced no appearance" % realizer_id)
 		return {}
@@ -1265,6 +1265,13 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 	if character_type != null:
 		for item in character_type.get("starting_equipment") as Array:
 			_add_equipment_path(equipment_slots, item)
+	var race: Resource = appearance.character_race
+	if race != null and race.has_method("get_equipment_slots"):
+		var allowed_slots: Array = race.call("get_equipment_slots")
+		for slot in equipment_slots.keys():
+			var item := load(str(equipment_slots[slot])) as ItemDefinition
+			if not allowed_slots.has(slot) or (item != null and not item.fits_race(str(race.get("race_id")))):
+				equipment_slots.erase(slot)
 	var skill_levels := _generate_skill_levels(context, actor_id)
 	var inventory_entries: Array = []
 	var character_type_id := str(character_type.get("type_id")).strip_edges().to_lower() if character_type != null else ""

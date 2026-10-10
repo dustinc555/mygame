@@ -98,6 +98,7 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/barrel_dark.tscn" id="97_skkg0"]
 [ext_resource type="PackedScene" uid="uid://da5ps7evd1rcl" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Barrel_Dark.gltf" id="98_ti0p1"]
 [ext_resource type="PackedScene" uid="uid://caj7rtce0yyxd" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Barrel.gltf" id="99_mmxot"]
+[ext_resource type="Script" uid="uid://cwu55b4elqtsj" path="res://features/camps/projection/camp_marker.gd" id="110_dyfv2"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/bookcase_1.tscn" id="shop_bookcase"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/cabinet.tscn" id="shop_cabinet"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/desk.tscn" id="shop_desk"]
@@ -110,14 +111,14 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/rope_3.tscn" id="shop_rope3"]
 [ext_resource type="PackedScene" path="res://features/world/projection/props/furniture/shelf_small.tscn" id="shop_small_shelf"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_w63uq"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dyfv2"]
 transparency = 1
 cull_mode = 2
 no_depth_test = true
 shading_mode = 0
 albedo_color = Color(0.62, 1, 0.94, 0.34)
 
-[sub_resource type="ArrayMesh" id="ArrayMesh_dyfv2"]
+[sub_resource type="ArrayMesh" id="ArrayMesh_u4vfh"]
 _surfaces = [{
 "aabb": AABB(-26.771624, 0, -138.93472, 106.48778, 1e-05, 129.83075),
 "format": 34359738369,
@@ -421,15 +422,15 @@ size = Vector3(0.68, 0.82, 0.62)
 [sub_resource type="BoxShape3D" id="BoxShape3D_4knvt"]
 size = Vector3(0.23, 0.13, 0.17)
 
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_u4vfh"]
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_aqs37"]
 height = 0.89
 radius = 0.35
 
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_aqs37"]
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_ofq5q"]
 height = 0.9
 radius = 0.35
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_ofq5q"]
+[sub_resource type="BoxShape3D" id="BoxShape3D_skkg0"]
 size = Vector3(1.08, 1.2, 1.16)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_gsu06"]
@@ -453,9 +454,9 @@ metadata/_edit_group_ = true
 
 [node name="TownBorderDebug" type="MeshInstance3D" parent="Towns/Canyon" unique_id=532431889]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
-material_override = SubResource("StandardMaterial3D_w63uq")
+material_override = SubResource("StandardMaterial3D_dyfv2")
 cast_shadow = 0
-mesh = SubResource("ArrayMesh_dyfv2")
+mesh = SubResource("ArrayMesh_u4vfh")
 
 [node name="CanyonCityRestStop" type="Node3D" parent="Towns/Canyon" unique_id=556110935]
 transform = Transform3D(0.28083363, 0, 0.9597566, 0, 1, 0, -0.9597566, 0, 0.28083363, 3.373272, 0.42611122, -37.413513)
@@ -1440,7 +1441,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=2074014393]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf1" unique_id=1561772727]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1449,7 +1450,7 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 9.67
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=210676750]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf2" unique_id=2016140005]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1458,7 +1459,7 @@ transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 2.98
 collision_shapes = Array[Shape3D]([SubResource("BoxShape3D_u4vfh")])
 metadata/furnish_generated = true
 
-[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=1723286720]
+[node name="GeneratedCollisionShape3D0" type="CollisionShape3D" parent="Towns/Canyon/Granary/Furniture/Shelf3" unique_id=1745061143]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.046, 0.19)
 shape = SubResource("BoxShape3D_u4vfh")
 
@@ -1836,7 +1837,7 @@ metadata/furnish_generated = true
 
 [node name="CollisionShape3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container1" index="0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.445, 0)
-shape = SubResource("CylinderShape3D_u4vfh")
+shape = SubResource("CylinderShape3D_aqs37")
 
 [node name="Barrel_Dark2" type="Node3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container1/ModelRoot" index="0" unique_id=1639418772 instance=ExtResource("98_ti0p1")]
 
@@ -1851,7 +1852,7 @@ metadata/furnish_generated = true
 
 [node name="CollisionShape3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container2" index="0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
-shape = SubResource("CylinderShape3D_aqs37")
+shape = SubResource("CylinderShape3D_ofq5q")
 
 [node name="Barrel2" type="Node3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container2/ModelRoot" index="0" unique_id=656258196 instance=ExtResource("99_mmxot")]
 
@@ -1866,7 +1867,7 @@ metadata/furnish_generated = true
 
 [node name="CollisionShape3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container3" index="0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
-shape = SubResource("BoxShape3D_ofq5q")
+shape = SubResource("BoxShape3D_skkg0")
 
 [node name="Crate_Wooden2" type="Node3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container3/ModelRoot" index="0" unique_id=1785253927 instance=ExtResource("88_x5ne4")]
 
@@ -1881,9 +1882,9 @@ metadata/furnish_generated = true
 
 [node name="CollisionShape3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container4" index="0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
-shape = SubResource("CylinderShape3D_aqs37")
+shape = SubResource("CylinderShape3D_ofq5q")
 
-[node name="Barrel2" type="Node3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container4/ModelRoot" index="0" unique_id=1422321583 instance=ExtResource("99_mmxot")]
+[node name="Barrel2" type="Node3D" parent="Towns/Canyon/CanyonTradeStation/Furniture/Container4/ModelRoot" index="0" unique_id=1224673734 instance=ExtResource("99_mmxot")]
 
 [node name="Shelf1" parent="Towns/Canyon/CanyonTradeStation/Furniture" unique_id=1415947144 instance=ExtResource("42_xh5ub")]
 transform = Transform3D(1.0000001, 0, 0, 0, 1, 0, 0, 0, 1.0000001, -4.9180274, 1.6, -3.76997)
@@ -2209,18 +2210,16 @@ metadata/furnish_generated = true
 transform = Transform3D(-1.0000001, 0, 8.7422784e-08, 0, 1, 0, -8.7422784e-08, 0, -1.0000001, -1.0000001, 5.1, 5.770031)
 metadata/furnish_generated = true
 
-[node name="GuardSpot1" type="Node3D" parent="Towns/Canyon/CanyonTradeStation/Furniture" unique_id=1228663276 instance=ExtResource("36_xo48a")]
+[node name="GuardSpot1" parent="Towns/Canyon/CanyonTradeStation/Furniture" unique_id=1228663276 instance=ExtResource("36_xo48a")]
 transform = Transform3D(0.9733421, 0, 0.22935903, 0, 1, 0, -0.22935903, 0, 0.9733421, -2.0038147, -0.23134017, 0.72958374)
-script = ExtResource("28_amlfp")
 collision_shape = SubResource("BoxShape3D_gsu06")
 guard_scope = "Private Security"
 post_id = "guard.7697154456361242747"
 
 [node name="GuardPosts" type="Node3D" parent="Towns/Canyon" unique_id=2045155773]
 
-[node name="GuardSpot1" type="Node3D" parent="Towns/Canyon/GuardPosts" unique_id=1837258610 instance=ExtResource("36_xo48a")]
+[node name="GuardSpot1" parent="Towns/Canyon/GuardPosts" unique_id=1837258610 instance=ExtResource("36_xo48a")]
 transform = Transform3D(0.7045382, 0, 0.709666, 0, 1, 0, -0.709666, 0, 0.7045382, 27.149157, 0.06025648, -38.432648)
-script = ExtResource("28_amlfp")
 collision_shape = SubResource("BoxShape3D_gsu06")
 post_id = "guard.7684104616578030738"
 
@@ -2269,6 +2268,16 @@ resource_node_id = "deposit_864ec7b53524ba967b6a7ce50a782fe5"
 [node name="ScrapPile" parent="." unique_id=882806224 instance=ExtResource("88_mtwgh")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -82.89324, -0.14691734, -368.52826)
 resource_node_id = "deposit_22aec349d797e076182aa5783a7c1cb6"
+
+[node name="Camp" type="Node3D" parent="." unique_id=2001040978]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -133.86136, -0.1411972, -388.99927)
+script = ExtResource("110_dyfv2")
+camp_id = "camp_du8voe75ykcwl"
+camp_size = 0
+roaming_radius = 440.0
+camp_radius = 100.0
+operational_radius = 440.0
+squad_count = 4
 
 [editable path="Towns/Canyon/CanyonTradeStation/Furniture/Container1"]
 [editable path="Towns/Canyon/CanyonTradeStation/Furniture/Container2"]

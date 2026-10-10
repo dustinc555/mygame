@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="CharacterBodyArchetypeDefinition" format=3]
+[ext_resource type="Script" path="res://features/actors/resources/character_body_archetypes/character_body_archetype_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://features/actors/projection/bestiary/puglin_body.tscn" id="2"]
+[ext_resource type="Resource" path="res://features/actors/resources/humanoid_grip_socket_profiles/puglin.tres" id="3"]
+[resource]
+script = ExtResource("1")
+archetype_id = "desert_puglin"
+display_name = "Desert Puglin"
+race_id = "desert_puglin"
+visual_scene = ExtResource("2")
+grip_socket_profile = ExtResource("3")
+rest_aware_animation = true
+visual_body_type = 2

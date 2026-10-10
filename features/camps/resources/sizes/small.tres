@@ -1,0 +1,10 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/camps/resources/camp_size.gd" id="size"]
+
+[resource]
+script = ExtResource("size")
+display_name = "Small"
+population = 8
+footprint_radius = 6.0
+furnishing_multiplier = 0.65

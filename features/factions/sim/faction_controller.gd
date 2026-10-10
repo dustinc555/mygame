@@ -61,6 +61,7 @@ func register_faction(definition: Resource) -> void:
 		return
 	faction_definitions[faction_id] = definition
 	_apply_definition_starting_diplomacy(definition)
+	_save_faction_state_to_gecs()
 
 
 func get_faction_definition(faction_id: String) -> Resource:
@@ -323,6 +324,10 @@ func sync_faction_state() -> void:
 
 
 func _current_faction_state() -> Dictionary:
+	var permanently_hostile: Array[String] = []
+	for faction_id in faction_definitions:
+		if bool(faction_definitions[faction_id].get("permanently_hostile")):
+			permanently_hostile.append(str(faction_id))
 	return {
 		"state_id": "factions",
 		"reputations": reputations.duplicate(true),
@@ -330,6 +335,7 @@ func _current_faction_state() -> Dictionary:
 		"diplomatic_states": diplomatic_states.duplicate(true),
 		"faction_outlooks": faction_outlooks.duplicate(true),
 		"help_allies": help_allies,
+		"permanently_hostile_faction_ids": permanently_hostile,
 	}
 
 

@@ -31,6 +31,7 @@ const FARMING_MODULE := preload("res://features/farming/farming_module.gd")
 const CONVERSATION_MODULE := preload("res://features/conversation/conversation_module.gd")
 const UI_MODULE := preload("res://features/ui/ui_module.gd")
 const DOORS_MODULE := preload("res://features/doors/doors_module.gd")
+const CAMPS_MODULE := preload("res://features/camps/camps_module.gd")
 
 # Core services install first (time / GECS / actor lookup that everything else
 # resolves); feature modules follow. Order does not affect correctness -- all
@@ -49,6 +50,7 @@ const MODULES := [
 	DOORS_MODULE,
 	CONVERSATION_MODULE,
 	UI_MODULE,
+	CAMPS_MODULE,
 ]
 
 const GAME_HUD_SCENE := preload("res://features/ui/projection/game_hud.tscn")

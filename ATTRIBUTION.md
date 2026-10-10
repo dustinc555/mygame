@@ -35,6 +35,8 @@ This file is the canonical list of imported third-party assets and software used
 
 ## License Notes
 
+The recolored Puglin textures in `assets/actors/desert_puglin/` are derivatives of the purchased Quaternius Bestiary textures and remain subject to QAL v1.0. Original vendor textures are unchanged.
+
 The Quaternius packs listed as CC0 above use CC0; Bestiary - Dungeon Monsters Kit instead uses the bundled QAL v1.0 (`assets/vendor/quaternius/bestiary_dungeon_monsters/License_Source.txt`). QAL permits commercial products and project collaborators, but prohibits redistribution of the assets themselves as standalone assets or packs. Do not publish this purchased asset family as a public asset collection. GECS includes a CC0 1.0 Universal license file in `addons/gecs/LICENSE`. LimboAI includes an MIT license file in `addons/limboai/LICENSE.md` after running `setup_limboai.sh`. CC0 1.0 Universal license text: https://creativecommons.org/publicdomain/zero/1.0/
 
 LimboAI is fetched from the official Godot 4.6 GDExtension release archive so native extension binaries are available without a local C++ build while staying out of git history. Revisit this if the project adopts a dedicated binary artifact or build pipeline. Fab assets use the license selected and purchased through Fab; keep the listing URL and purchase price in the relevant attribution row.

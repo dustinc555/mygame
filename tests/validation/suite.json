@@ -5,6 +5,11 @@
     "timeout_seconds": 90
   },
   "tests": {
+    "tests/validation/validate_camp_runtime.gd": {
+      "mode": "case",
+      "timeout_seconds": 180,
+      "reason": "Mixed-race camp generation, physical patrols, night watch, persistent loot, real actor LOD, save/load and cleared-camp cleanup."
+    },
     "tests/validation/validate_general_trader.gd": {
       "mode": "case",
       "timeout_seconds": 180,

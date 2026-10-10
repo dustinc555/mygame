@@ -520,6 +520,12 @@ func _build_hostile_relation_pairs(factions: Array, count: int) -> Dictionary:
 		var faction_state = entity.get_component(C_FACTION_STATE)
 		if faction_state == null:
 			break
+		for hostile_id in faction_state.permanently_hostile_faction_ids:
+			if not active_faction_ids.has(hostile_id):
+				continue
+			for other_id in active_faction_ids:
+				if other_id != hostile_id:
+					pairs[_relation_key(hostile_id, str(other_id))] = true
 		for stored_key in faction_state.diplomatic_states:
 			var record: Dictionary = faction_state.diplomatic_states[stored_key]
 			var relation := str(record.get("state", "neutral"))
