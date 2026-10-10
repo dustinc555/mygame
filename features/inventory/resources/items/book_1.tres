@@ -4,8 +4,11 @@
 [ext_resource type="PackedScene" uid="uid://c6sfwjsvi3be4" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Book_1.gltf" id="2"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_6qyka"]
 
+[ext_resource type="Texture2D" path="res://assets/items/icons/book_1.png" id="mesh_icon"]
+
 [resource]
 script = ExtResource("1")
+icon = ExtResource("mesh_icon")
 display_name = "Red Chronicle"
 item_id = "book.chronicle_red"
 grid_size = Vector2i(2, 2)

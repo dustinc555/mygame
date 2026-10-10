@@ -4,8 +4,11 @@
 [ext_resource type="PackedScene" uid="uid://cm2t1pay1phby" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Book_3.gltf" id="2"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_66w4l"]
 
+[ext_resource type="Texture2D" path="res://assets/items/icons/book_3.png" id="mesh_icon"]
+
 [resource]
 script = ExtResource("1")
+icon = ExtResource("mesh_icon")
 display_name = "Green Lineage Book"
 item_id = "book.lineage_green"
 grid_size = Vector2i(2, 2)

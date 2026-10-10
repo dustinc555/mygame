@@ -1,0 +1,23 @@
+[
+  {
+    "map": "Diffuse",
+    "file": "rough_linen_diff_2k.jpg",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rough_linen/rough_linen_diff_2k.jpg",
+    "md5": "1287d4d1183c511e4adc55b8d006d763",
+    "size": 3607181
+  },
+  {
+    "map": "nor_gl",
+    "file": "rough_linen_nor_gl_2k.jpg",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rough_linen/rough_linen_nor_gl_2k.jpg",
+    "md5": "facad45539d3011e197bd87562ba1679",
+    "size": 3849356
+  },
+  {
+    "map": "Rough",
+    "file": "rough_linen_rough_2k.jpg",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rough_linen/rough_linen_rough_2k.jpg",
+    "md5": "fb70674c782d6bead54c8baaae2b77db",
+    "size": 4655974
+  }
+]

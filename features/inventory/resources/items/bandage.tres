@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_3j8kv"]
-[ext_resource type="Texture2D" uid="uid://dg4tbexeoyub8" path="res://assets/items/medical/bandage.svg" id="2_icon"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/bandage.png" id="2_icon"]
 [ext_resource type="PackedScene" path="res://features/world/projection/items/bandage_world.tscn" id="3_world"]
 
 [resource]
@@ -16,6 +16,6 @@ bandage_max_uses = 5
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray()
 world_scene = ExtResource("3_world")
-world_visual_height_meters = 0.22
+world_visual_height_meters = 0.04
 tool_tags = PackedStringArray()
 access_key_ids = PackedStringArray()

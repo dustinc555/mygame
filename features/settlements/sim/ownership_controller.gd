@@ -77,6 +77,8 @@ func request_interaction(actor: HumanoidCharacter, target, _action_label: String
 func request_take_item(actor: HumanoidCharacter, item) -> bool:
 	if actor == null or item == null:
 		return false
+	if item is HumanoidCharacter:
+		return _request_character_take(actor, item)
 	if _can_take_legally(actor, item):
 		return true
 	if _actor_is_in_theft_combat(actor, item):
@@ -106,10 +108,54 @@ func request_take_item(actor: HumanoidCharacter, item) -> bool:
 	return false
 
 
-## Every caught theft, seen or heard, converges here: XP both ways, the law
-## report (warrant + guards), and the human reaction — witnesses face the
-## thief, the owner's own people fight for their property on the spot,
-## unrelated bystanders raise the alarm through the report instead.
+## Shared eligibility for menu, approach and item-level access revalidation.
+static func get_character_inventory_action(actor: WorldActor, target: WorldActor) -> String:
+	if not is_instance_valid(actor) or not is_instance_valid(target) or actor.is_queued_for_deletion() or target.is_queued_for_deletion():
+		return ""
+	if not (actor is HumanoidCharacter) or not (target is HumanoidCharacter):
+		return ""
+	if actor == target or actor.life_state != NpcRules.LifeState.ALIVE or not actor.is_player_party_member() or target.is_player_party_member():
+		return ""
+	if target.is_downed_state() or target.life_state == NpcRules.LifeState.DEAD:
+		return "loot"
+	return "pickpocket" if actor.sneaking else ""
+
+
+func _request_character_take(actor: HumanoidCharacter, target: HumanoidCharacter) -> bool:
+	var action := get_character_inventory_action(actor, target)
+	if action.is_empty():
+		return false
+	# Body ownership survives knockout and hostility. Only actual owner-side
+	# witnesses matter; a nearby town guard is not a raider's property defender.
+	var witnesses: Array[HumanoidCharacter] = []
+	for witness in _find_theft_witnesses(actor, target):
+		if _witness_defends_property(witness, target):
+			witnesses.append(witness)
+	if not witnesses.is_empty():
+		last_steal_roll_summary = "body theft seen by %s" % str(witnesses[0].name)
+		_handle_caught_theft(actor, target, witnesses)
+		return false
+	if action == "loot":
+		last_steal_roll_summary = "body loot: no owner-faction witness"
+		return true
+	# Pickpocketing always contests the victim, even from behind and with no
+	# bystanders. Sleeping is not free body loot; it still requires the check.
+	var skill := _get_actor_theft_skill(actor)
+	var required := _get_required_theft_skill(actor, target, target, 0.0, 0.0)
+	var chance := _theft_success_chance(skill, required)
+	var success := _rng.randf() <= chance
+	last_steal_roll_summary = "pickpocket: Sleight of Hand %.0f vs %.0f, %d%%: %s" % [skill, required, roundi(chance * 100.0), "success" if success else "caught"]
+	if success:
+		_award_theft_attempt_xp(actor, true)
+	else:
+		if target.life_state == NpcRules.LifeState.ASLEEP and target.get_interaction() != null:
+			target.get_interaction().stop_sleep_assignment()
+		_handle_caught_theft(actor, target, [target])
+	return success
+
+
+## Caught attempts converge here: skill XP, a crime against the acting
+## character, and the property's defenders reacting to that character.
 func _handle_caught_theft(actor: HumanoidCharacter, item, witnesses: Array[HumanoidCharacter]) -> void:
 	_award_theft_attempt_xp(actor, false)
 	_award_theft_detection_xp(witnesses)
@@ -128,6 +174,10 @@ func _handle_caught_theft(actor: HumanoidCharacter, item, witnesses: Array[Human
 func get_take_item_metadata(actor: HumanoidCharacter, item, current_metadata: Dictionary = {}) -> Dictionary:
 	var metadata := current_metadata.duplicate(true)
 	if actor == null or item == null or _can_take_legally(actor, item):
+		return metadata
+	# Unobserved body loot must not create a delayed, omniscient town crime.
+	# Pickpocketed living owners retain the existing stolen-property rules.
+	if item is WorldActor and (item.is_downed_state() or item.life_state == NpcRules.LifeState.DEAD):
 		return metadata
 	var law_controller := _get_law_order_controller()
 	if law_controller != null and law_controller.has_method("make_stolen_item_metadata"):
@@ -158,6 +208,8 @@ func is_take_item_theft(actor: HumanoidCharacter, item) -> bool:
 func _can_take_legally(actor: HumanoidCharacter, target) -> bool:
 	if actor == null or target == null:
 		return false
+	if target is WorldActor:
+		return target == actor or target.is_player_party_member()
 	if not OWNERSHIP_UTILS_SCRIPT.is_owned(target):
 		return true
 	if OWNERSHIP_UTILS_SCRIPT.is_authorized(actor, target):
@@ -264,7 +316,7 @@ func _find_theft_suspicion_witness(actor: HumanoidCharacter, target) -> Humanoid
 	# Parity is a 1-in-4 shot, not a coin flip: stealing under someone's nose
 	# should demand clearly outclassing the situation, and even a master keeps
 	# a sliver of fumble risk (0.97 cap).
-	var quiet_chance := clampf(0.25 + (actor_skill - hardest_required) / 60.0, 0.03, 0.97)
+	var quiet_chance := _theft_success_chance(actor_skill, hardest_required)
 	var stayed_quiet := _rng.randf() <= quiet_chance
 	last_steal_roll_summary = "sneak roll: skill %.0f vs need %.0f (%s %.1fm) -> %d%% quiet: %s" % [
 		actor_skill,
@@ -334,6 +386,10 @@ func _get_required_theft_skill(actor: HumanoidCharacter, target, observer: Human
 	var perception_pressure := SkillRules.get_diminishing_bonus(float(observer.get_skill_level(SkillRules.ATTRIBUTE_PERCEPTION)) if observer != null else 0.0, 24.0, 45.0)
 	var posture_penalty := 0.0 if actor != null and actor.sneaking else 15.0
 	return maxf(0.0, difficulty + proximity_pressure + loudness_pressure + perception_pressure + posture_penalty)
+
+
+func _theft_success_chance(skill: float, required: float) -> float:
+	return clampf(0.25 + (skill - required) / 60.0, 0.03, 0.97)
 
 
 func _get_actor_theft_skill(actor: HumanoidCharacter) -> float:

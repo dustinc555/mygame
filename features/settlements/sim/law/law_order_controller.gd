@@ -103,6 +103,8 @@ func report_theft_if_witnessed(actor: WorldActor, item, witnesses: Array = []) -
 		return {}
 	if witnesses.is_empty():
 		witnesses = _find_witnesses(actor, item, owner_faction)
+	if item is WorldActor:
+		witnesses = witnesses.filter(func(witness): return is_instance_valid(witness) and witness is WorldActor and witness.faction_name == owner_faction)
 	if witnesses.is_empty():
 		return {}
 	var settlement := _find_containing_settlement(item)
@@ -115,6 +117,10 @@ func report_theft_if_witnessed(actor: WorldActor, item, witnesses: Array = []) -
 	# faction keeps the warrant (camps enforce their own property).
 	var enforcing_faction := _settlement_faction_id(settlement)
 	if enforcing_faction.is_empty():
+		enforcing_faction = owner_faction
+	# A body's faction defends its own people; merely lying inside a town
+	# does not make hostile raiders protected town property.
+	if item is WorldActor:
 		enforcing_faction = owner_faction
 	return report_crime(actor, enforcing_faction, settlement_id, CRIME_THEFT, severity, witnesses[0], item)
 
@@ -763,14 +769,19 @@ func _process_prisoners() -> void:
 	for prisoner_key in prisoner_records.keys():
 		var record: Dictionary = prisoner_records[prisoner_key]
 		var actor := _find_actor_by_key(str(prisoner_key))
+		# World time owns sentencing even without a realized body or audience.
+		if str(record.get("state", "")) == "jailed" and not bool(record.get("sentence_decision_given", false)) and now >= int(record.get("sentence_decision_at_minute", now)):
+			record = _decide_prisoner_sentence(actor, record, int(record.get("sentence_decision_at_minute", now)))
+			prisoner_records[prisoner_key] = record
 		if actor == null:
 			continue
 		var jail := _find_jail_by_id(str(record.get("jail_id", "")))
 		if jail == null:
 			jail = _find_jail_for_settlement(_find_settlement_for_warrant(actor, record))
-		if str(record.get("state", "")) == "jailed" and not bool(record.get("sentence_decision_given", false)) and now >= int(record.get("sentence_decision_at_minute", now)):
-			record = _decide_prisoner_sentence(actor, record, now)
-			prisoner_records[prisoner_key] = record
+		var release_at := int(record.get("release_at_minute", -1))
+		if release_at >= 0 and now >= release_at:
+			_release_prisoner(actor, record, jail)
+			continue
 		if str(record.get("state", "")) == "jailed" and bool(record.get("sentence_notification_pending", false)) and actor.life_state == NpcRules.LifeState.ALIVE:
 			record = _request_prisoner_sentence_notification(actor, record, jail)
 			prisoner_records[prisoner_key] = record
@@ -780,9 +791,6 @@ func _process_prisoners() -> void:
 			# re-seat it into the cell recorded in GECS truth (prisoner_records).
 			if jail != null and jail.has_method("restore_prisoner_to_cell") and not actor.is_in_cell_custody():
 				jail.call("restore_prisoner_to_cell", actor, record)
-		var release_at := int(record.get("release_at_minute", -1))
-		if release_at >= 0 and now >= release_at:
-			_release_prisoner(actor, record, jail)
 
 
 func register_offscreen_prisoner(actor_id: String, settlement_id: String, faction_id: String) -> void:
@@ -939,10 +947,9 @@ func _decide_prisoner_sentence(actor: WorldActor, record: Dictionary, now: int) 
 
 
 func _request_prisoner_sentence_notification(actor: WorldActor, record: Dictionary, jail: Node) -> Dictionary:
-	if not (actor is HumanoidCharacter):
+	if not (actor is HumanoidCharacter) or not actor.is_player_party_member():
 		record["sentence_notification_pending"] = false
 		record["sentence_notification_requested"] = false
-		record["sentence_notification_given"] = true
 		return record
 	if jail == null or not jail.has_method("tell_prisoner_sentence"):
 		record["sentence_notification_requested"] = false
@@ -1272,6 +1279,8 @@ func _find_witnesses(actor: WorldActor, target, faction_id: String) -> Array:
 	if target is Node3D:
 		target_position = (target as Node3D).global_position
 	var perception := _get_perception_controller()
+	if target is WorldActor and perception == null:
+		return witnesses
 	for node in root_scene.get_tree().get_nodes_in_group("world_actor"):
 		var witness := node as WorldActor
 		if witness == null or witness == actor or witness.life_state != NpcRules.LifeState.ALIVE or witness.player_party_member:
@@ -1714,6 +1723,8 @@ func _settlement_faction_id(settlement: Node) -> String:
 func _owner_faction_id(target) -> String:
 	if target == null:
 		return ""
+	if target is WorldActor:
+		return target.faction_name
 	if target.has_method("get_owner_faction_name"):
 		return str(target.call("get_owner_faction_name"))
 	if _has_property(target, "owner_faction_name"):

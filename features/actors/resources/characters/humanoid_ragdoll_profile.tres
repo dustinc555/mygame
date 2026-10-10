@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="HumanoidRagdollProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/actors/resources/characters/humanoid_ragdoll_profile.gd" id="1_profile"]
+
+[resource]
+resource_name = "Humanoid Ragdoll"
+script = ExtResource("1_profile")

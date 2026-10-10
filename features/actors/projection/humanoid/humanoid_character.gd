@@ -343,6 +343,7 @@ func _play_carried_pose_animation(carry: CarryCapability) -> void:
 ## Vitals (GECS) is the life-state authority; this override maps state changes onto
 ## downed/ragdoll presentation. ASLEEP is not a downed state — it keeps normal posing.
 func _on_vitals_life_state_changed(previous_state: int, next_state: int) -> void:
+	var collapse_velocity := velocity
 	super._on_vitals_life_state_changed(previous_state, next_state)
 	var body := _body as HumanoidBodyProjection
 	if body == null:
@@ -359,7 +360,7 @@ func _on_vitals_life_state_changed(previous_state: int, next_state: int) -> void
 	if is_downed and not was_downed:
 		velocity = Vector3.ZERO
 		rotation = Vector3(0.0, rotation.y, 0.0)
-		body.enter_downed_visuals(next_state == NpcRules.LifeState.DEAD)
+		body.enter_downed_visuals(next_state == NpcRules.LifeState.DEAD, collapse_velocity)
 		_apply_downed_collision_shape()
 	elif was_downed and not is_downed:
 		if is_in_cell_custody():

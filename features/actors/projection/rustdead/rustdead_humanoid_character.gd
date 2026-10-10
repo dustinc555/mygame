@@ -59,7 +59,7 @@ func begin_cinder_burn(_attacker: Node = null) -> bool:
 	if not can_be_destroyed_by_cinder():
 		return false
 	_cinder_burn_remaining = maxf(0.05, cinder_burn_duration_seconds)
-	# The normal downed->dead observer preserves preroll and settled ragdolls.
+	# The normal downed->dead observer preserves the existing ragdoll.
 	# Never rebuild or move the body when the flask ignites it.
 	get_vitals().set_life_state(NpcRules.LifeState.DEAD)
 	stop_movement()

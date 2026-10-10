@@ -10,6 +10,7 @@ class_name WorldRoot
 ## (Named WorldRoot because GECS reserves the class name `World`.)
 
 const ZONE_SCRIPT := preload("res://features/world/projection/zone_root.gd")
+const MAP_SETTINGS := preload("res://features/world_map/resources/world_map_settings.gd")
 
 ## Stable identifier for save/load and tooling. Defaults to the node name.
 @export var world_id := ""
@@ -18,6 +19,11 @@ const ZONE_SCRIPT := preload("res://features/world/projection/zone_root.gd")
 ## WorldTimeController on a fresh game start; loaded saves override them.
 @export_range(0, 23, 1) var start_hour := 6
 @export_range(0, 59, 1) var start_minute := 0
+
+## Select the World root in the Inspector to tune discovery, zoom and map ink.
+## Make Unique before customizing a world instead of editing shared defaults.
+@export_group("World Map")
+@export var map_settings: MAP_SETTINGS = preload("res://features/world_map/resources/default_world_map_settings.tres")
 
 
 func get_world_id() -> String:

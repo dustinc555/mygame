@@ -435,6 +435,7 @@ func _setup_world_map_overlay() -> void:
 	world_map_overlay.name = "WorldMapOverlay"
 	world_map_overlay.z_index = 10
 	hud_layer.add_child(world_map_overlay)
+	world_map_overlay.configure(_context)
 
 
 func _setup_debug_tools() -> void:

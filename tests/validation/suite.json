@@ -5,6 +5,15 @@
     "timeout_seconds": 90
   },
   "tests": {
+    "tests/validation/validate_celestial_sky_rendered.gd": {
+      "mode": "manual",
+      "reason": "Self-terminating GPU image assertions; explicitly launch validate_celestial_sky_rendered.tscn on a native display. The headless suite's dummy renderer cannot test rendered depth, pause or camera parallax."
+    },
+    "tests/validation/validate_world_map.gd": {
+      "serial": true,
+      "timeout_seconds": 180,
+      "reason": "Actual played world terrain, M-key and pointer navigation, bounded asynchronous atlas and full-session exploration save/load."
+    },
     "tests/validation/validate_camp_squad_orders.gd": {
       "mode": "case",
       "timeout_seconds": 180,
@@ -103,6 +112,12 @@
     "tests/validation/validate_law_jail_bail.gd": {
       "mode": "case",
       "reason": "Independent real custody and exact funded/unfunded bail transactions, plus same-prisoner/same-stack re-arrest after sentence release; shared intake and payment helpers."
+    },
+    "tests/validation/validate_npc_inventory.gd": {
+      "mode": "case",
+      "serial": true,
+      "timeout_seconds": 180,
+      "reason": "Real NPC inventory approach, equipped-stack ownership, witnessed theft, pickpocket skill and autonomous NPC sentencing."
     },
     "tests/validation/validate_law_jail_sentence.gd": {
       "mode": "case",

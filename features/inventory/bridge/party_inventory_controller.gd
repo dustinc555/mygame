@@ -19,6 +19,7 @@ const WORLD_ITEM_GROUND_RAY_DOWN := 6.0
 const WORLD_ITEM_GROUND_RAY_MAX_SKIPS := 12
 const META_DURABLE_STACK_ID := "_durable_stack_id"
 const TRADE_SESSION = preload("res://features/inventory/bridge/inventory_trade_session.gd")
+const NPC_INVENTORY_VIEW = preload("res://features/inventory/bridge/npc_inventory_view.gd")
 
 @export var inventory_toggle_key := KEY_I
 
@@ -113,6 +114,21 @@ func open_inventory_for_owner(inventory_owner) -> void:
 		open_inventory_pair(focused_owner, inventory_owner)
 		return
 	_open_secondary_inventory(inventory_owner)
+
+
+func open_npc_inventory(actor: HumanoidCharacter, target: HumanoidCharacter, action: String) -> void:
+	var ownership := _get_ownership_controller()
+	if ownership == null or action.is_empty() or OwnershipController.get_character_inventory_action(actor, target) != action:
+		return
+	var view := NPC_INVENTORY_VIEW.new()
+	view.bind(actor, target, ownership, action)
+	add_child(view)
+	if not view.is_access_valid() or view.get_inventory_for_display() == null:
+		view.queue_free()
+		return
+	open_inventory_pair(actor, view)
+	if _get_window_for_owner(view) == null:
+		view.queue_free()
 
 
 func open_inventory_pair(primary_owner, secondary_owner) -> void:
@@ -228,6 +244,8 @@ func _close_inventory_window(window) -> void:
 	if window == secondary_inventory_window:
 		secondary_inventory_window = null
 	window.queue_free()
+	if inventory_owner is NPC_INVENTORY_VIEW:
+		inventory_owner.queue_free()
 
 
 func _close_all_inventory_windows() -> void:
@@ -272,6 +290,12 @@ func _has_live_inventory_windows() -> bool:
 
 func _enforce_open_inventory_context() -> void:
 	if not _has_live_inventory_windows():
+		return
+	if _is_live_window(secondary_inventory_window) and secondary_inventory_window.inventory_owner is NPC_INVENTORY_VIEW:
+		# Loot remains usable during a battle; this access checks the acting
+		# character, target state and reach, not unrelated party combat.
+		if not secondary_inventory_window.inventory_owner.is_access_valid():
+			_close_inventory_window(secondary_inventory_window)
 		return
 	if _open_inventory_context_has_combat():
 		_close_all_inventory_windows()
@@ -671,6 +695,8 @@ func _take_all_from_storage(source_owner, entry) -> void:
 
 
 func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name: String) -> void:
+	if target_owner is NPC_INVENTORY_VIEW:
+		return
 	if trade_session != null:
 		var error := "Cannot equip"
 		if target_owner == _trade_buyer:
@@ -707,6 +733,11 @@ func _on_inventory_equip_requested(source_owner, entry, target_owner, slot_name:
 		return
 	if source_owner != target_owner and (_get_merchant_role(source_owner) != null or _get_merchant_role(target_owner) != null):
 		_try_buy_and_equip(source_owner, target_owner, entry, slot_name)
+		return
+	if not _authorize_container_take(source_owner, target_owner):
+		return
+	entry.metadata = _stolen_take_metadata(source_owner, target_owner, entry.metadata)
+	if source_owner is NPC_INVENTORY_VIEW and not _preserve_purchased_equipment_stack(entry, target_owner, slot_name):
 		return
 	var replaced = target_equipment.equip_item_to_slot(entry.definition, slot_name, str(entry.stack_id))
 	if not source_inventory.remove_entry(entry):
@@ -782,6 +813,8 @@ func _on_equipment_transfer_requested(source_owner, source_slot_name: String, ta
 		return
 	if source_owner == null or target_owner == null:
 		return
+	if not _can_transfer_between_owners(source_owner, target_owner):
+		return
 	if source_owner != target_owner and _owners_too_far(source_owner, target_owner):
 		_show_floating_notice("Too far away")
 		return
@@ -798,13 +831,22 @@ func _on_equipment_transfer_requested(source_owner, source_slot_name: String, ta
 	var target_previous: ItemDefinition = target_equipment.get_equipped_item(target_slot_name)
 	var moving_stack_id := source_equipment.get_equipped_stack_id(source_slot_name)
 	var target_previous_stack_id := target_equipment.get_equipped_stack_id(target_slot_name)
-	var can_swap_back: bool = target_previous != null and source_equipment.can_equip_item_to_slot(target_previous, source_slot_name)
+	var can_swap_back: bool = target_previous != null and not source_owner is NPC_INVENTORY_VIEW and source_equipment.can_equip_item_to_slot(target_previous, source_slot_name)
+	if not _authorize_container_take(source_owner, target_owner):
+		return
+	if source_owner is NPC_INVENTORY_VIEW:
+		var snapshot := _stack_snapshot(moving_stack_id)
+		var entry := InventoryData.InventoryEntry.new(moving_item, Vector2i.ZERO, int(snapshot.get("count", 1)), snapshot.get("contained_item_counts", {}), _stolen_take_metadata(source_owner, target_owner, snapshot.get("metadata", {})), moving_stack_id)
+		if not _preserve_purchased_equipment_stack(entry, target_owner, target_slot_name):
+			return
 	var batched_equipment := _begin_equipment_update_batch(source_equipment, target_equipment)
 	source_equipment.unequip_item_from_slot(source_slot_name)
 	var replaced = target_equipment.equip_item_to_slot(moving_item, target_slot_name, moving_stack_id)
 	if replaced != null:
 		if can_swap_back:
 			source_equipment.equip_item_to_slot(replaced, source_slot_name, target_previous_stack_id)
+		elif source_owner is NPC_INVENTORY_VIEW and _try_store_replaced_equipment(target_owner, target_owner, replaced, target_previous_stack_id):
+			pass
 		else:
 			var replaced_snapshot := _stack_snapshot(target_previous_stack_id)
 			_start_cursor_item_drag(target_owner, replaced, 1, replaced_snapshot.get("contained_item_counts", {}), replaced_snapshot.get("metadata", {}), target_previous_stack_id)
@@ -813,6 +855,8 @@ func _on_equipment_transfer_requested(source_owner, source_slot_name: String, ta
 
 
 func _on_inventory_unequip_requested(source_owner, slot_name: String, target_owner, target_cell: Vector2i) -> void:
+	if target_owner is NPC_INVENTORY_VIEW:
+		return
 	if trade_session != null:
 		if source_owner == _trade_buyer:
 			_on_inventory_transfer_requested(source_owner, target_owner, trade_session.equipment_entry(slot_name), target_cell)
@@ -845,6 +889,9 @@ func _on_inventory_unequip_requested(source_owner, slot_name: String, target_own
 	if not target_inventory.can_place_item(item, target_cell):
 		_show_floating_notice("No room")
 		return
+	if not _authorize_container_take(source_owner, target_owner):
+		return
+	snapshot["metadata"] = _stolen_take_metadata(source_owner, target_owner, snapshot.get("metadata", {}))
 	var removed: ItemDefinition = source_equipment.unequip_item_from_slot(slot_name)
 	if removed == null:
 		return
@@ -882,6 +929,9 @@ func _on_inventory_equipment_drop_requested(source_owner, slot_name: String) -> 
 		return
 	var stack_id := source_equipment.get_equipped_stack_id(slot_name)
 	var snapshot := _stack_snapshot(stack_id)
+	if source_equipment.get_equipped_item(slot_name) == null or not _authorize_container_take(source_owner, null):
+		return
+	snapshot["metadata"] = _stolen_take_metadata(source_owner, null, snapshot.get("metadata", {}))
 	var item: ItemDefinition = source_equipment.unequip_item_from_slot(slot_name)
 	if item == null:
 		return
@@ -961,6 +1011,9 @@ func _on_cursor_item_place_requested(data: Dictionary, target_owner, target_cell
 
 
 func _on_cursor_item_equip_requested(data: Dictionary, target_owner, slot_name: String) -> void:
+	if target_owner is NPC_INVENTORY_VIEW:
+		_keep_cursor_drag(data)
+		return
 	var definition: ItemDefinition = data.get("item_definition") as ItemDefinition
 	var source_owner = data.get("source_owner", null)
 	if definition == null or target_owner == null:
@@ -1222,7 +1275,7 @@ func _try_store_replaced_equipment(source_owner, target_owner, definition: ItemD
 		return true
 	var snapshot := _stack_snapshot(stack_id)
 	var source_inventory = _get_owner_inventory(source_owner)
-	if source_inventory != null and _get_merchant_role(source_owner) == null and source_inventory.can_add_item(definition):
+	if source_inventory != null and not source_owner is NPC_INVENTORY_VIEW and _get_merchant_role(source_owner) == null and source_inventory.can_add_item(definition):
 		return source_inventory.add_entry_with_contents(definition, int(snapshot.get("count", 1)), snapshot.get("contained_item_counts", {}), snapshot.get("metadata", {}), stack_id)
 	var target_inventory = _get_owner_inventory(target_owner)
 	if target_inventory != null and target_inventory != source_inventory and target_inventory.can_add_item(definition):
@@ -1462,6 +1515,11 @@ func _try_deposit_entry_into_pouch(source_owner, target_owner, entry, target_cel
 		return true
 	if not _entry_is_silver_coin(entry) and not _entry_is_silver_pouch(source_inventory, entry):
 		return false
+	if source_owner is NPC_INVENTORY_VIEW:
+		# Take the physical stack first; do not siphon a pocket into another
+		# pouch via the currency merge path (which consumes its source).
+		_show_floating_notice("Take this into your inventory first")
+		return true
 	if source_owner != target_owner:
 		if _owners_too_far(source_owner, target_owner):
 			_show_floating_notice("Too far away")
@@ -1649,6 +1707,8 @@ func _get_law_order_controller() -> Node:
 ## Returns false when a suspicious witness blocks the attempt before it
 ## happens (the item stays where it is).
 func _authorize_container_take(source_owner, acting_owner) -> bool:
+	if source_owner is NPC_INVENTORY_VIEW:
+		return source_owner.authorize_inventory_take()
 	if not _owner_is_owned_container(source_owner):
 		return true
 	var ownership := _get_ownership_controller()
@@ -1659,6 +1719,8 @@ func _authorize_container_take(source_owner, acting_owner) -> bool:
 
 
 func _stolen_take_metadata(source_owner, acting_owner, current_metadata: Dictionary) -> Dictionary:
+	if source_owner is NPC_INVENTORY_VIEW:
+		return source_owner.get_inventory_take_metadata(current_metadata)
 	if not _owner_is_owned_container(source_owner):
 		return current_metadata
 	var ownership := _get_ownership_controller()

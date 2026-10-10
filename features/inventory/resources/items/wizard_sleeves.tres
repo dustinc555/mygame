@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://clka4d0ya08s0"]
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
-[ext_resource type="Texture2D" uid="uid://c6p7le3rc1t4l" path="res://assets/items/equipment/peasant_gloves.svg" id="2_icon"]
+[ext_resource type="Texture2D" uid="uid://bkdeawpyqmbf8" path="res://assets/items/icons/wizard_sleeves.png" id="2_icon"]
 [ext_resource type="PackedScene" uid="uid://bt2bas8uiaawx" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Arms.gltf" id="3_male"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_6olkn"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]

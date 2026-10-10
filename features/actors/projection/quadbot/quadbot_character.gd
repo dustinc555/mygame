@@ -384,6 +384,24 @@ func _face_world_position(world_position: Vector3) -> void:
 # (robot_actor `_recalculate_vitals`/`_process_recovery` route damage/oil here.)
 # ---------------------------------------------------------------------------
 
+## Combat, oil loss and debug commands share the vitals presentation boundary.
+func _on_vitals_life_state_changed(previous_state: int, next_state: int) -> void:
+	var collapse_velocity := velocity
+	super._on_vitals_life_state_changed(previous_state, next_state)
+	var was_downed := previous_state != NpcRules.LifeState.ALIVE and previous_state != NpcRules.LifeState.ASLEEP
+	var is_downed := next_state != NpcRules.LifeState.ALIVE and next_state != NpcRules.LifeState.ASLEEP
+	if is_downed:
+		_cancel_get_up()
+		COMBAT_COORDINATOR.release_character(self)
+		running = false
+		_clear_actor_move_target()
+		velocity = Vector3.ZERO
+		if not was_downed and _body != null:
+			(_body as QuadBotBodyProjection).enter_downed_visuals(next_state == NpcRules.LifeState.DEAD, collapse_velocity)
+	elif was_downed:
+		_restore_from_downed_state()
+
+
 func _is_downed_recovery_locked() -> bool:
 	return true
 
@@ -399,44 +417,19 @@ func _enter_recovery_coma_state() -> void:
 func _enter_downed_life_state(next_life_state: NpcRules.LifeState, recover_delay: float, notice: String, notice_color: Color) -> void:
 	if life_state == NpcRules.LifeState.DEAD:
 		return
-	var previous_state := life_state
-	if previous_state == next_life_state:
+	if life_state == next_life_state:
 		_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, recover_delay)
 		return
 	life_state = next_life_state
-	_cancel_get_up()
-	COMBAT_COORDINATOR.release_character(self)
-	running = false
-	_clear_actor_move_target()
 	_downed_recover_delay_remaining = maxf(_downed_recover_delay_remaining, recover_delay)
-	_enter_downed_state(false)
 	_show_world_notice(notice, notice_color)
-	life_state_changed.emit(previous_state, life_state)
-	state_changed.emit()
 
 
 func _enter_dead_state() -> void:
 	if life_state == NpcRules.LifeState.DEAD:
 		return
-	var previous_state := life_state
 	life_state = NpcRules.LifeState.DEAD
-	_cancel_get_up()
-	COMBAT_COORDINATOR.release_character(self)
-	running = false
-	_clear_actor_move_target()
-	_enter_downed_state(true)
 	_show_world_notice("Dead", Color(1.0, 0.2, 0.2, 1.0))
-	velocity = Vector3.ZERO
-	life_state_changed.emit(previous_state, life_state)
-	died.emit(self)
-	state_changed.emit()
-
-
-func _enter_downed_state(is_dead: bool) -> void:
-	_clear_actor_move_target()
-	velocity = Vector3.ZERO
-	if _body != null:
-		_body.enter_downed_visuals(is_dead)
 
 
 func _begin_get_up() -> void:
@@ -465,11 +458,7 @@ func _finish_get_up() -> void:
 	_get_up_animation_name = ""
 	_get_up_animation_remaining = 0.0
 	_get_up_animation_total = 0.0
-	var previous_state := life_state
 	life_state = NpcRules.LifeState.ALIVE
-	_restore_from_downed_state()
-	life_state_changed.emit(previous_state, life_state)
-	state_changed.emit()
 
 
 func _cancel_get_up() -> void:

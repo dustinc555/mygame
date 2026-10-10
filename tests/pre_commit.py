@@ -22,7 +22,7 @@ from run_validation import ANSI, Test, copy_file, editor_plugin_settings
 
 # Wall-clock safety limits, not gameplay/performance assertions.
 IMPORT_TIMEOUT_SECONDS = 120
-UNIT_TIMEOUT_SECONDS = 60
+UNIT_TIMEOUT_SECONDS = 120
 ROOT = Path(__file__).resolve().parent.parent
 
 

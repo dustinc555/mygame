@@ -288,7 +288,7 @@ func _is_warden_sentence_delivery_active(_warden: HumanoidCharacter) -> bool:
 	if raw == null or not is_instance_valid(raw):
 		return false
 	var actor := raw as HumanoidCharacter
-	return actor != null and actor.life_state == NpcRules.LifeState.ALIVE and actor.is_law_prisoner() and _has_pending_sentence_notification(actor)
+	return actor != null and _can_present_sentence(actor) and actor.life_state == NpcRules.LifeState.ALIVE and actor.is_law_prisoner() and _has_pending_sentence_notification(actor)
 
 
 func _has_pending_sentence_notification(actor: HumanoidCharacter) -> bool:
@@ -504,7 +504,7 @@ func tell_prisoner_sentence(actor: WorldActor, record: Dictionary) -> bool:
 
 
 func _queue_sentence_announcement(actor: WorldActor, message: String) -> bool:
-	if actor == null or message.is_empty():
+	if actor == null or message.is_empty() or not _can_present_sentence(actor):
 		return false
 	for index in range(_pending_sentence_announcements.size()):
 		if _pending_sentence_announcements[index].get("actor") == actor:
@@ -514,28 +514,42 @@ func _queue_sentence_announcement(actor: WorldActor, message: String) -> bool:
 	return true
 
 
+func _can_present_sentence(actor: WorldActor) -> bool:
+	if not is_instance_valid(actor) or not actor.is_player_party_member() or not actor.is_in_cell_custody():
+		return false
+	var conversation := _get_conversation_controller()
+	return conversation != null and conversation.can_present_system_conversation(actor)
+
+
+func _cancel_sentence_approach() -> void:
+	var warden := get_warden_actor() as HumanoidCharacter
+	if is_instance_valid(warden) and warden.get_interaction() != null:
+		warden.get_interaction().clear_law_sentence_move()
+	_pending_sentence_announcements.pop_front()
+
+
 func _process_sentence_announcements(delta: float) -> void:
 	if _pending_sentence_announcements.is_empty():
 		return
 	var entry := _pending_sentence_announcements[0]
 	var raw = entry.get("actor")
 	if raw == null or not is_instance_valid(raw):
-		_pending_sentence_announcements.pop_front()
+		_cancel_sentence_approach()
 		return
 	var actor := raw as WorldActor
-	if actor == null:
-		_pending_sentence_announcements.pop_front()
+	if actor == null or not _can_present_sentence(actor):
+		_cancel_sentence_approach()
 		return
 	if not actor.is_law_prisoner():
-		_pending_sentence_announcements.pop_front()
+		_cancel_sentence_approach()
 		return
 	if actor.life_state == NpcRules.LifeState.DEAD:
-		_pending_sentence_announcements.pop_front()
+		_cancel_sentence_approach()
 		return
 	if actor.life_state != NpcRules.LifeState.ALIVE:
 		return
 	if not _has_pending_sentence_notification(actor):
-		_pending_sentence_announcements.pop_front()
+		_cancel_sentence_approach()
 		return
 	var warden := get_warden_actor() as HumanoidCharacter
 	if warden == null or not is_instance_valid(warden) or warden.life_state != NpcRules.LifeState.ALIVE:

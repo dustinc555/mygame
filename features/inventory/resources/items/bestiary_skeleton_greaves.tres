@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://blesii0lf1nqt"]
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
-[ext_resource type="Texture2D" uid="uid://co81t2igqgvne" path="res://assets/items/equipment/bestiary/skeleton_greaves/icon.svg" id="2_icon"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/bestiary_skeleton_greaves.png" id="2_icon"]
 [ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/skeleton_greaves/equipped.tscn" id="3_equipped"]
 [ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/skeleton_greaves/dropped.tscn" id="4_world"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_5mlsp"]

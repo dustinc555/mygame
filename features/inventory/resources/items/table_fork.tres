@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_mod"]
-[ext_resource type="Texture2D" uid="uid://bdik6phc5h7i1" path="res://assets/items/tableware/table_fork_icon.svg" id="3_icon"]
+[ext_resource type="Texture2D" uid="uid://ciueskasicotr" path="res://assets/items/icons/table_fork.png" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://dhao1sp10ox50" path="res://features/world/projection/equipment/table_fork_model.tscn" id="4_model"]
 [ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
 

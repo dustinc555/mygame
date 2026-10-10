@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://ckfuyttpve25o"]
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
-[ext_resource type="Texture2D" uid="uid://cct0nisfg1vmy" path="res://assets/items/equipment/peasant_feet.svg" id="2_icon"]
+[ext_resource type="Texture2D" uid="uid://cqs88w48nud2i" path="res://assets/items/icons/noble_shoes.png" id="2_icon"]
 [ext_resource type="PackedScene" uid="uid://dt64fgc3ci4kq" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Noble_Feet.gltf" id="3_male"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_83atd"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]
@@ -19,7 +19,7 @@ replaces_body_slots = PackedStringArray()
 script = ExtResource("1_item")
 display_name = "Noble Shoes"
 icon = ExtResource("2_icon")
-grid_size = Vector2i(2, 1)
+grid_size = Vector2i(2, 2)
 unit_weight = 0.7
 equip_slot = "feet"
 alternate_equip_slots = PackedStringArray()

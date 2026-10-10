@@ -4,8 +4,11 @@
 [ext_resource type="PackedScene" uid="uid://bmlk4hc603f8y" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Book_2.gltf" id="2"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_0n5fh"]
 
+[ext_resource type="Texture2D" path="res://assets/items/icons/book_2.png" id="mesh_icon"]
+
 [resource]
 script = ExtResource("1")
+icon = ExtResource("mesh_icon")
 display_name = "Blue Tax Codex"
 item_id = "book.tax_codex_blue"
 grid_size = Vector2i(2, 2)

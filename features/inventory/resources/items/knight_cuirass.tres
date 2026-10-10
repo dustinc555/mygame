@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://cpp7n728gohor"]
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
-[ext_resource type="Texture2D" uid="uid://bosyyrgtbife5" path="res://assets/items/equipment/ranger_chest.svg" id="2_icon"]
+[ext_resource type="Texture2D" uid="uid://50r7egdglc2u" path="res://assets/items/icons/knight_cuirass.png" id="2_icon"]
 [ext_resource type="PackedScene" uid="uid://7fylatqds5vu" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Armor.gltf" id="3_male"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_55pvg"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]

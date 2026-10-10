@@ -86,6 +86,8 @@ func begin_conversation(speaker, target) -> void:
 func begin_system_conversation(speaker, target, text: String, response_text := "Understood") -> bool:
 	if not _initialized or conversation_window == null or speaker == null or target == null or text.is_empty():
 		return false
+	if not can_present_system_conversation(target):
+		return false
 	active_speaker = speaker
 	active_target = target
 	active_definition = null
@@ -99,6 +101,19 @@ func begin_system_conversation(speaker, target, text: String, response_text := "
 	_request_conversation_pause()
 	conversation_window.show_conversation(speaker_name, "\n\n".join(transcript_lines), [{"text": response_text, "disabled": false}], active_speaker, active_target)
 	return true
+
+
+## Automatic dialogue is player presentation, never NPC simulation. Recheck at
+## delivery too: the player may have moved the camera during the approach.
+func can_present_system_conversation(target) -> bool:
+	if not is_instance_valid(target) or not (target is WorldActor) or not target.is_inside_tree():
+		return false
+	if not target.is_player_party_member() or not target.is_visible_in_tree():
+		return false
+	if _system_conversation_active or active_node != null:
+		return false
+	var view: Camera3D = target.get_viewport().get_camera_3d()
+	return view != null and view.is_position_in_frustum(target.get_follow_anchor_position())
 
 
 func _show_node(node) -> void:

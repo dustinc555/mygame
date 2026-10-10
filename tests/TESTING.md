@@ -127,7 +127,9 @@ hard links. The import does not enable editor plugins; the exact staged project
 settings are restored before the unit run. This preparation adds time beyond the
 unit suite itself; the hook reports its total duration. `GODOT` selects the engine.
 Safety limits are named at the top of `pre_commit.py` (import: 120 seconds; units:
-60 seconds). Timeouts and cancellation terminate the test process group.
+120 seconds, including engine startup and test discovery). These are hang guards,
+not gameplay performance assertions. Timeouts and cancellation terminate the test
+process group.
 
 Logs and XML replace the same files in `.test-results/pre-commit/`; temporary
 snapshots and user data are cleaned automatically. There is no file-save watcher,

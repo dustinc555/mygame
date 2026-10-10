@@ -4,8 +4,11 @@
 [ext_resource type="PackedScene" uid="uid://it4gb0rvjaia" path="res://assets/vendor/quaternius/fantasy_props_megakit/gltf/Book_Open.gltf" id="2"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_y2b7g"]
 
+[ext_resource type="Texture2D" path="res://assets/items/icons/town_ledger.png" id="mesh_icon"]
+
 [resource]
 script = ExtResource("1")
+icon = ExtResource("mesh_icon")
 display_name = "Town Ledger"
 item_id = "administration.town_ledger"
 grid_size = Vector2i(3, 2)
