@@ -75,6 +75,31 @@ func test_new_destination_discards_precise_recovery_route() -> void:
 	follower.set_move_target(Vector3(5, 0, 0))
 	assert_eq(follower._recovery_path_index, -1)
 
+func test_new_command_resets_previous_stall_but_continuing_goal_does_not() -> void:
+	var follower = actor._navigation_agent
+	follower.set_move_target(Vector3(0, 0, 10))
+	follower.update_stuck_state(0.5, Vector3.BACK)
+	follower._stuck_repath_attempts = 2
+	follower._recovery_path_index = 1
+	follower.set_move_target(Vector3(0, 0, 9), -1.0, true, true)
+	assert_almost_eq(follower._stuck_seconds, 0.5, 0.001)
+	assert_eq(follower._stuck_repath_attempts, 2)
+	assert_eq(follower._recovery_path_index, 1)
+	assert_false(follower._has_made_stuck_progress(), "The goal approaching a stationary body is not progress")
+	follower.set_move_target(Vector3(5, 0, 0))
+	assert_eq(follower._stuck_seconds, 0.0)
+	assert_eq(follower._stuck_repath_attempts, 0)
+	assert_eq(follower._recovery_path_index, -1)
+
+func test_small_physical_steps_accumulate_across_continuing_combat_goals() -> void:
+	var follower = actor._navigation_agent
+	follower.set_move_target(Vector3(0, 0, 10), -1.0, false)
+	for step in range(4):
+		actor.position.x += actor.stuck_min_progress * 0.3
+		follower.set_move_target(Vector3(0, 0, 10.0 + step * 0.2), -1.0, false, true)
+		follower.update_stuck_state(0.1, Vector3.RIGHT)
+	assert_eq(follower._stuck_seconds, 0.0, "Real circling progress still resets recovery even when each step is below the threshold")
+
 func test_yield_does_not_replace_order_and_new_command_wins() -> void:
 	assert_true(actor.begin_navigation_yield(Vector3(2, 0, 0)))
 	assert_false(actor.get_persistent_movement_state()["has_move_target"], "A sidestep is not a saved order")

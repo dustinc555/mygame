@@ -8,3 +8,4 @@ class_name CGameMovementState
 @export var move_target_position := Vector3.ZERO
 @export var look_target_position := Vector3.ZERO
 var collision_focus_instance_id := 0
+var combat_arrival_distance := 0.0

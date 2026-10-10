@@ -5,6 +5,7 @@ class_name DebugMenu
 const C_COMBAT_RESPONSE_INTENT := preload("res://features/combat/sim/c_game_combat_response_intent.gd")
 const WORLD_SIM_MENU := preload("res://features/world_sim/projection/world_sim_debug_menu.gd")
 const CAMP_ATTACK_PANEL := preload("res://features/camps/projection/camp_attack_debug_panel.gd")
+const COMBAT_DEBUG_PANEL := preload("res://features/combat/projection/combat_debug_panel.gd")
 
 ## Dev-only debug windows, shown only while the GameDebug sentinel is true.
 ## Independent draggable debug windows opened from the Escape menu.
@@ -113,6 +114,7 @@ func _ready() -> void:
 	_build_placer_window()
 	_build_towns_window()
 	_build_law_window()
+	_build_window("Combat Debug", Vector2(12.0, 88.0)).add_child(COMBAT_DEBUG_PANEL.new())
 	_build_stealth_window()
 	_build_npc_instant_actions_window()
 	_build_debug_farming_window()

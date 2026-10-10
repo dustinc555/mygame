@@ -40,14 +40,14 @@ func set_party_members(members: Array) -> void:
 	party_members = next_members
 	for previous_member in previous_members:
 		if previous_member != null and is_instance_valid(previous_member) and not party_members.has(previous_member):
-			previous_member.remove_meta("party_id")
+			WorldActor.set_profile_metadata(previous_member, &"party_id", null)
 			party_membership_changed.emit(previous_member, "")
 			previous_member.set_player_party_member(false)
 			previous_member.set_selected(false)
 			previous_member.set_focused(false)
 			party_member_removed.emit(previous_member)
 	for member in party_members:
-		member.set_meta("party_id", PLAYER_PARTY_ID)
+		WorldActor.set_profile_metadata(member, &"party_id", PLAYER_PARTY_ID)
 		_track_projection(member)
 		party_membership_changed.emit(member, PLAYER_PARTY_ID)
 		member.set_player_party_member(true)
@@ -129,11 +129,11 @@ func register_party_member(member: WorldActor) -> void:
 			if was_followed:
 				followed_member = member
 			existing.set_player_party_member(false)
-			existing.remove_meta("party_id")
+			WorldActor.set_profile_metadata(existing, &"party_id", null)
 			existing.set_selected(false)
 			existing.set_focused(false)
 			party_member_removed.emit(existing)
-			member.set_meta("party_id", PLAYER_PARTY_ID)
+			WorldActor.set_profile_metadata(member, &"party_id", PLAYER_PARTY_ID)
 			party_membership_changed.emit(member, PLAYER_PARTY_ID)
 			member.set_player_party_member(true)
 			_sync_member_states()
@@ -152,7 +152,7 @@ func register_party_member(member: WorldActor) -> void:
 	if was_followed:
 		_unrealized_followed_id = ""
 		followed_member = member
-	member.set_meta("party_id", PLAYER_PARTY_ID)
+	WorldActor.set_profile_metadata(member, &"party_id", PLAYER_PARTY_ID)
 	party_membership_changed.emit(member, PLAYER_PARTY_ID)
 	member.set_player_party_member(true)
 	_sync_member_states()
@@ -212,7 +212,7 @@ func unregister_party_member(member: WorldActor) -> void:
 		followed_member = null
 		follow_changed.emit()
 	member.set_player_party_member(false)
-	member.remove_meta("party_id")
+	WorldActor.set_profile_metadata(member, &"party_id", null)
 	party_membership_changed.emit(member, "")
 	party_member_removed.emit(member)
 	_sync_member_states()

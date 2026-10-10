@@ -153,12 +153,12 @@ func set_combat_stance(value: int) -> void:
 	state_changed.emit()
 
 
-func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
+func set_move_target(target: Vector3, issued_by_player: bool = true, continue_order: bool = false) -> void:
 	if is_in_cell_custody():
 		return
 	if life_state != NpcRules.LifeState.ALIVE:
 		return
-	super.set_move_target(target, issued_by_player)
+	super.set_move_target(target, issued_by_player, continue_order)
 
 
 func force_kill(_attacker: Node = null) -> void:

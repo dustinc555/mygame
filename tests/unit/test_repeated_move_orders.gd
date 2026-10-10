@@ -6,9 +6,9 @@ class QuietActor extends WorldActor:
 	func _ready() -> void:
 		set_process(false)
 		set_physics_process(false)
-	func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
+	func set_move_target(target: Vector3, issued_by_player: bool = true, continue_order: bool = false) -> void:
 		commands += 1
-		super.set_move_target(target, issued_by_player)
+		super.set_move_target(target, issued_by_player, continue_order)
 
 class CountingInteraction extends WorldInteractionController:
 	var projections := 0

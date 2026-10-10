@@ -30,7 +30,7 @@ class Guard extends WorldActor:
 	func _physics_process(_delta: float) -> void: pass
 	func has_active_player_order() -> bool: return ordered
 	func is_in_combat() -> bool: return false
-	func set_move_target(destination: Vector3, _player: bool = true) -> void:
+	func set_move_target(destination: Vector3, _player: bool = true, _continue_order: bool = false) -> void:
 		target = destination
 		moves += 1
 	func has_move_target() -> bool: return target.is_finite()

@@ -101,6 +101,7 @@ var _query_paths: Dictionary = {}
 var _query_map: RID
 var _query_map_iteration := -1
 var _movement_routes: RefCounted
+var query_jobs: RefCounted
 var _inflight: Dictionary[int, BakeTask] = {}
 var _settings_generation := 0
 var _initial_ready := false
@@ -199,6 +200,9 @@ func _activate() -> void:
 
 func _exit_tree() -> void:
 	_shutting_down = true
+	if query_jobs != null:
+		query_jobs.close()
+		query_jobs = null
 	_movement_routes = null
 	set_process(false)
 	var tree := get_tree()
@@ -264,6 +268,27 @@ func notify_content_changed_at(global_position: Vector3) -> void:
 
 
 ## Shared, derived native maps for movement on the installed tile grid.
+func supports_threaded_queries(map: RID) -> bool:
+	return not _shutting_down and is_inside_tree() and settings != null and settings.threaded_queries_enabled and get_viewport().find_world_3d().navigation_map == map
+
+
+func request_paths(key: String, world: World3D, map: RID, start: Vector3, targets: PackedVector3Array, layers: int = 1, player_order: bool = false, movement_route: bool = false) -> int:
+	if not supports_threaded_queries(map):
+		return 0
+	if query_jobs == null:
+		query_jobs = preload("res://features/core/navigation/navigation_query_jobs.gd").new()
+	query_jobs.worker_limit = settings.path_query_workers
+	query_jobs.player_workers = settings.path_query_player_workers
+	query_jobs.batch_size = settings.path_query_batch_size
+	query_jobs.capacity = settings.path_query_capacity
+	var bounds := AABB(start, Vector3.ZERO)
+	for point in targets:
+		bounds = bounds.expand(point)
+	set_process(true) # Legacy/authored maps still need the worker mailbox pumped.
+	return query_jobs.submit(key, {"world": world, "map": map, "iteration": NavigationServer3D.map_get_iteration_id(map), "start": start, "targets": targets, "layers": layers, "regions": get_query_regions(map, bounds.grow(8.0)), "player_order": player_order, "movement_route": movement_route})
+
+
+## Retained for native-agent fallback when no query service is available.
 func get_movement_route(map: RID, start: Vector3, finish: Vector3, retry: int = 0) -> RefCounted:
 	if _mode != Mode.TILED or settings == null or not is_inside_tree():
 		return null
@@ -454,6 +479,8 @@ func is_tile_debug_enabled() -> bool:
 
 
 func _process(delta: float) -> void:
+	if query_jobs != null:
+		query_jobs.pump()
 	if not _can_bake() or (_mode != Mode.TILED and _mode != Mode.FULL_SCENE):
 		return
 	_flush_pending_node_changes()

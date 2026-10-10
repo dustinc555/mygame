@@ -35,6 +35,8 @@ const APPROACH_ANGLES := [0.0, PI / 4.0, -PI / 4.0, PI / 2.0, -PI / 2.0, 3.0 * P
 var _fixed_accumulator := 0.0
 var _position_queries_left := 0
 var _decision_cursor := 0
+var _position_requests: Dictionary = {}
+var _navigation_owner: WeakRef
 
 
 
@@ -44,6 +46,12 @@ func query() -> QueryBuilder:
 
 
 func process(_entities: Array, components: Array, delta: float) -> void:
+	for key in _position_requests.keys():
+		var request: Dictionary = _position_requests[key]
+		var actor = request.actor.get_ref()
+		var target = request.target.get_ref()
+		if not is_instance_valid(actor) or not is_instance_valid(target) or not actor.is_inside_tree() or not target.is_inside_tree() or actor.is_queued_for_deletion() or target.is_queued_for_deletion():
+			_cancel_position_request(key)
 	_position_queries_left = MAX_POSITION_QUERIES_PER_FRAME
 	_fixed_accumulator = minf(_fixed_accumulator + maxf(delta, 0.0), FIXED_SLOT_TICK_SECONDS * float(MAX_FIXED_STEPS_PER_FRAME))
 	var fixed_steps := 0
@@ -79,6 +87,9 @@ func _process_pairs(components: Array) -> void:
 		var desired := _desired_target_actor_id(states[i])
 		var target_index := int(index_by_actor_id.get(desired, -1))
 		if target_index < 0 or target_index == i or not _can_use_pair(i, target_index, spatials, vitals, configs) or _actor(nodes[i]) == null or _actor(nodes[target_index]) == null:
+			var inactive_actor := _actor(nodes[i])
+			if inactive_actor != null:
+				_cancel_position_request(inactive_actor.get_instance_id())
 			slot.clear()
 			continue
 		if str(slot.slot_target_actor_id) != desired:
@@ -131,8 +142,8 @@ func _process_pairs(components: Array) -> void:
 			var had_active: bool = slot.position_valid and int(slot.slot_index) >= 0
 			if had_active:
 				active_counts[str(slot.slot_target_actor_id)] = int(active_counts.get(str(slot.slot_target_actor_id), 0)) - 1
-			_choose_position(i, target_index, wants_active, nodes, spatials, configs, slots, occupancy)
-			if wants_active and not slot.position_valid and _position_queries_left > 0:
+			var completed := _choose_position(i, target_index, wants_active, nodes, spatials, configs, slots, occupancy)
+			if completed and wants_active and not slot.position_valid and _position_queries_left > 0:
 				_choose_position(i, target_index, false, nodes, spatials, configs, slots, occupancy)
 			if slot.position_valid and int(slot.slot_index) >= 0:
 				active_counts[str(slot.slot_target_actor_id)] = int(active_counts.get(str(slot.slot_target_actor_id), 0)) + 1
@@ -140,7 +151,7 @@ func _process_pairs(components: Array) -> void:
 		_update_arrival(i, target_index, nodes, spatials, configs, slots)
 
 
-func _choose_position(index: int, target_index: int, engaging: bool, nodes: Array, spatials: Array, configs: Array, slots: Array, occupancy: Dictionary) -> void:
+func _choose_position(index: int, target_index: int, engaging: bool, nodes: Array, spatials: Array, configs: Array, slots: Array, occupancy: Dictionary) -> bool:
 	var slot = slots[index]
 	var actor := _actor(nodes[index])
 
@@ -157,7 +168,17 @@ func _choose_position(index: int, target_index: int, engaging: bool, nodes: Arra
 	# It must pass the same occupancy, standing and strike checks as any point;
 	# an overlapping rear attacker cannot use this to avoid going around.
 	var candidates: Array[Vector3] = []
-	candidates.append(origin if engaging and _can_hold_stance(index, target_index, spatials, configs, slots) else Vector3.INF)
+	# Already standing here: validate physical support/clearance now instead of
+	# waiting for a travel batch that becomes obsolete as both fighters move.
+	if engaging and _can_hold_stance(index, target_index, spatials, configs, slots) and _position_is_free(index, origin, configs, slots, occupancy):
+		_position_queries_left -= 1
+		var current := _resolve_position(actor, target, origin, true)
+		if current.is_finite():
+			_cancel_position_request(actor.get_instance_id())
+			_reserve_position(slot, current, center, 0, true)
+			_add_occupant(occupancy, index, current, true)
+			return true
+	candidates.append(Vector3.INF)
 	# Otherwise keep the existing world point before seeking a new approach.
 	if slot.position_valid and engaging == (int(slot.slot_index) >= 0):
 		candidates.append(slot.slot_position)
@@ -166,6 +187,13 @@ func _choose_position(index: int, target_index: int, engaging: bool, nodes: Arra
 	for step in APPROACH_ANGLES.size():
 		var angle := base_angle + float(APPROACH_ANGLES[(step + int(slot.position_search_cursor)) % APPROACH_ANGLES.size()])
 		candidates.append(center + Vector3(cos(angle), 0.0, sin(angle)) * radius)
+	var route_batch := _candidate_paths(actor, target, candidates, engaging, float(configs[index].move_target_vertical_tolerance))
+	if route_batch.get("pending", false):
+		# Keep an existing reservation while its replacement is being searched.
+		# A pending active search is not a failure requiring a waiting-ring search.
+		return false
+	if route_batch.has("candidates"):
+		candidates = route_batch.candidates
 	slot.position_valid = false
 	for candidate_index in candidates.size():
 		var candidate := candidates[candidate_index]
@@ -174,37 +202,101 @@ func _choose_position(index: int, target_index: int, engaging: bool, nodes: Arra
 		if _position_queries_left <= 0:
 			break
 		_position_queries_left -= 1
-		var resolved := _resolve_position(actor, target, candidate, engaging)
+		var resolved := COMBAT_NAVIGATION.accept_path(actor, target, candidate, route_batch.paths[candidate_index], engaging) if route_batch.has("paths") else _resolve_position(actor, target, candidate, engaging)
 
 		if not resolved.is_finite() or not _position_is_free(index, resolved, configs, slots, occupancy):
 			continue
 		if engaging and _horizontal_distance(resolved, center) > _enter_range(configs[index], configs[target_index]) - WorldActor.COMBAT_ARRIVAL_DISTANCE:
 			continue
-		slot.position_valid = true
-		slot.slot_position = resolved
-		slot.wait_position = resolved
-		slot.position_target_origin = center
-		var direction := resolved - center
-		direction.y = 0.0
-		slot.pair_axis = direction.normalized()
-		slot.slot_angle = atan2(direction.z, direction.x)
-		if candidate_index >= 2:
-			var chosen_index := (candidate_index - 2 + int(slot.position_search_cursor)) % APPROACH_ANGLES.size()
-			slot.slot_index = chosen_index if engaging else -1
-			slot.wait_index = -1 if engaging else chosen_index
-		elif candidate_index == 0:
-			slot.slot_index = maxi(0, int(slot.slot_index))
-			slot.wait_index = -1
-		# WARNING [ANTI-ORBIT]: reset after success; retain the WORLD POINT, not the angle.
-		# Reapplying a flank angle to a moving bearing makes opponents orbit each other.
-		# Regression guards: tests/unit/test_combat_positioning.gd (reposition + settle).
-		slot.position_search_cursor = 0
-		slot.position_recheck_remaining = POSITION_RECHECK_SECONDS
+		_reserve_position(slot, resolved, center, candidate_index, engaging)
 		_add_occupant(occupancy, index, resolved, true)
-		return
+		return true
 	slot.slot_index = -1
 	slot.position_search_cursor = (int(slot.position_search_cursor) + 1) % APPROACH_ANGLES.size()
 	slot.position_recheck_remaining = POSITION_RECHECK_SECONDS
+	return true
+
+
+func _reserve_position(slot, position: Vector3, center: Vector3, candidate_index: int, engaging: bool) -> void:
+	slot.position_valid = true
+	slot.slot_position = position
+	slot.wait_position = position
+	slot.position_target_origin = center
+	var direction := position - center
+	direction.y = 0.0
+	slot.pair_axis = direction.normalized()
+	slot.slot_angle = atan2(direction.z, direction.x)
+	if candidate_index >= 2:
+		var chosen_index := (candidate_index - 2 + int(slot.position_search_cursor)) % APPROACH_ANGLES.size()
+		slot.slot_index = chosen_index if engaging else -1
+		slot.wait_index = -1 if engaging else chosen_index
+	elif candidate_index == 0:
+		slot.slot_index = maxi(0, int(slot.slot_index))
+		slot.wait_index = -1
+	# WARNING [ANTI-ORBIT]: retain the WORLD POINT, not a rotating flank angle.
+	slot.position_search_cursor = 0
+	slot.position_recheck_remaining = POSITION_RECHECK_SECONDS
+
+
+func _candidate_paths(actor: Node3D, target: Node3D, candidates: Array[Vector3], engaging: bool, vertical_tolerance: float) -> Dictionary:
+	var key := actor.get_instance_id()
+	var owner = _navigation_owner.get_ref() if _navigation_owner != null else null
+	if not is_instance_valid(owner) or not owner.is_inside_tree():
+		owner = actor.get_tree().get_first_node_in_group("world_navigation_controller")
+		_navigation_owner = weakref(owner) if owner != null else null
+	var map := actor.get_world_3d().navigation_map
+	if owner == null or not owner.supports_threaded_queries(map):
+		_cancel_position_request(key)
+		return {"candidates": _ground_candidates(actor, candidates, vertical_tolerance)}
+	var iteration := NavigationServer3D.map_get_iteration_id(map)
+	if iteration == 0:
+		_cancel_position_request(key)
+		return {"pending": true}
+	var request: Dictionary = _position_requests.get(key, {})
+	# Moving within the same pursuit must not cancel even completed work. Every
+	# result still passes current range, standing, occupancy and strike checks.
+	if not request.is_empty() and (request.target.get_ref() != target or request.map != map or request.iteration != iteration or request.engaging != engaging):
+		_cancel_position_request(key)
+		request = {}
+	if request.is_empty():
+		# Ground once per submitted batch, never again while waiting for workers.
+		candidates = _ground_candidates(actor, candidates, vertical_tolerance)
+		var origin_offset := COMBAT_NAVIGATION.floor_origin_offset(actor)
+		var floors := PackedVector3Array()
+		for candidate in candidates:
+			# Disabled preference entries retain their indices without sending INF
+			# to native navigation. Their results are never considered for a slot.
+			floors.append(candidate - origin_offset if candidate.is_finite() else actor.global_position - origin_offset)
+		var ticket: int = owner.request_paths("combat:%d" % key, actor.get_world_3d(), map, actor.global_position - origin_offset, floors)
+		if ticket > 0:
+			_position_requests[key] = {"jobs": owner.query_jobs, "ticket": ticket, "actor": weakref(actor), "target": weakref(target), "map": map, "iteration": iteration, "origin": actor.global_position, "center": target.global_position, "engaging": engaging, "candidates": candidates}
+		return {"pending": true}
+	var result: Dictionary = request.jobs.take("combat:%d" % key, request.ticket)
+	if result.is_empty():
+		return {"pending": true}
+	_position_requests.erase(key)
+	if result.map != map or result.iteration != iteration:
+		return {"pending": true}
+	return {"candidates": request.candidates, "paths": result.paths}
+
+
+func _ground_candidates(actor: Node3D, candidates: Array[Vector3], vertical_tolerance: float) -> Array[Vector3]:
+	# Current stance and retained reservation are already exact origins. Only
+	# the new ring hints inherit target Y and need local physical grounding.
+	for index in range(2, candidates.size()):
+		candidates[index] = COMBAT_NAVIGATION.ground_position_hint(actor, candidates[index], vertical_tolerance)
+	return candidates
+
+
+func _cancel_position_request(key: int) -> void:
+	if _position_requests.has(key):
+		_position_requests[key].jobs.cancel("combat:%d" % key)
+		_position_requests.erase(key)
+
+
+func _exit_tree() -> void:
+	for key in _position_requests.keys():
+		_cancel_position_request(key)
 
 
 func _can_hold_stance(index: int, target_index: int, spatials: Array, configs: Array, slots: Array) -> bool:

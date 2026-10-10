@@ -15,6 +15,9 @@ const COMPONENTS := [
 # Only the physical query boundary is replaced. Assignment, reservations, state
 # transitions and time run through the production system. Physics has its own tests.
 class OpenGroundSlots extends SLOT_SYSTEM:
+	func _ground_candidates(_actor: Node3D, candidates: Array[Vector3], _vertical_tolerance: float) -> Array[Vector3]:
+		return candidates
+
 	func _resolve_position(_source_actor: Node3D, _target: Node3D, candidate: Vector3, _require_strike: bool) -> Vector3:
 		return candidate
 

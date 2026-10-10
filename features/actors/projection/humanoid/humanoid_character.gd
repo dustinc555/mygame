@@ -102,6 +102,19 @@ func _apply_canon_definition() -> void:
 
 func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
+	# Seat exit releases physical movement even when no frame is rendered.
+	if _stand_up_exit_remaining > 0.0 and life_state == NpcRules.LifeState.ALIVE \
+			and not _system_combat_action_active and _system_combat_reaction_remaining <= 0.0 \
+			and not is_in_cell_custody() and get_body_projection() != null:
+		_stand_up_exit_remaining -= delta
+		if _stand_up_exit_remaining <= 0.0:
+			_begin_stand_up_settle()
+
+
+func _process(delta: float) -> void:
+	super._process(delta)
+	# Presentation runs once per displayed frame, not on every catch-up physics
+	# tick. Physical movement and pose-exit authority retain their physics clock.
 	_update_locomotion_animation(delta)
 	_update_carried_pose()
 	_update_ground_markers()
@@ -734,9 +747,6 @@ func _update_locomotion_animation(delta: float) -> void:
 	# Rising from a seat: hold the exit clip to its end, then visibly settle onto
 	# the collision-checked floor point chosen by the seat.
 	if _stand_up_exit_remaining > 0.0:
-		_stand_up_exit_remaining -= delta
-		if _stand_up_exit_remaining <= 0.0:
-			_begin_stand_up_settle()
 		return
 	if _stand_up_settle_remaining > 0.0:
 		return

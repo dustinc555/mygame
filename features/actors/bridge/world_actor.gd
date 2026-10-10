@@ -12,17 +12,55 @@ signal life_state_changed(previous_state: int, new_state: int)
 signal died(actor: Node)
 signal state_changed()
 signal inventory_changed()
+## Projection-authored identity/faction data changed; the GECS bridge observes it.
+signal simulation_profile_changed()
+
+
+## Metadata has no native change signal. Runtime profile writers use this
+## boundary (null removes the key); ordinary non-profile metadata is unchanged.
+static func set_profile_metadata(actor: Node, key: StringName, value: Variant) -> void:
+	var previous: Variant = actor.get_meta(key) if actor.has_meta(key) else null
+	if previous == value:
+		return
+	actor.set_meta(key, value)
+	if actor is WorldActor:
+		actor.simulation_profile_changed.emit()
 
 # ---------------------------------------------------------------------------
 # Identity / faction fields and vitals compatibility properties.
 # ---------------------------------------------------------------------------
 
-@export var stable_id: String = ""
+@export var stable_id: String = "":
+	set(value):
+		if stable_id == value:
+			return
+		stable_id = value
+		simulation_profile_changed.emit()
 @export var actor_id: String = ""
-@export var member_name: String = ""
-@export var faction_name: String = ""
-@export var squad_name: String = ""
-@export var hostile_factions: PackedStringArray = PackedStringArray()
+@export var member_name: String = "":
+	set(value):
+		if member_name == value:
+			return
+		member_name = value
+		simulation_profile_changed.emit()
+@export var faction_name: String = "":
+	set(value):
+		if faction_name == value:
+			return
+		faction_name = value
+		simulation_profile_changed.emit()
+@export var squad_name: String = "":
+	set(value):
+		if squad_name == value:
+			return
+		squad_name = value
+		simulation_profile_changed.emit()
+@export var hostile_factions: PackedStringArray = PackedStringArray():
+	set(value):
+		if hostile_factions == value:
+			return
+		hostile_factions = value
+		simulation_profile_changed.emit()
 # World-sim squad membership stamp. The squad LOD swap looks realized members up by
 # this id (is_faction_squad_realized / derealize / drive) — without it every LOD tick
 # re-realizes the squad and duplicates its bodies endlessly.
@@ -97,8 +135,18 @@ var fatigue: float:
 		var needs := get_needs()
 		if needs != null:
 			needs.fatigue = clampf(value, 0.0, 100.0)
-@export var combat_stance: int = 0
-@export var player_party_member: bool = false
+@export var combat_stance: int = 0:
+	set(value):
+		if combat_stance == value:
+			return
+		combat_stance = value
+		simulation_profile_changed.emit()
+@export var player_party_member: bool = false:
+	set(value):
+		if player_party_member == value:
+			return
+		player_party_member = value
+		simulation_profile_changed.emit()
 ## Authored starting equipment (Array of ItemDefinition or stock entries). Seeded
 ## into EquipmentCapability on ready. External code sets this before _ready.
 @export var starting_equipment: Array = []
@@ -399,6 +447,7 @@ func apply_population_runtime_state(needs_state: Dictionary, movement_state: Dic
 
 
 func _exit_tree() -> void:
+	_stationary_navigation = false
 	if _navigation_yield_active:
 		_navigation_yield_active = false
 		_navigation_agent.clear_move_target()
@@ -613,6 +662,7 @@ const NavigationFollower = preload("res://features/actors/bridge/navigation/acto
 var gravity := ProjectSettings.get_setting("physics/3d/default_gravity") as float
 
 var _navigation_agent := _create_navigation_follower()
+var _stationary_navigation := false
 var _navigation_yield_active := false
 var _navigation_yield_return := Vector3.ZERO
 # Read by InteractionCapability through reflection and by humanoid presentation.
@@ -634,9 +684,12 @@ var _system_desired_velocity: Vector3 = Vector3.ZERO
 var _system_look_target: Vector3 = Vector3.ZERO
 var _system_move_settled: bool = false
 var _system_collision_focus_id: int = 0
+var _system_move_arrival_distance := COMBAT_ARRIVAL_DISTANCE
 
 var _combat_navigation_owned := false
 var _combat_navigation_destination := Vector3.INF
+var _combat_navigation_focus_id := 0
+var _combat_navigation_arrival_distance := COMBAT_ARRIVAL_DISTANCE
 var _combat_navigation_failed := false
 # A failed path is retried only after this delay or a changed tactical position.
 var _combat_navigation_retry_seconds := 0.0
@@ -661,7 +714,7 @@ const CARRY_STRENGTH_XP_PER_SECOND := 0.1
 const DOOR_BLOCKER_COLLISION_LAYER := 8
 
 
-func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
+func set_move_target(target: Vector3, issued_by_player: bool = true, continue_order: bool = false) -> void:
 	if is_in_cell_custody():
 		return
 	# Ordinary duty may repeat its post target while temporarily stepping aside.
@@ -686,8 +739,9 @@ func set_move_target(target: Vector3, issued_by_player: bool = true) -> void:
 			if carrying_someone or (order != InteractionCapability.ORDER_TYPE_NONE and order != InteractionCapability.ORDER_TYPE_MOVE):
 				return
 		interaction._set_order(InteractionCapability.ORDER_TYPE_MOVE, issued_by_player)
+	var continuing := continue_order and issued_by_player and _active_player_order and _has_move_target and not _combat_navigation_owned and not _navigation_yield_active
 	_active_player_order = issued_by_player
-	_set_actor_move_target(target)
+	_set_actor_move_target(target, continuing)
 
 
 func stop_movement() -> void:
@@ -764,7 +818,8 @@ func set_system_movement_bridge(
 	desired_velocity: Vector3,
 	look_target: Vector3,
 	settled: bool,
-	collision_focus_id: int
+	collision_focus_id: int,
+	arrival_distance: float = COMBAT_ARRIVAL_DISTANCE
 ) -> void:
 	_system_move_active = is_active
 	_system_move_target = move_target
@@ -772,6 +827,7 @@ func set_system_movement_bridge(
 	_system_look_target = look_target
 	_system_move_settled = settled
 	_system_collision_focus_id = collision_focus_id
+	_system_move_arrival_distance = maxf(COMBAT_ARRIVAL_DISTANCE, arrival_distance)
 
 
 ## Called by GameCombatResolutionSystem each GECS tick.
@@ -808,10 +864,13 @@ const FACTION_SOLDIER_GROUP := "faction_soldier"
 
 
 func set_settlement_authority(value: bool) -> void:
+	if is_in_group(SETTLEMENT_AUTHORITY_GROUP) == value:
+		return
 	if value:
 		add_to_group(SETTLEMENT_AUTHORITY_GROUP)
 	else:
 		remove_from_group(SETTLEMENT_AUTHORITY_GROUP)
+	simulation_profile_changed.emit()
 
 
 func is_settlement_authority() -> bool:
@@ -1044,6 +1103,18 @@ func process_world_actor_movement(delta: float) -> void:
 
 
 func _process_navigation_motion(delta: float, combat_motion: bool) -> void:
+	# Park navigation work, not the actor: needs, medical state, perception and
+	# commands still run. Untracked world collision (including Terrain3D) keeps
+	# its live support/overlap check; no cached contact can hide a removed floor.
+	if not combat_motion and not _navigation_agent.has_move_target \
+			and is_zero_approx(rotation.x) and is_zero_approx(rotation.z) \
+			and _can_keep_stationary_floor():
+		if not _stationary_navigation:
+			_submit_navigation_avoidance_velocity(Vector3.ZERO)
+			_navigation_agent.update_stuck_state(delta, Vector3.ZERO)
+			_stationary_navigation = true
+		return
+	_stationary_navigation = false
 	_apply_floor_motion(delta)
 	var horizontal_velocity := Vector3(velocity.x, 0.0, velocity.z)
 	var desired_direction := Vector3.ZERO
@@ -1155,12 +1226,12 @@ func _configure_world_actor_movement() -> void:
 
 
 # InteractionCapability uses this hook to move without replacing its work order.
-func _set_actor_move_target(target: Vector3) -> void:
+func _set_actor_move_target(target: Vector3, continue_order: bool = false) -> void:
 	_navigation_yield_active = false
 	_combat_navigation_owned = false
 	_combat_navigation_destination = Vector3.INF
 	_combat_navigation_failed = false
-	_navigation_agent.set_move_target(target)
+	_navigation_agent.set_move_target(target, -1.0, true, continue_order)
 
 
 func _clear_actor_move_target() -> void:
@@ -1181,18 +1252,21 @@ func _prepare_combat_navigation(delta: float) -> void:
 		_clear_actor_move_target()
 		_combat_navigation_owned = true
 		return
-	var changed := not _combat_navigation_owned or _combat_navigation_destination.distance_squared_to(_system_move_target) > 0.0025
+	var continuing := _combat_navigation_owned and _combat_navigation_focus_id == _system_collision_focus_id
+	var changed := not continuing or _combat_navigation_destination.distance_squared_to(_system_move_target) > 0.0025 or not is_equal_approx(_combat_navigation_arrival_distance, _system_move_arrival_distance)
 	_combat_navigation_owned = true
+	_combat_navigation_focus_id = _system_collision_focus_id
 	if changed:
 		_combat_navigation_destination = _system_move_target
+		_combat_navigation_arrival_distance = _system_move_arrival_distance
 		_combat_navigation_failed = false
-		_navigation_agent.set_move_target(_system_move_target, COMBAT_ARRIVAL_DISTANCE, false)
+		_navigation_agent.set_move_target(_system_move_target, _system_move_arrival_distance, false, continuing)
 	elif not _navigation_agent.has_move_target:
 		var offset := _system_move_target - global_position
-		var arrived := Vector2(offset.x, offset.z).length() <= COMBAT_ARRIVAL_DISTANCE and absf(offset.y) <= move_target_vertical_tolerance
+		var arrived := Vector2(offset.x, offset.z).length() <= _system_move_arrival_distance and absf(offset.y) <= move_target_vertical_tolerance
 		if not arrived and _combat_navigation_retry_seconds <= 0.0:
 			_combat_navigation_failed = false
-			_navigation_agent.set_move_target(_system_move_target, COMBAT_ARRIVAL_DISTANCE, false)
+			_navigation_agent.set_move_target(_system_move_target, _system_move_arrival_distance, false)
 
 
 func has_combat_navigation_failed() -> bool:
@@ -1364,7 +1438,12 @@ func _restore_downed_collision_shape() -> void:
 # Player order tracking (read by ai_utility_adapter)
 # ---------------------------------------------------------------------------
 
-var _active_player_order: bool = false
+var _active_player_order: bool = false:
+	set(value):
+		if _active_player_order == value:
+			return
+		_active_player_order = value
+		simulation_profile_changed.emit()
 
 
 func is_player_party_member() -> bool:

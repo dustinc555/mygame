@@ -60,7 +60,7 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 	if actor_id.is_empty():
 		return {}
 	actor.set("stable_id", actor_id)
-	actor.set_meta("actor_record_id", actor_id)
+	WorldActor.set_profile_metadata(actor, &"actor_record_id", actor_id)
 	var record: Dictionary = _get_actor_record_mutable(actor_id)
 	if record.is_empty():
 		record = _new_record_from_actor(actor, actor_id, settlement_id, context)
@@ -72,8 +72,8 @@ func register_actor(actor: Node, settlement_id := "", context: Dictionary = {}) 
 	_live_actor_by_id[actor_id] = actor
 	_connect_actor_skill_changes(actor, actor_id)
 	_connect_actor_life_changes(actor, actor_id)
-	actor.set_meta("settlement_id", str(record.get("settlement_id", settlement_id)))
-	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
+	WorldActor.set_profile_metadata(actor, &"settlement_id", str(record.get("settlement_id", settlement_id)))
+	WorldActor.set_profile_metadata(actor, &"actor_role_id", str(record.get("role_id", "resident")))
 	_refresh_actor_visual_context(actor, record)
 	_register_actor_with_query_controller(actor)
 	return record.duplicate(true)
@@ -715,7 +715,7 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	var actor_id := str(record.get("actor_id", ""))
 	if not actor_id.is_empty():
 		actor.set("stable_id", actor_id)
-		actor.set_meta("actor_record_id", actor_id)
+		WorldActor.set_profile_metadata(actor, &"actor_record_id", actor_id)
 	actor.set("member_name", str(record.get("member_name", actor.get("member_name"))))
 	var faction_id := str(record.get("faction_id", actor.get("faction_name")))
 	actor.set("faction_name", faction_id)
@@ -725,9 +725,9 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	if not is_player_party and actor is WorldActor and party_manager != null and party_manager.party_members.has(actor as WorldActor):
 		party_manager.unregister_party_member(actor as WorldActor)
 	if party_id.is_empty():
-		actor.remove_meta("party_id")
+		WorldActor.set_profile_metadata(actor, &"party_id", null)
 	else:
-		actor.set_meta("party_id", party_id)
+		WorldActor.set_profile_metadata(actor, &"party_id", party_id)
 	if actor.has_method("set_player_party_member"):
 		actor.call("set_player_party_member", is_player_party)
 	if is_player_party and actor is WorldActor:
@@ -747,8 +747,8 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 	var age_years := CharacterAgeRules.age_years(int(record.get("birth_day_index", CharacterAgeRules.UNKNOWN_BIRTH_DAY)), _current_world_day())
 	actor.set_meta("population_birth_day_index", int(record.get("birth_day_index", CharacterAgeRules.UNKNOWN_BIRTH_DAY)))
 	actor.set_meta("population_age_years", age_years)
-	actor.set_meta("settlement_id", str(record.get("settlement_id", "")))
-	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
+	WorldActor.set_profile_metadata(actor, &"settlement_id", str(record.get("settlement_id", "")))
+	WorldActor.set_profile_metadata(actor, &"actor_role_id", str(record.get("role_id", "resident")))
 	actor.set_meta("population_inventory_entries", Array(record.get("inventory_entries", [])).duplicate(true))
 	if record.has("base_color"):
 		actor.set("base_color", record.get("base_color"))
@@ -876,7 +876,7 @@ func mark_actor_realized(actor: Node, actor_id := "") -> void:
 	if actor_id.is_empty():
 		return
 	actor.set("stable_id", actor_id)
-	actor.set_meta("actor_record_id", actor_id)
+	WorldActor.set_profile_metadata(actor, &"actor_record_id", actor_id)
 	_live_actor_by_id[actor_id] = actor
 	_connect_actor_skill_changes(actor, actor_id)
 	var record: Dictionary = _get_actor_record_mutable(actor_id)
@@ -891,8 +891,8 @@ func mark_actor_realized(actor: Node, actor_id := "") -> void:
 		var realization_bridge := _get_gecs_world()
 		if realization_bridge != null and realization_bridge.has_method("update_population_realization"):
 			realization_bridge.call("update_population_realization", actor_id, "realized", record.get("last_world_transform", Transform3D.IDENTITY), bool(record.get("last_world_transform_initialized", false)))
-	actor.set_meta("settlement_id", str(record.get("settlement_id", "")))
-	actor.set_meta("actor_role_id", str(record.get("role_id", "resident")))
+	WorldActor.set_profile_metadata(actor, &"settlement_id", str(record.get("settlement_id", "")))
+	WorldActor.set_profile_metadata(actor, &"actor_role_id", str(record.get("role_id", "resident")))
 	_register_actor_with_query_controller(actor)
 	var equipment = actor.call("get_equipment") if actor.has_method("get_equipment") else null
 	var gecs := _get_gecs_world()

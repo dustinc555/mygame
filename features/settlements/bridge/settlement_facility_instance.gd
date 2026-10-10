@@ -168,7 +168,7 @@ func configure_settlement_assignment_actor(actor: Node, slot_id: String, slot_re
 	var domain := str(slot_record.get("assignment_domain", "employment"))
 	actor.name = str(slot_record.get("role_id", "staff")).to_pascal_case() + (str(int(slot_record.get("role_index", 0)) + 1) if int(slot_record.get("role_index", 0)) > 0 else "")
 	if domain == "employment":
-		actor.set_meta("settlement_staff_role", str(slot_record.get("role_id", "staff")))
+		WorldActor.set_profile_metadata(actor, &"settlement_staff_role", str(slot_record.get("role_id", "staff")))
 		actor.set_meta("settlement_staff_role_index", int(slot_record.get("role_index", 0)))
 		actor.set_meta("settlement_staff_slot_id", slot_id)
 		actor.set_meta("settlement_actor_category", "staff")
