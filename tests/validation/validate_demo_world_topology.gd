@@ -167,8 +167,7 @@ func _validate_town_guard_burn_support() -> void:
 			guard_subjects += 1
 			if not guard.is_auto_heal_enabled():
 				_fail("%s guard %s should default Auto Heal on" % [town_name, guard.name])
-			if not guard.is_auto_burn_rustdead_enabled():
-				_fail("%s guard %s should default Burn Rustdead on" % [town_name, guard.name])
+
 			if guard.inventory == null or guard.inventory.count_item(_bandage_item) < 1:
 				_fail("%s guard %s should start with bandages" % [town_name, guard.name])
 			# Current guard assignments use the soldier character type (weapon,

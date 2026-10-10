@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/pieces/plaster/wall_door_flat.tscn" id="1_mfd0f"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_fhvi6"]
+
+[resource]
+script = ExtResource("2_fhvi6")
+piece_id = "plaster_wall_door_flat"
+display_name = "Plaster Door Flat"
+category = "wall_door"
+scene = ExtResource("1_mfd0f")
+bounds_size_meters = Vector3(2, 3.122689, 0.2)
+tags = PackedStringArray("project_owned", "plaster", "flat")

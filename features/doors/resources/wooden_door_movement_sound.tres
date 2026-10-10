@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="GameSoundCue" format=3]
+
+[ext_resource type="Script" path="res://features/audio/resources/game_sound_cue.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+cue_id = &"wooden_door_movement"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Doors/DOORWood_Wooden door close_GfxSounds_FantasyGameBundle.wav")
+volume_db = -6.0
+pitch_min = 1.0
+pitch_max = 1.0

@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://bcnrt4okjo6cm" path="res://assets/items/icons/heater_shield_2.png" id="3_icon"]
 [ext_resource type="PackedScene" path="res://features/world/projection/equipment/shield_heater_2_model.tscn" id="4_model"]
 [ext_resource type="Resource" uid="uid://btj2x7kgya5se" path="res://features/actors/resources/equipment_grip_profiles/offhand_shield.tres" id="5_grip"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/shield_wood.tres" id="audio_profile"]
 
 [sub_resource type="Resource" id="ItemStatModifier_block"]
 script = ExtResource("2_mod")
@@ -18,6 +19,7 @@ icon = ExtResource("3_icon")
 grid_size = Vector2i(2, 3)
 unit_weight = 4.4
 equip_slot = "offhand"
+combat_audio = ExtResource("audio_profile")
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray()
 world_scene = ExtResource("4_model")

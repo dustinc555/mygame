@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="UIAudioSettings" format=3 uid="uid://dqp5urbbgimg6"]
+
+[ext_resource type="Script" uid="uid://dj2lv5juof8ev" path="res://features/ui/resources/ui_audio_settings.gd" id="1_settings"]
+[ext_resource type="Script" uid="uid://b2hxiqny75403" path="res://features/audio/resources/game_sound_cue.gd" id="2_cue"]
+
+[sub_resource type="Resource" id="Cue_click"]
+script = ExtResource("2_cue")
+cue_id = &"ui.click"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/UI Feedback/Buttons/UIClick_Button click_GfxSounds_FantasyGameBundle.wav")
+volume_db = 0.0
+pitch_min = 1.0
+pitch_max = 1.0
+
+[sub_resource type="Resource" id="Cue_close"]
+script = ExtResource("2_cue")
+cue_id = &"ui.close"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/UI Feedback/Buttons/UIClick_Switch off 2_GfxSounds_FantasyGameBundle.wav")
+volume_db = 0.0
+pitch_min = 1.0
+pitch_max = 1.0
+
+[sub_resource type="Resource" id="Cue_trade_barter"]
+script = ExtResource("2_cue")
+cue_id = &"ui.trade_barter"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Bags Cloth Inventory/CLOTHHndl_Inventory clothes shuffle_GfxSounds_FantasyGameBundle.wav")
+volume_db = 0.0
+pitch_min = 1.0
+pitch_max = 1.0
+
+[sub_resource type="Resource" id="Cue_trade_money"]
+script = ExtResource("2_cue")
+cue_id = &"ui.trade_money"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Coins Treasure/OBJCoin_Coin pickup handling 2_GfxSounds_FantasyGameBundle.wav")
+volume_db = 0.0
+pitch_min = 1.0
+pitch_max = 1.0
+
+[resource]
+script = ExtResource("1_settings")
+click = SubResource("Cue_click")
+menu_close = SubResource("Cue_close")
+trade_money = SubResource("Cue_trade_money")
+trade_barter = SubResource("Cue_trade_barter")

@@ -1,12 +1,20 @@
 extends GutTest
 ## Saved picture contract. Render review still proves the picture matches its model.
 const CATALOG = preload("res://tools/outfitter/outfitter_catalog.gd")
+# These source meshes exist in asset packs without item world-scene assignments.
+const SOURCE_MODEL_ITEMS := [
+	"bell_pepper.tres", "bell_pepper_seeds.tres",
+	"chili_pepper.tres", "chili_pepper_seeds.tres",
+	"eggplant.tres", "eggplant_seeds.tres",
+	"french_beans.tres", "french_beans_seeds.tres",
+	"tomato.tres", "tomato_seeds.tres", "silver.tres",
+]
 var _modeled_items: Array[ItemDefinition] = []
 
 func before_all() -> void:
 	for path in CATALOG.resource_paths(CATALOG.ITEMS):
 		var item := load(path) as ItemDefinition
-		if item != null and _has_model(item):
+		if item != null and (_has_model(item) or SOURCE_MODEL_ITEMS.has(path.get_file())):
 			_modeled_items.append(item)
 
 func after_all() -> void:

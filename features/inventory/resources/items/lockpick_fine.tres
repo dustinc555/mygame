@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/lockpick_fine.png" id="2_icon"]
+[ext_resource type="PackedScene" path="res://features/world/projection/items/lockpick_fine_world.tscn" id="3_world"]
+[ext_resource type="PackedScene" path="res://features/world/projection/equipment/lockpick_fine_model.tscn" id="4_held"]
+
+[resource]
+script = ExtResource("1_item")
+display_name = "Fine Lockpick"
+icon = ExtResource("2_icon")
+world_scene = ExtResource("3_world")
+equipped_scene = ExtResource("4_held")
+grid_size = Vector2i(1, 2)
+unit_weight = 0.02
+max_stack = 1
+tool_tags = PackedStringArray("lockpick")
+lockpick_durability = 120.0

@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/skeleton_pauldrons/dropped.tscn" id="4_world"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_46myl"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/worn_plate.tres" id="audio_profile"]
 
 [sub_resource type="Resource" id="Visual_authored_rig"]
 script = ExtResource("5_visual")
@@ -18,6 +19,7 @@ visual_notes = "Authored skeleton rig only; original Armature coordinates and sk
 
 [resource]
 script = ExtResource("1_item")
+combat_audio = ExtResource("audio_profile")
 display_name = "Skeleton Pauldrons"
 item_id = "bestiary.skeleton_pauldrons"
 icon = ExtResource("2_icon")

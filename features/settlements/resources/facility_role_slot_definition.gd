@@ -34,7 +34,7 @@ func to_slot_spec(facility_id: String) -> Dictionary:
 		"assignment_domain": role.assignment_domain,
 		"assignment_exclusivity_group": role.assignment_exclusivity_group,
 		"role_id": role_id,
-		"uses_settlement_jobs": role.uses_settlement_jobs,
+		"uses_settlement_jobs": role.uses_settlement_jobs and role.assignment_domain != "custody",
 		"work_schedule": role.get_work_schedule_record(),
 		"allowed_job_entry_ids": role.allowed_job_entry_ids,
 		"preferred_skill_id": role.preferred_skill_id,
@@ -42,7 +42,7 @@ func to_slot_spec(facility_id: String) -> Dictionary:
 		"preferred_character_path": character_path,
 		"character_type_id": effective_type_id,
 		"display_name": effective_display_name,
-		"population_cost": maxi(0, population_cost),
+		"population_cost": 0 if role.assignment_domain == "custody" else maxi(0, population_cost),
 		"replacement_delay_days": maxf(0.0, replacement_delay_days),
-		"authority_scope": authority_scope.strip_edges(),
+		"authority_scope": "" if role.assignment_domain == "custody" else authority_scope.strip_edges(),
 	}

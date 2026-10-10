@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="GameSoundCue" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/lockpicking/resources/unlock_sound_cue.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+cue_id = &"unlock_success"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/MECHLock_Chain lock opening_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/MECHLock_Large padlock open 2_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/MECHLock_Large padlock open_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/OBJKey_Key unlock door 2_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/OBJKey_Key unlock door_GfxSounds_FantasyGameBundle.wav")
+volume_db = -6.0
+pitch_min = 1.0
+pitch_max = 1.0

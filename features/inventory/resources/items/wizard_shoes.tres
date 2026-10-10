@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://hg8qrloe23dr" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Wizard_Feet.gltf" id="3_male"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_jufdn"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/worn_cloth.tres" id="audio_profile"]
 [ext_resource type="Resource" uid="uid://bmlabxl5363qn" path="res://assets/items/equipment/wardrobe_bindings/wizard_shoes.res" id="wardrobe_binding"]
 
 [sub_resource type="Resource" id="Visual_shared"]
@@ -22,6 +23,7 @@ icon = ExtResource("2_icon")
 grid_size = Vector2i(2, 2)
 unit_weight = 0.8
 equip_slot = "feet"
+combat_audio = ExtResource("audio_profile")
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray()
 world_scene = ExtResource("3_male")

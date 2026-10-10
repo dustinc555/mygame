@@ -26,7 +26,7 @@ Dock edits save the shared `.tres` automatically and support Undo/Redo. **Open A
 
 Changing these defaults does **not** reset existing stock or change a saved refill deadline. The next refill uses the current stock range. Disabling refills does not cancel an already queued refill; enabling them does not retroactively refill an empty deposit that had no scheduled refill.
 
-The four current entries live under `features/world/resources/resource_deposits/`: copper, scrap pile, twisted scrap heap, and robot wreck. Their data files—not UI constants—define the balance. Copper is now finite. Scrap no longer rerolls stock when its scene loads.
+Deposit entries live under `features/world/resources/resource_deposits/`, including copper and iron veins, scrap piles, twisted scrap heaps, and robot wrecks. Their data files—not UI constants—define the balance. Ore veins have finite stock. Scrap does not reroll stock when its scene loads.
 
 Advanced processing limits are separate from balance: **Overview → Advanced: Resource Refill Performance** opens `features/world/resources/resource_deposit_settings.tres`. It controls maximum refills per frame and a soft millisecond work budget. A single callback is indivisible, so this is not a guarantee about whole-game frame time.
 

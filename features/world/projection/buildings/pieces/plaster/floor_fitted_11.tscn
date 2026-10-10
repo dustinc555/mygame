@@ -1,0 +1,57 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_axur8"]
+[ext_resource type="ArrayMesh" path="res://assets/buildings/earthen/meshes/floor_fitted_11.res" id="2_1n4g1"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_op1ch"]
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_tj2aq"]
+data = PackedVector3Array(-0.9026, 0.01, 1, -0.90379995, 0.01, -1, 1, 0.01, -1, 1, 0.01, -1, 1, 0.01, 1, -0.9026, 0.01, 1, -0.9026, -0.01, 1, 1, -0.01, -1, -0.90379995, -0.01, -1, 1, -0.01, -1, -0.9026, -0.01, 1, 1, -0.01, 1, -0.90379995, -0.01, -1, 1, -0.01, -1, 1, 0.01, -1, -0.90379995, -0.01, -1, 1, 0.01, -1, -0.90379995, 0.01, -1, 1, -0.01, -1, 1, -0.01, 1, 1, 0.01, 1, 1, -0.01, -1, 1, 0.01, 1, 1, 0.01, -1, 1, -0.01, 1, -0.9026, -0.01, 1, -0.9026, 0.01, 1, 1, -0.01, 1, -0.9026, 0.01, 1, 1, 0.01, 1, -0.9026, -0.01, 1, -0.90379995, -0.01, -1, -0.90379995, 0.01, -1, -0.9026, -0.01, 1, -0.90379995, 0.01, -1, -0.9026, 0.01, 1)
+
+[node name="FloorFitted11" type="Node3D" unique_id=868250794]
+script = ExtResource("1_axur8")
+piece_id = "plaster_floor_fitted_11"
+display_name = "Fired Clay Fitted 11"
+category = "floor"
+bounds_size_meters = Vector3(1.90382, 0.020009998, 2)
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1723605170]
+mesh = ExtResource("2_1n4g1")
+
+[node name="Body" type="StaticBody3D" parent="Model" unique_id=1852550242]
+
+[node name="Shape" type="CollisionShape3D" parent="Model/Body" unique_id=1412446157]
+shape = SubResource("ConcavePolygonShape3D_tj2aq")
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=497001235]
+
+[node name="North" type="Marker3D" parent="SnapPoints" unique_id=1448443689]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.04809004, 0, -1)
+script = ExtResource("3_op1ch")
+snap_id = "north"
+display_name = "North"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_top", "wall_bottom", "roof_wall_top")
+
+[node name="South" type="Marker3D" parent="SnapPoints" unique_id=1328400333]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.04809004, 0, 1)
+script = ExtResource("3_op1ch")
+snap_id = "south"
+display_name = "South"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_top", "wall_bottom", "roof_wall_top")
+
+[node name="East" type="Marker3D" parent="SnapPoints" unique_id=95743495]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1, 0, 0)
+script = ExtResource("3_op1ch")
+snap_id = "east"
+display_name = "East"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_top", "wall_bottom", "roof_wall_top")
+
+[node name="West" type="Marker3D" parent="SnapPoints" unique_id=1640003316]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.90382, 0, 0)
+script = ExtResource("3_op1ch")
+snap_id = "west"
+display_name = "West"
+connector_type = "floor_edge"
+accepts_types = PackedStringArray("floor_edge", "wall_top", "wall_bottom", "roof_wall_top")

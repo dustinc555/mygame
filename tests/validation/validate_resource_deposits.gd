@@ -357,7 +357,7 @@ func _test_production_transactions() -> void:
 	actor.stop_movement()
 	actor.get_interaction().process_scavenging(100.0)
 	_check(deposits.get_deposit_state("test.scrap").stock == stock - 1, "Re-realized scrap reacquires timed work without reseeding")
-	for id in ["copper", "scrap_pile", "twisted_scrap_heap", "robot_wreck"]:
+	for id in ["copper", "iron", "scrap_pile", "twisted_scrap_heap", "robot_wreck"]:
 		var definition = load("res://features/world/resources/resource_deposits/" + id + ".tres")
 		var placed = load(definition.scene_path).instantiate()
 		placed.name = "Legacy_" + id

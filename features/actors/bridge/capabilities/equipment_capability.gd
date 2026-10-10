@@ -70,6 +70,11 @@ func can_equip_item_to_slot(definition: ItemDefinition, slot_name: String) -> bo
 		return false
 	if not definition.compatible_races.is_empty() and not definition.fits_race(_get_actor_race_id()):
 		return false
+	if definition.humanoid_only:
+		var appearance := actor.get("appearance_data") as CharacterAppearanceData if is_instance_valid(actor) else null
+		var body := appearance.body_archetype as CharacterBodyArchetypeDefinition if appearance != null else null
+		if body == null or not body.is_humanoid():
+			return false
 	var actor_slot_names := _get_actor_equipment_slot_names()
 	if not actor_slot_names.is_empty() and not actor_slot_names.has(slot_name):
 		return false

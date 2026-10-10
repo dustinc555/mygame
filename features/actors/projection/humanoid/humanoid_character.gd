@@ -459,6 +459,9 @@ var _stand_up_settle_start := Vector3.INF
 
 
 func process_world_actor_movement(delta: float) -> void:
+	if _advance_lockpick_rise(delta):
+		velocity = Vector3.ZERO
+		return
 	if _sit_down_visual_remaining > 0.0:
 		_sit_down_visual_remaining = maxf(0.0, _sit_down_visual_remaining - delta)
 		var progress := 1.0 - _sit_down_visual_remaining / CHAIR_VISUAL_SETTLE_SECONDS
@@ -620,6 +623,60 @@ var _farming_work_action := ""
 var _farming_work_target := Vector3.ZERO
 var _farming_work_progress := 0.0
 
+var _lockpick_work_active := false
+var _lockpick_work_target := Vector3.ZERO
+var _lockpick_work_progress := 0.0
+var _lockpick_attempt_progress := 0.0
+var _lockpick_rise_remaining := 0.0
+
+
+func set_lockpick_work_visual(active: bool, target: Vector3, progress: float, item: ItemDefinition, attempt_progress: float = 0.0) -> void:
+	var changed := _lockpick_work_active != active
+	_lockpick_work_active = active
+	_lockpick_work_target = target
+	_lockpick_work_progress = clampf(progress, 0.0, 1.0) if active else 0.0
+	_lockpick_attempt_progress = clampf(attempt_progress, 0.0, 1.0) if active else 0.0
+	var body := get_body_projection()
+	if body != null and body.has_method("set_lockpick_pose"):
+		body.set_lockpick_pose(active, item)
+	if changed:
+		_lockpick_rise_remaining = 0.0
+		if not active and body != null and not _lockpick_animation_preempted():
+			_lockpick_rise_remaining = body.finish_kneeling_work()
+		state_changed.emit()
+
+
+func _lockpick_animation_preempted() -> bool:
+	return life_state != NpcRules.LifeState.ALIVE or is_in_combat() \
+			or _system_combat_action_active or _system_combat_reaction_remaining > 0.0 \
+			or is_in_cell_custody() or is_carried() or is_carrying_someone()
+
+
+## A move order stays intact while the actor rises in place. Physics, not the
+## render clock, releases this short movement hold; combat/custody wins at once.
+func _advance_lockpick_rise(delta: float) -> bool:
+	if _lockpick_rise_remaining <= 0.0:
+		return false
+	var body := get_body_projection()
+	if _lockpick_animation_preempted() or body == null \
+			or body.get_current_clip() not in [HumanoidBodyProjection.KNEELING_WORK_ENTER, HumanoidBodyProjection.KNEELING_WORK_EXIT]:
+		_lockpick_rise_remaining = 0.0
+		return false
+	_lockpick_rise_remaining = maxf(0.0, _lockpick_rise_remaining - delta)
+	return _lockpick_rise_remaining > 0.0
+
+
+func is_actively_lockpicking() -> bool:
+	return _lockpick_work_active
+
+
+func get_lockpick_progress_ratio() -> float:
+	return _lockpick_work_progress
+
+
+func get_lockpick_attempt_progress_ratio() -> float:
+	return _lockpick_attempt_progress
+
 
 func set_farming_work_visual(active: bool, action: String, target: Vector3, progress: float) -> void:
 	var next_action := action if active else ""
@@ -745,6 +802,8 @@ func _update_locomotion_animation(delta: float) -> void:
 		return
 	if is_in_cell_custody():
 		return
+	if _lockpick_rise_remaining > 0.0 and not _lockpick_animation_preempted():
+		return
 	# Rising from a seat: hold the exit clip to its end, then visibly settle onto
 	# the collision-checked floor point chosen by the seat.
 	if _stand_up_exit_remaining > 0.0:
@@ -758,6 +817,10 @@ func _update_locomotion_animation(delta: float) -> void:
 			return
 		if current_clip != HumanoidBodyProjection.SITTING_IDLE_ANIMATION_NAME:
 			body.play_clip(HumanoidBodyProjection.SITTING_IDLE_ANIMATION_NAME, 0.0, true, 0.2)
+		return
+	if _lockpick_work_active and not _has_move_target and not _lockpick_animation_preempted():
+		_face_world_position(_lockpick_work_target)
+		body.play_kneeling_work()
 		return
 	# Counter duty holds the barkeeper pose while standing at the counter;
 	# walking to/from the counter stays plain locomotion.

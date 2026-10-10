@@ -99,6 +99,7 @@ func _build_header() -> Control:
 	_status.add_theme_font_size_override("font_size", 14)
 	header.add_child(_status)
 	_close_button = Button.new()
+	_close_button.set_meta(&"ui_audio_action", &"close")
 	_close_button.text = "Close book"
 	_close_button.focus_mode = Control.FOCUS_NONE
 	_close_button.add_theme_color_override("font_color", PAPER_LEFT)

@@ -16,11 +16,19 @@ class_name NeedsCapability
 ## stage clamps at 0 — the lethal/unconscious consequences stay with the vitals
 ## systems and are wired there deliberately, not here.
 
-var hunger_enabled := false
+signal food_need_changed
+
+var hunger_enabled := false:
+	set(value):
+		hunger_enabled = value
+		_notify_food_need()
 var fatigue_enabled := true
 var hunger := 100.0
 var fatigue := 100.0
-var hunger_stage: int = NpcRules.HungerStage.WELL_NOURISHED
+var hunger_stage: int = NpcRules.HungerStage.WELL_NOURISHED:
+	set(value):
+		hunger_stage = value
+		_notify_food_need()
 var fatigue_stage: int = NpcRules.FatigueStage.WELL_RESTED
 
 var process_interval_seconds := 0.25
@@ -35,7 +43,11 @@ var activity_working := false
 ## Active food effect: nutrition drips into hunger at a fixed rate until the
 ## timer runs out. Only one effect at a time; eating is blocked while active.
 var food_effect_rate := 0.0
-var food_effect_remaining_seconds := 0.0
+var food_effect_remaining_seconds := 0.0:
+	set(value):
+		food_effect_remaining_seconds = value
+		_notify_food_need()
+var _needed_food := false
 
 var _stats: StatsCapability
 var _vitals: VitalsCapability
@@ -182,6 +194,15 @@ func apply_hunger_delta(amount: float) -> void:
 	hunger = clampf(hunger, 0.0, 100.0)
 
 
+## Instant stage step, independent of the current meter or digestion timer.
+func degrade_hunger_stage() -> bool:
+	if not hunger_enabled or hunger_stage >= NpcRules.HungerStage.STARVING:
+		return false
+	hunger = 100.0
+	hunger_stage += 1
+	return true
+
+
 func apply_fatigue_delta(amount: float) -> void:
 	if is_zero_approx(amount):
 		return
@@ -209,6 +230,17 @@ func apply_fatigue_delta(amount: float) -> void:
 
 func is_food_effect_active() -> bool:
 	return food_effect_remaining_seconds > 0.0
+
+
+func wants_food() -> bool:
+	return hunger_enabled and hunger_stage >= NpcRules.HungerStage.HUNGRY and not is_food_effect_active()
+
+
+func _notify_food_need() -> void:
+	var needed := wants_food()
+	if needed != _needed_food:
+		_needed_food = needed
+		food_need_changed.emit()
 
 
 ## Total nutrition points spread evenly across the duration. Refuses while an

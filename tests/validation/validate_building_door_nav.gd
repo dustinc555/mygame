@@ -63,7 +63,8 @@ func _run() -> void:
 	_assert_covered(nav_mesh, Vector3(3.5, 0.0, -2.0), "back room floor")
 	_assert_any_covered(nav_mesh, shell, DIVIDER_OPENING_LOCAL_SAMPLES, "interior divider opening")
 	_assert_covered(nav_mesh, Vector3(-1.0, 0.0, 6.0), "front door threshold")
-	_assert_covered(nav_mesh, Vector3(3.0, 0.0, -4.0), "back door threshold")
+	if _covered_polygon(nav_mesh, Vector3(3.0, 0.0, -4.0)) >= 0:
+		_fail("The solid rear wall must not retain a walkable doorway")
 	_assert_covered(nav_mesh, Vector3(3.0, 0.0, 10.0), "open ground outside")
 	for door in get_nodes_in_group("world_door"):
 		if shell.is_ancestor_of(door):

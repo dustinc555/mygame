@@ -9,7 +9,7 @@
 script = ExtResource("1")
 race_id = "desert_puglin"
 display_name = "Desert Puglin"
-equipment_slots = PackedStringArray("weapon", "offhand")
+equipment_slots = PackedStringArray("weapon", "offhand", "backpack")
 bleed_fluid = ExtResource("3")
 default_male_archetype = ExtResource("2")
 default_female_archetype = ExtResource("2")

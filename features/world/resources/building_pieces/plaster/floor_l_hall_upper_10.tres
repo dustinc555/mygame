@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/pieces/plaster/floor_l_hall_upper_10.tscn" id="1_iia6x"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_fxpoq"]
+
+[resource]
+script = ExtResource("2_fxpoq")
+piece_id = "plaster_floor_l_hall_upper_10"
+display_name = "Fired Clay L Hall Upper 10"
+category = "floor"
+scene = ExtResource("1_iia6x")
+bounds_size_meters = Vector3(2, 0.020009998, 2)
+tags = PackedStringArray("project_owned", "plaster", "flat")

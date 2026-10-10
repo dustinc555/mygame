@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="FactionLawProfile" format=3]
+
+[ext_resource type="Script" path="res://features/factions/resources/faction_law_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+profile_id = "no_formal_law"
+display_name = "No Formal Law"
+enabled_offenses = 0
+operator_notes = "No criminal charges, warrants or public law alarms. Members still defend themselves, their companions and possessions through ordinary combat. Enable individual offenses in the Inspector to introduce laws; existing saved warrants are not erased."

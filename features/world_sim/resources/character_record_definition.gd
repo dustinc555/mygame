@@ -1,3 +1,4 @@
+@tool
 extends Resource
 
 class_name CharacterRecordDefinition
@@ -9,6 +10,9 @@ class_name CharacterRecordDefinition
 
 @export var actor_id := ""
 @export var member_name := ""
+## Author notes about this person's history and personality. Copied into the
+## permanent population record on creation; loading a save preserves that copy.
+@export_multiline var backstory := ""
 ## Authored/manual characters are protected from automatic town assignment by
 ## default. Explicit player or authored slot assignment may still place them.
 @export var available_for_work := false
@@ -30,6 +34,7 @@ func to_record() -> Dictionary:
 	var record := {
 		"actor_id": clean_actor_id,
 		"member_name": member_name,
+		"backstory": backstory,
 		"available_for_work": available_for_work,
 		"birth_day_index": CharacterAgeRules.birth_day_for_age(age_years, 0),
 		"appearance": appearance.duplicate(true),

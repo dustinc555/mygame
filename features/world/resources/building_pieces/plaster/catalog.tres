@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceCatalog" format=3]
+
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/wall_straight.tres" id="1_bm8vs"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/wall_partition.tres" id="2_1del6"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/wall_door_flat.tres" id="3_wpnvg"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/wall_door_round.tres" id="4_1p2xb"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/wall_window_wide_flat.tres" id="5_iiwhq"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/wall_window_wide_round.tres" id="6_mmupt"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/wall_window_thin_round.tres" id="7_hke3k"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/wall_corner_chamfer.tres" id="8_ymnrw"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/floor_square.tres" id="9_4stbw"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/floor_half.tres" id="10_hhcjb"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/floor_wedge.tres" id="11_0aes2"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/floor_clipped_corner.tres" id="12_e7j42"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_catalog.gd" id="13_m3hmf"]
+
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/clay_wall_corner_chamfer.tres" id="clay_wall_corner_chamfer"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/clay_wall_door_flat.tres" id="clay_wall_door_flat"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/clay_wall_door_round.tres" id="clay_wall_door_round"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/clay_wall_partition.tres" id="clay_wall_partition"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/clay_wall_straight.tres" id="clay_wall_straight"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/clay_wall_window_thin_round.tres" id="clay_wall_window_thin_round"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/clay_wall_window_wide_flat.tres" id="clay_wall_window_wide_flat"]
+[ext_resource type="Resource" path="res://features/world/resources/building_pieces/plaster/clay_wall_window_wide_round.tres" id="clay_wall_window_wide_round"]
+
+[resource]
+script = ExtResource("13_m3hmf")
+catalog_id = "project_plaster"
+display_name = "Plaster Walls and Fired-Clay Floors"
+pieces = Array[Resource]([ExtResource("1_bm8vs"), ExtResource("2_1del6"), ExtResource("3_wpnvg"), ExtResource("4_1p2xb"), ExtResource("5_iiwhq"), ExtResource("6_mmupt"), ExtResource("7_hke3k"), ExtResource("8_ymnrw"), ExtResource("9_4stbw"), ExtResource("10_hhcjb"), ExtResource("11_0aes2"), ExtResource("12_e7j42"), ExtResource("clay_wall_corner_chamfer"), ExtResource("clay_wall_door_flat"), ExtResource("clay_wall_door_round"), ExtResource("clay_wall_partition"), ExtResource("clay_wall_straight"), ExtResource("clay_wall_window_thin_round"), ExtResource("clay_wall_window_wide_flat"), ExtResource("clay_wall_window_wide_round")])

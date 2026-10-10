@@ -12,19 +12,3 @@ static func can_attempt(lock_tier_id: String, lockpick_skill_level: float, has_r
 
 static func get_success_chance(lock_tier_id: String, lockpick_skill_level: float, assisting_attribute_level: float) -> float:
 	return SKILL_CHECK_RULES.get_success_chance(LOCKPICKING_CHECK, lock_tier_id, lockpick_skill_level, assisting_attribute_level)
-
-
-static func get_attempt_duration_seconds() -> float:
-	return float(LOCKPICKING_CHECK.get("attempt_duration_seconds"))
-
-
-static func roll(command_id: String) -> float:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = abs(command_id.hash())
-	return rng.randf()
-
-
-static func roll_tool_break(command_id: String) -> float:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = abs((command_id + ":break").hash())
-	return rng.randf()

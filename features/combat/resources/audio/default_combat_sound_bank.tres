@@ -1,0 +1,77 @@
+[gd_resource type="Resource" script_class="CombatSoundBank" format=3 uid="uid://crfd4o08cix0v"]
+
+[ext_resource type="Script" uid="uid://clwdsm5sk1ro" path="res://features/combat/resources/audio/combat_sound_bank.gd" id="1_bank"]
+[ext_resource type="Script" uid="uid://b2hxiqny75403" path="res://features/audio/resources/game_sound_cue.gd" id="2_cue"]
+
+[sub_resource type="Resource" id="Cue_swing_blade"]
+script = ExtResource("2_cue")
+cue_id = &"swing_blade"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Swings Unsheathes/WEAPSwrd_Sword swing accent_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Swings Unsheathes/WEAPSwrd_Sword swing accent 2_GfxSounds_FantasyGameBundle.wav")
+
+[sub_resource type="Resource" id="Cue_swing_heavy"]
+script = ExtResource("2_cue")
+cue_id = &"swing_heavy"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Swings/WEAPAxe_Battle axe swing_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Swings/WEAPAxe_Battle axe swing 2_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Swings/WEAPAxe_Battle axe swing 3_GfxSounds_FantasyGameBundle.wav")
+
+[sub_resource type="Resource" id="Cue_clash_metal"]
+script = ExtResource("2_cue")
+cue_id = &"clash_metal"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash 2_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash 3_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash 4_GfxSounds_FantasyGameBundle.wav")
+
+[sub_resource type="Resource" id="Cue_impact_metal"]
+script = ExtResource("2_cue")
+cue_id = &"impact_metal"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Scrapes Shields/WEAPSwrd_Sword armor shield hit_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Scrapes Shields/WEAPSwrd_Sword armor shield hit 3_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Scrapes Shields/WEAPSwrd_Sword armor shield hit 4_GfxSounds_FantasyGameBundle.wav")
+
+[sub_resource type="Resource" id="Cue_impact_chain"]
+script = ExtResource("2_cue")
+cue_id = &"impact_chain"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe chain armor hit_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe chain armor hit 2_GfxSounds_FantasyGameBundle.wav")
+
+[sub_resource type="Resource" id="Cue_impact_wood"]
+script = ExtResource("2_cue")
+cue_id = &"impact_wood"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe wood impact_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe wood impact 2_GfxSounds_FantasyGameBundle.wav")
+
+[sub_resource type="Resource" id="Cue_impact_slash"]
+script = ExtResource("2_cue")
+cue_id = &"impact_slash"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword body hit swipe_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword body hit swipe 3_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword body hit swipe 4_GfxSounds_FantasyGameBundle.wav")
+
+[sub_resource type="Resource" id="Cue_impact_stab"]
+script = ExtResource("2_cue")
+cue_id = &"impact_stab"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword stab gore 2_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword stab gore 3_GfxSounds_FantasyGameBundle.wav")
+
+[sub_resource type="Resource" id="Cue_impact_axe"]
+script = ExtResource("2_cue")
+cue_id = &"impact_axe"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe body impact_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe body impact 3_GfxSounds_FantasyGameBundle.wav")
+
+[sub_resource type="Resource" id="Cue_zombie_male"]
+script = ExtResource("2_cue")
+cue_id = &"zombie_male"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Male zombie attack_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Male zombie attack 2_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Male zombie attack 3_GfxSounds_FantasyGameBundle.wav")
+volume_db = -10.0
+pitch_min = 0.97
+pitch_max = 1.03
+
+[sub_resource type="Resource" id="Cue_zombie_female"]
+script = ExtResource("2_cue")
+cue_id = &"zombie_female"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Female zombie attack_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Female zombie attack 3_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Female zombie attack 5_GfxSounds_FantasyGameBundle.wav")
+volume_db = -10.0
+pitch_min = 0.97
+pitch_max = 1.03
+
+[sub_resource type="Resource" id="Cue_zombie_bite"]
+script = ExtResource("2_cue")
+cue_id = &"zombie_bite"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 2_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 3_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 5_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 6_GfxSounds_FantasyGameBundle.wav")
+volume_db = -10.0
+pitch_min = 0.97
+pitch_max = 1.03
+
+[resource]
+script = ExtResource("1_bank")
+cues = Array[ExtResource("2_cue")]([SubResource("Cue_swing_blade"), SubResource("Cue_swing_heavy"), SubResource("Cue_clash_metal"), SubResource("Cue_impact_metal"), SubResource("Cue_impact_chain"), SubResource("Cue_impact_wood"), SubResource("Cue_impact_slash"), SubResource("Cue_impact_stab"), SubResource("Cue_impact_axe"), SubResource("Cue_zombie_male"), SubResource("Cue_zombie_female"), SubResource("Cue_zombie_bite")])

@@ -13,6 +13,7 @@ const WORLD_ITEM_PROJECTION := preload("res://features/inventory/bridge/world_it
 const INVENTORY_STOCK := preload("res://features/inventory/sim/inventory_stock_controller.gd")
 const ITEM_LIFECYCLE := preload("res://features/inventory/sim/item_lifecycle_controller.gd")
 const LIQUID_STORAGE := preload("res://features/inventory/sim/liquid_storage_controller.gd")
+const FOOD_SHARING := preload("res://features/inventory/bridge/food_sharing_controller.gd")
 
 const CORE := []
 const PROJECTION := []
@@ -22,6 +23,7 @@ const SIM := [
 	{"name": "LiquidStorageController", "script": LIQUID_STORAGE, "service": LIQUID_STORAGE.SERVICE_ID},
 ]
 const BRIDGE := [
+	{"name": "FoodSharingController", "script": FOOD_SHARING, "service": FOOD_SHARING.SERVICE_ID},
 	{"name": "WorldItemProjectionBridge", "script": WORLD_ITEM_PROJECTION, "service": WORLD_ITEM_PROJECTION.SERVICE_ID},
 	{"name": "PartyInventoryController", "script": PARTY_INVENTORY, "service": PARTY_INVENTORY.SERVICE_ID},
 	{"name": "HaulProvider", "script": HAUL, "service": HAUL.SERVICE_ID},

@@ -7,9 +7,16 @@ const RAIDER_FACTION := "Raiders"
 const CINDER_FACTION := "CinderHorde"
 const QUADBOT_CHARACTER_SCRIPT := preload("res://features/actors/projection/quadbot/quadbot_character.gd")
 const RUSTDEAD_CHARACTER_SCRIPT := preload("res://features/actors/projection/rustdead/rustdead_humanoid_character.gd")
+const FIXTURE := preload("res://tests/validation/helpers/combat_fixture.gd")
 
 var _failures: Array[String] = []
 var _scene: Node
+var _party_ids: Dictionary = {}
+var _party_engaged: Dictionary = {}
+var _party_impacts: Dictionary = {}
+var _party_max_displacement: Dictionary = {}
+var _resolved_impacts: Array[Dictionary] = []
+var _first_attacked_party_id := ""
 
 
 func _initialize() -> void:
@@ -18,17 +25,37 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	# Bootstrap can start a fight before an arbitrary startup frame wait ends.
+	get_tree().node_added.connect(_on_runtime_node_added)
 	_scene = FREE_FOR_ALL_SCENE.instantiate()
 	root.add_child(_scene)
 	await _wait_frames(16)
 	var actors := _get_alive_world_actors()
 	var initial := _capture_actor_snapshot(actors)
 	_validate_spawn(actors)
+	for actor in actors:
+		if actor.faction_name == PLAYER_FACTION:
+			_party_ids[actor.stable_id] = true
+	var responses := BootstrapContext.service(GameCombatResponseSystem.SERVICE_ID) as GameCombatResponseSystem
+	var resolution := _scene.find_child("GameCombatResolutionSystem", true, false) as GameCombatResolutionSystem
+	if responses == null or resolution == null:
+		_fail("The real combat response and resolution systems must be running")
+	if not await FIXTURE.wait_world_ready(get_tree()):
+		_fail("5v5v5 must finish normal startup before measuring assistance")
 	var all_factions_engaged := false
 	for frame in range(SIM_FRAMES):
 		await physics_frame
 		await process_frame
 		var target_sample := _get_alive_world_actors()
+		for actor in target_sample:
+			if not _party_ids.has(actor.stable_id):
+				continue
+			var target := actor.get_current_combat_target() as WorldActor
+			if target != null and target.faction_name != PLAYER_FACTION:
+				_party_engaged[actor.stable_id] = true
+				var before: Dictionary = initial.get(actor.get_instance_id(), {})
+				var distance := _horizontal_distance(before.get("position", actor.global_position), actor.global_position)
+				_party_max_displacement[actor.stable_id] = maxf(float(_party_max_displacement.get(actor.stable_id, 0.0)), distance)
 		if not all_factions_engaged and _factions_have_targets(target_sample):
 			all_factions_engaged = true
 			_validate_three_way_targets(target_sample)
@@ -38,6 +65,7 @@ func _run() -> void:
 	var alive_after_sim := _get_alive_world_actors()
 	_validate_damage_happened(actors, initial)
 	_validate_no_floating(alive_after_sim, initial)
+	_validate_party_assistance(actors)
 	await _cleanup_scene()
 	if _failures.is_empty():
 		print("COMBAT_FREE_FOR_ALL_5V5V5_OK")
@@ -47,6 +75,40 @@ func _run() -> void:
 		push_error(failure)
 	print("COMBAT_FREE_FOR_ALL_5V5V5_FAILED count=%d" % _failures.size())
 	quit(1)
+
+
+func _on_runtime_node_added(node: Node) -> void:
+	if node is GameCombatResolutionSystem:
+		node.impact_resolved.connect(_on_impact)
+
+
+func _on_impact(attacker_id: String, target_id: String, _sequence: int, _outcome: String, _damage: float) -> void:
+	_resolved_impacts.append({"attacker": attacker_id, "target": target_id})
+
+
+func _validate_party_assistance(actors: Array[WorldActor]) -> void:
+	for impact in _resolved_impacts:
+		# Observe physical attacks, not the law system's deduplicated incidents.
+		if _first_attacked_party_id.is_empty() and _party_ids.has(impact.target) and not _party_ids.has(impact.attacker):
+			_first_attacked_party_id = impact.target
+		if _party_ids.has(impact.attacker) and not _party_ids.has(impact.target):
+			_party_impacts[impact.attacker] = true
+	if _first_attacked_party_id.is_empty():
+		_fail("An enemy must actually attack the party to exercise Defend assistance")
+	for actor in actors:
+		if not _party_ids.has(actor.stable_id):
+			continue
+		if actor.combat_stance != NpcRules.CombatStance.DEFENSIVE:
+			_fail("%s must remain in Defend for this regression" % actor.member_name)
+		if not _party_engaged.has(actor.stable_id):
+			_fail("%s never automatically joined their party's defense" % actor.member_name)
+		# A defender already in striking range need not walk away to prove aid.
+		# Track the approach throughout combat, not just its final net offset.
+		if float(_party_max_displacement.get(actor.stable_id, 0.0)) <= 0.5 and not _party_impacts.has(actor.stable_id):
+			_fail("%s neither physically approached nor struck an enemy" % actor.member_name)
+	if not _party_impacts.keys().any(func(actor_id): return actor_id != _first_attacked_party_id):
+		_fail("A companion other than the first victim must execute a real combat strike")
+	print("PARTY_DEFEND engaged=%d/%d striking=%d first_victim=%s" % [_party_engaged.size(), _party_ids.size(), _party_impacts.size(), _first_attacked_party_id])
 
 
 func _validate_spawn(actors: Array[WorldActor]) -> void:
@@ -181,6 +243,8 @@ func _faction_counts(actors: Array[WorldActor]) -> Dictionary:
 
 
 func _cleanup_scene() -> void:
+	if get_tree().node_added.is_connected(_on_runtime_node_added):
+		get_tree().node_added.disconnect(_on_runtime_node_added)
 	if _scene != null and is_instance_valid(_scene):
 		root.remove_child(_scene)
 		_scene.free()

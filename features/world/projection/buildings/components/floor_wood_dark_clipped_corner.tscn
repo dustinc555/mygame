@@ -1,0 +1,23 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_piece"]
+[ext_resource type="ArrayMesh" path="res://features/world/projection/buildings/components/floor_wood_dark_clipped_corner.tres" id="2_mesh"]
+
+[sub_resource type="ConvexPolygonShape3D" id="Shape"]
+points = PackedVector3Array(-1, -0.01, -1, 0, -0.01, 0, 0, -0.01, 1, -1, -0.01, 1, -1, 0.01, -1, 0, 0.01, 0, 0, 0.01, 1, -1, 0.01, 1)
+
+[node name="FloorWoodDarkClippedCorner" type="Node3D"]
+script = ExtResource("1_piece")
+piece_id = "floor_wood_dark_clipped_corner"
+display_name = "Wood Floor Clipped Corner"
+category = "floor"
+bounds_size_meters = Vector3(1, 0.02, 2)
+auto_snap_enabled = false
+
+[node name="Model" type="MeshInstance3D" parent="."]
+mesh = ExtResource("2_mesh")
+
+[node name="Body" type="StaticBody3D" parent="."]
+
+[node name="Shape" type="CollisionShape3D" parent="Body"]
+shape = SubResource("Shape")

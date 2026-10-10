@@ -1172,6 +1172,27 @@ func _person_issues(slot: Resource, role: Resource, character: Resource, roles: 
 		errors.append("Named actor %s has an incompatible assignment elsewhere." % _character_id(character))
 	if character == null and role != null and not _role_supports_auto(role):
 		warnings.append("Role has no Auto realizer/type.")
+	if role != null and str(role.get("assignment_domain")) == "custody":
+		if not _facility.has_method("get_prisoner_capacity"):
+			errors.append("Prisoners require a facility with jail cells.")
+		else:
+			var prisoner_count := 0
+			for entry in _facility.get("role_slots"):
+				if entry != null and entry.role != null and entry.role.assignment_domain == "custody":
+					prisoner_count += 1
+			var capacity := int(_facility.call("get_prisoner_capacity"))
+			if prisoner_count > capacity:
+				warnings.append("%d starting prisoners but only %d cell spaces. Add cells under Furniture; extra prisoners cannot spawn." % [prisoner_count, capacity])
+	# Custody excludes every normal residence/employment assignment, not just
+	# other custody rows. Reuse the already indexed counts, never rescan meshes.
+	if character != null and role != null:
+		var prefix := _character_id(character) + "|"
+		var custody := str(role.get("assignment_domain")) == "custody"
+		for counts in [local_assignments, scene_assignments]:
+			for other_key in counts:
+				if str(other_key).begins_with(prefix) and str(other_key) != key and (custody or str(other_key) == prefix + "custody"):
+					errors.append("A prisoner cannot also hold a residence or job: %s." % _character_id(character))
+					break
 	return {"error": errors, "warning": warnings}
 
 
@@ -1226,6 +1247,8 @@ func _role_catalog() -> Array[Resource]:
 	for path in _scan_resource_paths_recursive(ROLES_DIR):
 		var role := load(path) as Resource
 		if role != null and _has_property(role, "role_id"):
+			if str(role.get("assignment_domain")) == "custody" and (_facility == null or not _facility.has_method("get_prisoner_capacity")):
+				continue
 			result.append(role)
 	result.sort_custom(func(a: Resource, b: Resource): return _role_name(a).naturalnocasecmp_to(_role_name(b)) < 0)
 	return result

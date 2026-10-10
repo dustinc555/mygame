@@ -5,6 +5,24 @@
     "timeout_seconds": 90
   },
   "tests": {
+    "tests/validation/validate_start_scenarios.gd": {
+      "mode": "case",
+      "serial": true,
+      "timeout_seconds": 240,
+      "reason": "Authored World1 start scenario, real squad HUD input, named squads, and in-place plus cold full-session load."
+    },
+    "tests/validation/validate_lockpicking.gd": {
+      "mode": "case",
+      "serial": true,
+      "timeout_seconds": 180,
+      "reason": "Production bootstrap, physical approach, active HUD/held pick, interruption, cage escape and GECS save/load."
+    },
+    "tests/validation/validate_lockpicking_law.gd": {
+      "mode": "case",
+      "serial": true,
+      "timeout_seconds": 120,
+      "reason": "Ongoing cage work, actual delayed sight, one warrant and the registered jail guard's physical law response."
+    },
     "tests/validation/validate_celestial_sky_rendered.gd": {
       "mode": "manual",
       "reason": "Self-terminating GPU image assertions; explicitly launch validate_celestial_sky_rendered.tscn on a native display. The headless suite's dummy renderer cannot test rendered depth, pause or camera parallax."

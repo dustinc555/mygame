@@ -4,6 +4,7 @@ class_name CrimeAlertController
 
 const SERVICE_ID := &"crime_alert"
 const EVENT_LIFETIME_SECONDS := 15.0
+const DEFAULT_LAW_PROFILE = preload("res://features/factions/resources/law_profiles/settler_common_law.tres")
 
 signal crime_event_emitted(event_record: Dictionary)
 
@@ -65,22 +66,21 @@ func get_alert_radius() -> float:
 
 func crime_is_illegal_for_faction(crime_type: String, faction_id: String) -> bool:
 	var profile := _law_profile(faction_id)
-	if profile == null:
-		return true
-	match crime_type:
-		"theft":
-			return str(profile.get("theft_response")) != "ignored"
-		"trespass":
-			return str(profile.get("trespass_escalation")) != "warning_only"
-		_:
-			return true
+	return profile != null and profile.crime_is_illegal(crime_type)
 
 
-func _law_profile(faction_id: String) -> Resource:
+func uses_public_enforcement(crime_type: String, faction_id: String) -> bool:
+	var profile := _law_profile(faction_id)
+	return profile != null and profile.uses_public_enforcement(crime_type)
+
+
+func _law_profile(faction_id: String) -> FactionLawProfile:
+	# Unregistered legacy actors retain common law. An authored faction whose
+	# Law picker explicitly says (none) does not secretly enable every offense.
 	if _factions == null:
-		return null
+		return DEFAULT_LAW_PROFILE
 	var definition := _factions.get_faction_definition(faction_id)
-	return definition.get_law_profile() if definition != null and definition.has_method("get_law_profile") else null
+	return definition.get_law_profile() as FactionLawProfile if definition != null else DEFAULT_LAW_PROFILE
 
 
 func _actor_id(actor: Node) -> String:

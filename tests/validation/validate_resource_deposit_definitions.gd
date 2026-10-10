@@ -32,7 +32,7 @@ func _initialize() -> void:
 	_check(is_finite(delay.x) and delay.x > 0 and delay.y >= delay.x, "Runtime delay is finite, positive and ordered")
 	# Validate the contract, not frozen balance numbers: designers can change
 	# the actual stock and week settings without rewriting this validator.
-	for id in ["copper", "scrap_pile", "twisted_scrap_heap", "robot_wreck"]:
+	for id in ["copper", "iron", "scrap_pile", "twisted_scrap_heap", "robot_wreck"]:
 		var path: String = CATALOG_ROOT + id + ".tres"
 		if not ResourceLoader.exists(path):
 			_check(false, "Catalog entry missing: " + id)

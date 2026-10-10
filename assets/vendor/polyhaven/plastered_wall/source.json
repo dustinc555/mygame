@@ -1,0 +1,82 @@
+{
+  "asset": "plastered_wall",
+  "source": "https://polyhaven.com/a/plastered_wall",
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "info": {
+    "name": "Plastered Wall",
+    "categories": [
+      "wall",
+      "plaster"
+    ],
+    "type": 1,
+    "tags": [
+      "rough",
+      "concrete",
+      "discolored",
+      "damaged",
+      "scratched",
+      "plaster",
+      "plastered",
+      "exterior",
+      "worn",
+      "chipped"
+    ],
+    "authors": {
+      "Amal Kumar": "All"
+    },
+    "info": null,
+    "dimensions": [
+      1999.9996423721313,
+      1999.9996423721313
+    ],
+    "date_published": 1699920000,
+    "staging": null,
+    "sponsors": [
+      "3267566"
+    ],
+    "max_resolution": [
+      16384,
+      16384
+    ],
+    "files_hash": "5d40616b58828fe643021ca57a6182d2342973aa",
+    "description": "Free 16K texture of rough, weathered plaster wall with chipped, scratched concrete-like surface, subtle discoloration and worn, coarse detailing.",
+    "category_id": "ebaa964c-b45c-52e2-bd50-892d64616d87",
+    "category": "Concrete/Plaster & Stucco/Bare Plaster",
+    "attributes": {
+      "surface_use": "wall",
+      "condition": [
+        "weathered",
+        "damaged",
+        "worn"
+      ],
+      "origin": "man_made",
+      "setting": "outdoor"
+    },
+    "img_version": "46157bad",
+    "download_count": 86616,
+    "thumbnail_url": "https://cdn.polyhaven.com/asset_img/thumbs/plastered_wall.png?width=256&height=256&format=webp&v=46157bad"
+  },
+  "files": {
+    "Diffuse": {
+      "size": 84283810,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/plastered_wall/plastered_wall_diff_4k.png",
+      "md5": "2d499135612f7cb971c24946027b2b64"
+    },
+    "nor_gl": {
+      "size": 104691501,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/plastered_wall/plastered_wall_nor_gl_4k.png",
+      "md5": "52159e7dbd0866cf5bc58fd6fb3fc255"
+    },
+    "Rough": {
+      "size": 26370110,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/plastered_wall/plastered_wall_rough_4k.png",
+      "md5": "88535dfd6f4af522da938bbeb368357e"
+    },
+    "AO": {
+      "size": 17643224,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/plastered_wall/plastered_wall_ao_4k.png",
+      "md5": "436464d2ae6bd62ef78f9e804dfa2ad4"
+    }
+  }
+}

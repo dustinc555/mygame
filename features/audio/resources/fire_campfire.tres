@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/audio/resources/fire_loop_cue.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+cue_id = &"fire.campfire"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Environment Ambience/Dragon Crater Ambience/FIREBurn_Quiet campfire burn_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Environment Ambience/Dragon Crater Ambience/FIREBurn_Quiet campfire burn 2_GfxSounds_FantasyGameBundle.wav")
+volume_db = -10.0
+pitch_min = 0.97
+pitch_max = 1.03
+edge_trim_seconds = 0.5
+crossfade_seconds = 0.08

@@ -1,0 +1,81 @@
+{
+  "asset": "clay_plaster",
+  "source": "https://polyhaven.com/a/clay_plaster",
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "info": {
+    "name": "Clay Plaster",
+    "categories": [
+      "wall",
+      "man made",
+      "plaster-concrete",
+      "outdoor"
+    ],
+    "type": 1,
+    "tags": [
+      "rough",
+      "wall",
+      "plaster",
+      "plastered",
+      "cracked",
+      "exterior",
+      "cracks",
+      "scratched",
+      "uneven",
+      "clay",
+      "coarse"
+    ],
+    "authors": {
+      "Amal Kumar": "All"
+    },
+    "info": null,
+    "dimensions": [
+      1999.9996423721313,
+      1999.9996423721313
+    ],
+    "date_published": 1703116800,
+    "staging": null,
+    "max_resolution": [
+      16384,
+      16384
+    ],
+    "files_hash": "bef2f39d8ae0254580906888023f2e3b58e50059",
+    "description": "Free 16K texture. Warm brown clay plaster material with a coarse, uneven surface, visible cracks and scratches, and a weathered, rough finish.",
+    "category_id": "615c9883-4041-5b7a-8947-869444e169cd",
+    "category": "Concrete/Plaster & Stucco/Clay & Earth Plaster",
+    "attributes": {
+      "surface_use": "wall",
+      "condition": [
+        "weathered",
+        "cracked"
+      ],
+      "origin": "man_made",
+      "setting": "outdoor"
+    },
+    "img_version": "e58a3be1",
+    "download_count": 20134,
+    "thumbnail_url": "https://cdn.polyhaven.com/asset_img/thumbs/clay_plaster.png?width=256&height=256&format=webp&v=e58a3be1"
+  },
+  "files": {
+    "Diffuse": {
+      "size": 80586099,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/clay_plaster/clay_plaster_diff_4k.png",
+      "md5": "f0bc3fe2b596fa50b2f55894f872ecae"
+    },
+    "nor_gl": {
+      "size": 96781132,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/clay_plaster/clay_plaster_nor_gl_4k.png",
+      "md5": "6baca2f6368d2d32a1ae2ac4ae3b4d3d"
+    },
+    "Rough": {
+      "size": 25746251,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/clay_plaster/clay_plaster_rough_4k.png",
+      "md5": "4fbbeb1d9fceb0d1fb767ee4c5ac0f27"
+    },
+    "AO": {
+      "size": 14021032,
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/clay_plaster/clay_plaster_ao_4k.png",
+      "md5": "4fb79f601cd4a42d55a3161f98fd42a0"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="ItemDefinition" format=3 uid="uid://bptv4b2kkls0h"]
+
+[ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="2"]
+[ext_resource type="PackedScene" uid="uid://csokn5253iw2q" path="res://assets/items/equipment/medium_leather_bag/medium_leather_bag.glb" id="3"]
+[ext_resource type="Texture2D" uid="uid://jsdhxnddc7yq" path="res://assets/items/icons/medium_leather_bag.png" id="4"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/worn_leather.tres" id="5"]
+[ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="6_fhffg"]
+
+[sub_resource type="Resource" id="Visual_shared"]
+script = ExtResource("2")
+visual_scene = ExtResource("3")
+visual_layer = "outerwear"
+visual_coverage = "back"
+replaces_body_slots = PackedStringArray()
+visual_notes = "One rigid leather bag sized to the wearer's torso and carried by the upper spine. No wrapping shoulder straps or cloth simulation."
+rigid_back_fit = true
+back_clearance_ratio = 0.035
+
+[resource]
+script = ExtResource("1")
+display_name = "Medium Leather Bag"
+item_id = "medium_leather_bag"
+icon = ExtResource("4")
+grid_size = Vector2i(2, 3)
+unit_weight = 1.5
+storage_grid_size = Vector2i(10, 10)
+equip_slot = "backpack"
+combat_audio = ExtResource("5")
+alternate_equip_slots = PackedStringArray()
+compatible_races = PackedStringArray()
+humanoid_only = true
+world_scene = ExtResource("3")
+world_visual_height_meters = 0.52
+equipped_visuals = Array[Resource]([SubResource("Visual_shared")])
+tool_tags = PackedStringArray()
+access_key_ids = PackedStringArray()

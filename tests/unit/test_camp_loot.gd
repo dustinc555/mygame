@@ -53,10 +53,15 @@ func test_weighted_stock_fits_small_container_instead_of_rejecting_batch() -> vo
 func test_weighted_stock_excludes_items_too_large_for_container() -> void:
 	var table = TABLE.new()
 	table.weighted_draws = 1
+	# Packing rules must not depend on the current dimensions of authored food.
+	var large_item := ItemDefinition.new()
+	large_item.grid_size = Vector2i(3, 2)
+	var small_item := ItemDefinition.new()
+	small_item.grid_size = Vector2i(2, 1)
 	var too_large = ENTRY.new()
-	too_large.item_definition = preload("res://features/inventory/resources/items/bread.tres")
+	too_large.item_definition = large_item
 	var fits = ENTRY.new()
-	fits.item_definition = FOOD
+	fits.item_definition = small_item
 	table.entries.assign([too_large, fits])
 	for seed in 12:
 		var rng := RandomNumberGenerator.new()
@@ -64,4 +69,4 @@ func test_weighted_stock_excludes_items_too_large_for_container() -> void:
 		var result = table.roll(rng, InventoryData.new(2, 1, 0.0, false))
 		assert_eq(result.size(), 1)
 		if not result.is_empty():
-			assert_eq(result[0].item_definition, FOOD)
+			assert_eq(result[0].item_definition, small_item)

@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://bco0vdil7dqi1"]
+
+[ext_resource type="AudioStream" uid="uid://eimuvck2af1s" path="res://assets/vendor/dark-fantasy-studio/audio/2-Dark Fantasy Studio- Horns-2.wav" id="1_4t8gg"]
+[ext_resource type="Script" uid="uid://x6c4da15esdf" path="res://features/audio/projection/music_player.gd" id="1_pewg8"]
+
+[node name="MusicPlayer" type="Node" unique_id=1449136946]
+script = ExtResource("1_pewg8")
+
+[node name="Track" type="AudioStreamPlayer" parent="." unique_id=1816466072]
+stream = ExtResource("1_4t8gg")
+volume_db = -26.838

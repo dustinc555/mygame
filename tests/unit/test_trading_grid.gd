@@ -3,6 +3,8 @@ extends GutTest
 const WINDOW = preload("res://features/ui/projection/inventory_window.tscn")
 const SEEDS = preload("res://features/inventory/resources/items/eggplant_seeds.tres")
 const SILVER = InventoryData.SILVER_ITEM
+const TRADE_COIN_PATH := "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Coins Treasure/OBJCoin_Coin pickup handling 2_GfxSounds_FantasyGameBundle.wav"
+const TRADE_CLOTH_PATH := "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Bags Cloth Inventory/CLOTHHndl_Inventory clothes shuffle_GfxSounds_FantasyGameBundle.wav"
 
 class Owner extends Node3D:
 	signal inventory_changed
@@ -695,3 +697,214 @@ func test_trade_error_does_not_shift_any_inventory_controls() -> void:
 	assert_eq(notice.messages, ["Cannot afford"])
 	for index in range(controls.size()):
 		assert_eq(controls[index].get_global_rect(), rectangles[index], controls[index].name)
+
+
+func test_trade_purchase_plays_only_coin_sound_after_payment() -> void:
+	var audio := _start_trade_audio()
+	controller._offer_trade_item(merchant, stock.entries[0], 1)
+	await _press_trade()
+	assert_eq(buyer.inventory.count_item(SEEDS), 1)
+	assert_eq(buyer.inventory.count_item(SILVER), 18)
+	assert_eq(stock.count_item(SILVER), 52)
+	assert_signal_emit_count(audio, "cue_played", 1, "Trade replaces, never layers, the ordinary button click")
+	assert_eq(get_signal_parameters(audio, "cue_played"), [&"ui.trade_money", TRADE_COIN_PATH])
+	assert_eq(audio._voices.size(), 1)
+	if not audio._voices.is_empty():
+		assert_true(audio._voices[0].playing)
+
+
+func test_trade_sale_plays_coin_sound_for_keyboard_activation() -> void:
+	var audio := _start_trade_audio()
+	assert_true(buyer.inventory.add_item_count(SEEDS, 2))
+	controller._cancel_trade()
+	controller._offer_trade_item(buyer, buyer.inventory.entries[-1], -1)
+	await _press_trade(true)
+	assert_eq(buyer.inventory.count_item(SEEDS), 0)
+	assert_eq(buyer.inventory.count_item(SILVER), 22)
+	assert_eq(stock.count_item(SILVER), 48)
+	assert_signal_emit_count(audio, "cue_played", 1)
+	assert_eq(get_signal_parameters(audio, "cue_played"), [&"ui.trade_money", TRADE_COIN_PATH])
+
+
+func test_even_barter_plays_only_cloth_sound_without_moving_silver() -> void:
+	var audio := _start_trade_audio()
+	_offer_even_barter()
+	await _press_trade()
+	assert_eq(buyer.inventory.count_item(SEEDS), 1)
+	assert_eq(stock.count_item(SEEDS), 4)
+	assert_eq(buyer.inventory.count_item(SILVER), 20)
+	assert_eq(stock.count_item(SILVER), 50)
+	assert_signal_emit_count(audio, "cue_played", 1)
+	assert_eq(get_signal_parameters(audio, "cue_played"), [&"ui.trade_barter", TRADE_CLOTH_PATH])
+	assert_true(audio._voices[0].playing)
+
+
+func test_unaffordable_trade_is_silent_and_keeps_error_feedback() -> void:
+	var audio := _start_trade_audio()
+	assert_true(buyer.inventory.remove_item_count(SILVER, 19))
+	controller._cancel_trade()
+	controller._offer_trade_item(merchant, stock.entries[0], -1)
+	await _press_trade()
+	assert_signal_not_emitted(audio, "cue_played")
+	assert_eq(notice.messages, ["Cannot afford"])
+	assert_eq(buyer.inventory.count_item(SILVER), 1)
+	assert_eq(stock.count_item(SEEDS), 3)
+
+
+func test_rolled_back_trade_never_plays_payment_audio() -> void:
+	var audio := _start_trade_audio()
+	controller._offer_trade_item(merchant, stock.entries[0], -1)
+	buyer.inventory.admission_validator = func(_definition, _amount): return false
+	await _press_trade()
+	assert_signal_not_emitted(audio, "cue_played")
+	assert_eq(notice.messages, ["No room or carrying capacity"])
+	assert_eq(buyer.inventory.count_item(SILVER), 20)
+	assert_eq(stock.count_item(SILVER), 50)
+	assert_eq(stock.count_item(SEEDS), 3)
+
+
+func test_changed_quote_trade_is_silent() -> void:
+	var audio := _start_trade_audio()
+	controller._offer_trade_item(merchant, stock.entries[0], 1)
+	merchant.role.trading_policy.sell_price = 9
+	await _press_trade()
+	assert_signal_not_emitted(audio, "cue_played")
+	assert_eq(notice.messages, ["Offer changed — reset this deal"])
+	assert_eq(buyer.inventory.count_item(SILVER), 20)
+
+
+func test_trade_audio_obeys_ui_gain_and_disable_without_blocking_trade() -> void:
+	var audio := _start_trade_audio()
+	audio.settings.volume_db = -24.0
+	audio.settings.trade_money.volume_db = -3.0
+	controller._offer_trade_item(merchant, stock.entries[0], 1)
+	await _press_trade()
+	assert_signal_emit_count(audio, "cue_played", 1)
+	assert_eq(audio._voices[0].volume_db, -27.0)
+	assert_eq(audio._voices[0].pitch_scale, 1.0)
+	audio.settings.enabled = false
+	controller._offer_trade_item(merchant, stock.entries[0], 1)
+	await _press_trade()
+	assert_signal_emit_count(audio, "cue_played", 1)
+	assert_eq(buyer.inventory.count_item(SEEDS), 2)
+	assert_eq(buyer.inventory.count_item(SILVER), 16)
+
+
+func test_missing_trade_audio_does_not_fall_back_to_button_click() -> void:
+	var audio := _start_trade_audio()
+	audio.settings.trade_money.paths = PackedStringArray(["res://missing_trade_recording.wav"])
+	controller._offer_trade_item(merchant, stock.entries[0], 1)
+	await _press_trade()
+	assert_signal_not_emitted(audio, "cue_played")
+	assert_eq(buyer.inventory.count_item(SEEDS), 1)
+	assert_eq(buyer.inventory.count_item(SILVER), 18)
+
+
+func test_reset_keeps_ordinary_click_and_empty_trade_stays_silent() -> void:
+	var audio := _start_trade_audio()
+	controller._offer_trade_item(merchant, stock.entries[0], 1)
+	var reset: Button = controller.secondary_inventory_window.find_child("CancelTradeButton", true, false)
+	reset.pressed.emit()
+	assert_true(controller.trade_session.offers.is_empty())
+	assert_signal_emit_count(audio, "cue_played", 1)
+	assert_eq(get_signal_parameters(audio, "cue_played")[0], &"ui.click")
+	controller.secondary_inventory_window.trade_button.pressed.emit()
+	assert_signal_emit_count(audio, "cue_played", 1, "An empty Trade must not play any sound")
+
+
+func test_selected_trade_recordings_play_through_native_settlement_when_available() -> void:
+	var audio := _start_trade_audio(true)
+	var specs := [
+		{"cue": audio.settings.trade_money, "path": TRADE_COIN_PATH},
+		{"cue": audio.settings.trade_barter, "path": TRADE_CLOTH_PATH},
+	]
+	for spec: Dictionary in specs:
+		assert_eq(spec.cue.paths, PackedStringArray([spec.path]))
+		assert_eq(spec.cue.pitch_min, 1.0)
+		assert_eq(spec.cue.pitch_max, 1.0)
+		if not ResourceLoader.exists(spec.path, "AudioStream"):
+			assert_null(spec.cue.get_stream(spec.path), "Licensed recordings remain optional on fresh checkouts")
+			return
+	controller._offer_trade_item(merchant, stock.entries[0], 1)
+	await _press_trade()
+	assert_signal_emit_count(audio, "cue_played", 1)
+	var coin_voice: AudioStreamPlayer = audio._voices.back()
+	assert_true(coin_voice.playing)
+	assert_same(coin_voice.stream, load(TRADE_COIN_PATH))
+	assert_gt(coin_voice.stream.get_length(), 0.0)
+	# Sell the bought seed plus one extra for one seed: exactly zero net silver.
+	assert_true(buyer.inventory.add_item_count(SEEDS, 1))
+	controller._cancel_trade()
+	controller._offer_trade_item(buyer, buyer.inventory.entries[-1], -1)
+	controller._offer_trade_item(merchant, stock.entries[0], 1)
+	assert_eq(controller.trade_session.net_silver(), 0)
+	await _press_trade()
+	assert_signal_emit_count(audio, "cue_played", 2)
+	var cloth_voice: AudioStreamPlayer = audio._voices.back()
+	assert_true(cloth_voice.playing)
+	assert_same(cloth_voice.stream, load(TRADE_CLOTH_PATH))
+	assert_gt(cloth_voice.stream.get_length(), 0.0)
+	gut.p("Both licensed trade recordings started through native Trade-button input")
+
+
+func _offer_even_barter() -> void:
+	assert_true(buyer.inventory.add_item_count(SEEDS, 2))
+	controller._cancel_trade()
+	controller._offer_trade_item(buyer, buyer.inventory.entries[-1], -1)
+	controller._offer_trade_item(merchant, stock.entries[0], 1)
+	assert_eq(controller.trade_session.net_silver(), 0)
+
+
+func _start_trade_audio(use_imports := false) -> Node:
+	var audio: Node = load("res://features/ui/projection/ui_audio_controller.gd").new()
+	var layer := controller.inventory_window_layer
+	layer.add_child(audio)
+	audio.settings = load("res://features/ui/resources/ui_audio_settings.tres").duplicate(true)
+	if not use_imports:
+		# Exercise native voices without requiring licensed audio on fresh checkouts.
+		var stream := AudioStreamWAV.new()
+		stream.format = AudioStreamWAV.FORMAT_8_BITS
+		stream.mix_rate = 8000
+		var samples := PackedByteArray()
+		samples.resize(8000)
+		samples.fill(128)
+		stream.data = samples
+		for property: Dictionary in audio.settings.get_property_list():
+			if property.usage & PROPERTY_USAGE_SCRIPT_VARIABLE:
+				var cue = audio.settings.get(property.name)
+				if cue is GameSoundCue:
+					for path: String in cue.paths:
+						cue._stream_cache[path] = stream
+	var context := BootstrapContext.new(layer)
+	context.register(&"ui_audio", audio)
+	controller._context = context
+	audio.initialize(context)
+	watch_signals(audio)
+	return audio
+
+
+func _press_trade(keyboard := false) -> void:
+	for frame in range(6):
+		await get_tree().process_frame
+	var button := controller.secondary_inventory_window.trade_button
+	assert_false(button.disabled, "Fixture must reach an actionable Trade button")
+	if keyboard:
+		button.grab_focus()
+		for down in [true, false]:
+			var key := InputEventKey.new()
+			key.keycode = KEY_SPACE
+			key.pressed = down
+			viewport.push_input(key, true)
+	else:
+		var at := button.get_global_rect().get_center()
+		var motion := InputEventMouseMotion.new()
+		motion.position = at
+		motion.global_position = at
+		viewport.push_input(motion, true)
+		for down in [true, false]:
+			var event := InputEventMouseButton.new()
+			event.position = at
+			event.global_position = at
+			event.button_index = MOUSE_BUTTON_LEFT
+			event.pressed = down
+			viewport.push_input(event, true)

@@ -4,6 +4,10 @@ class_name EquipmentSlotControl
 
 signal slot_drop_requested(slot_name, data)
 signal slot_drag_dropped_outside(slot_name)
+signal storage_open_requested(slot_name)
+signal quick_transfer_requested(slot_name)
+
+const STORAGE_ACTION_HEIGHT := 22.0
 
 var inventory_owner
 var slot_name := ""
@@ -11,12 +15,14 @@ var slot_label := "Slot"
 var grid_dimensions := Vector2i(2, 2)
 var _label: Label
 var _icon: TextureRect
+var _storage_action: Button
 var _highlight := false
 var _active_drag_data: Dictionary = {}
 var _inventory_grid: InventoryGridControl
 var item_provider: Callable
 var drag_provider: Callable
 var drop_validator: Callable
+var storage_open_validator: Callable
 
 
 func _ready() -> void:
@@ -44,6 +50,24 @@ func _ready() -> void:
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(art)
 	art.add_child(_icon)
+	_storage_action = Button.new()
+	_storage_action.name = "OpenBagButton"
+	_storage_action.text = "Open"
+	_storage_action.tooltip_text = "Open bag · double-click the bag to open"
+	_storage_action.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_storage_action.add_theme_font_size_override("font_size", 11)
+	var action_style := StyleBoxFlat.new()
+	action_style.bg_color = Color(0.14, 0.125, 0.095, 1)
+	action_style.border_color = panel.border_color
+	action_style.set_border_width_all(1)
+	_storage_action.add_theme_stylebox_override("normal", action_style)
+	var active_style := action_style.duplicate()
+	active_style.bg_color = Color(0.22, 0.185, 0.12, 1)
+	active_style.border_color = Color(0.65, 0.51, 0.30, 1)
+	for state in ["hover", "pressed", "focus"]:
+		_storage_action.add_theme_stylebox_override(state, active_style)
+	_storage_action.pressed.connect(_request_storage_open)
+	art.add_child(_storage_action)
 	_label = Label.new()
 	_label.clip_text = true
 	_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -89,6 +113,8 @@ func refresh() -> void:
 	_label.text = item.display_name if item.icon == null else ""
 	_label.modulate = Color(0.96, 0.9, 0.72, 1.0)
 	tooltip_text = "%s\n%s" % [slot_label, item.display_name]
+	if _can_open_storage():
+		tooltip_text += "\nDouble-click to open"
 	queue_redraw()
 
 
@@ -112,6 +138,28 @@ func _cell_gap() -> float:
 
 func _update_target_size() -> void:
 	custom_minimum_size = InventoryGridControl.grid_pixel_size(grid_dimensions, _cell_size(), _cell_gap())
+	if _can_open_storage():
+		custom_minimum_size.y += STORAGE_ACTION_HEIGHT
+
+
+func _can_open_storage() -> bool:
+	var item = _get_equipped_item()
+	return item != null and item.has_storage() and (not storage_open_validator.is_valid() or storage_open_validator.call(slot_name))
+
+
+func _request_storage_open() -> void:
+	if _can_open_storage():
+		storage_open_requested.emit(slot_name)
+
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and event.shift_pressed and _get_equipped_item() != null:
+		quick_transfer_requested.emit(slot_name)
+		accept_event()
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and event.double_click and not event.shift_pressed and _can_open_storage():
+		_request_storage_open()
+		accept_event()
 
 
 func get_equipped_item_rect() -> Rect2:
@@ -122,6 +170,10 @@ func get_equipped_item_rect() -> Rect2:
 func _layout_icon() -> void:
 	if _icon == null:
 		return
+	var target_size := InventoryGridControl.grid_pixel_size(grid_dimensions, _cell_size(), _cell_gap())
+	_storage_action.visible = _can_open_storage()
+	_storage_action.position = Vector2(0, target_size.y)
+	_storage_action.size = Vector2(target_size.x, STORAGE_ACTION_HEIGHT)
 	# Resizing during setup can precede refresh after an item is unequipped.
 	# Resolve texture and footprint from the same current item, not stale art.
 	var item = _get_equipped_item()
@@ -148,7 +200,7 @@ func _draw() -> void:
 		draw_rect(occupied, Color(0.16, 0.14, 0.095), true)
 		draw_rect(occupied, Color(0.49, 0.40, 0.24), false, 1.0)
 	if _highlight:
-		draw_rect(Rect2(Vector2.ZERO, size), Color(0.64, 0.51, 0.29), false, 1)
+		draw_rect(Rect2(Vector2.ZERO, InventoryGridControl.grid_pixel_size(grid_dimensions, _cell_size(), _cell_gap())), Color(0.64, 0.51, 0.29), false, 1)
 
 
 func _get_equipped_item():
@@ -160,6 +212,8 @@ func _get_equipped_item():
 
 
 func _get_drag_data(_at_position: Vector2):
+	if _at_position.y >= InventoryGridControl.grid_pixel_size(grid_dimensions, _cell_size(), _cell_gap()).y:
+		return null
 	var item = _get_equipped_item()
 	if item == null:
 		return null

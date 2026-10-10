@@ -93,6 +93,7 @@ func before_each() -> void:
 	menu.add_child(menu.party_manager)
 	menu.party_manager.selected_members = [thief]
 	menu.clicked = target
+	menu.ownership_controller = ownership
 	var viewport := SubViewport.new()
 	viewport.size = Vector2i(1280, 900)
 	add_child_autofree(viewport)
@@ -142,6 +143,15 @@ func test_seen_guard_body_theft_reports_and_refuses_take() -> void:
 		assert_eq(law.reports[0].actor, thief)
 		assert_eq(law.reports[0].witnesses, [guard])
 
+func test_loot_warning_colors_only_the_loot_action() -> void:
+	target.life_state = NpcRules.LifeState.UNCONSCIOUS
+	labels()
+	for action in menu.shown:
+		if action.label == "Loot":
+			assert_eq(action.get("color", Color.TRANSPARENT), OwnershipController.STEAL_ACTION_COLOR)
+		elif action.label in ["Heal", "Carry"]:
+			assert_eq(action.get("color", Color.TRANSPARENT), Color.TRANSPARENT)
+
 func test_unseen_body_loot_has_no_omniscient_nearby_witness() -> void:
 	target.life_state = NpcRules.LifeState.UNCONSCIOUS
 	assert_true(ownership.request_take_item(thief, target))
@@ -176,6 +186,30 @@ func open_body():
 	inventories.call("open_npc_inventory", thief, target, "loot")
 	assert_not_null(inventories.secondary_inventory_window)
 	return inventories.secondary_inventory_window.inventory_owner if inventories.secondary_inventory_window != null else null
+
+func test_backpack_contents_use_body_loot_witness_rules() -> void:
+	var bag: ItemDefinition = load("res://features/inventory/resources/items/medium_leather_bag.tres")
+	assert_true(target.bag.add_item(bag))
+	var item = target.bag.entries[0]
+	var storage := InventoryData.create_item_storage(bag, {}, item.stack_id)
+	assert_true(storage.add_item(BREAD))
+	item.metadata[InventoryData.ITEM_STORAGE_KEY] = storage.serialize_contents()
+	var body = open_body()
+	var window = inventories.open_item_storage(body, item.stack_id)
+	var view = window.inventory_owner
+	var entry = view.inventory.entries[0]
+	perception.seen[guard.stable_id] = true
+	inventories._on_inventory_transfer_requested(view, thief, entry, Vector2i.ZERO)
+	assert_eq(thief.bag.count_item(BREAD), 0)
+	assert_eq(view.inventory.count_item(BREAD), 1)
+	assert_eq(law.reports.size(), 1)
+	perception.seen.clear()
+	law.reports.clear()
+	inventories._on_inventory_transfer_requested(view, thief, entry, Vector2i.ZERO)
+	assert_eq(thief.bag.count_item(BREAD), 1)
+	assert_eq(view.inventory.count_item(BREAD), 0)
+	assert_true(law.reports.is_empty())
+
 
 func test_menu_dispatch_approach_and_arrival_open_personal_inventory() -> void:
 	target.life_state = NpcRules.LifeState.UNCONSCIOUS
@@ -226,6 +260,159 @@ func test_equipped_sword_take_checks_witness_before_mutation() -> void:
 	assert_eq(thief.bag.count_item(SWORD), 1)
 	assert_eq(thief.bag.entries[0].stack_id, "guard-sword")
 
+func _shift_click_equipment(window: InventoryWindow, slot: String) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var control: EquipmentSlotControl = window._equipment_slots[slot]
+	var at := control.get_global_rect().position + control.get_equipped_item_rect().get_center()
+	await _shift_click_at(window.get_viewport(), at)
+
+func _shift_click_grid(window: InventoryWindow, entry) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await _shift_click_at(window.get_viewport(), window.inventory_grid.global_position + window.inventory_grid._item_rect(entry).get_center())
+
+func _shift_click_at(viewport: Viewport, at: Vector2) -> void:
+	var motion := InputEventMouseMotion.new()
+	motion.position = at
+	motion.global_position = at
+	viewport.push_input(motion, true)
+	assert_eq(viewport.get_mouse_position(), at)
+	for pressed in [true, false]:
+		var click := InputEventMouseButton.new()
+		click.position = at
+		click.global_position = at
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.button_mask = MOUSE_BUTTON_MASK_LEFT if pressed else 0
+		click.pressed = pressed
+		click.shift_pressed = true
+		viewport.push_input(click, true)
+	await get_tree().process_frame
+
+func test_shift_click_equipped_loot_uses_normal_take_transaction() -> void:
+	target.gear.equip_item_to_slot(SWORD, "weapon", "guard-sword")
+	open_body()
+	await _shift_click_equipment(inventories.secondary_inventory_window, "weapon")
+	assert_null(target.gear.get_equipped_item("weapon"))
+	assert_eq(thief.bag.count_item(SWORD), 1)
+	if not thief.bag.entries.is_empty():
+		assert_eq(thief.bag.entries[0].stack_id, "guard-sword")
+	assert_true(law.reports.is_empty())
+
+func _open_owned_bag() -> InventoryWindow:
+	var bag: ItemDefinition = load("res://features/inventory/resources/items/medium_leather_bag.tres")
+	assert_true(thief.bag.add_entry_with_contents(bag, 1, {}, {}, "player.bag"))
+	var window = inventories.open_item_storage(thief, "player.bag")
+	assert_not_null(window)
+	return window
+
+func _fill_grid(inventory: InventoryData) -> void:
+	var seeds: ItemDefinition = load("res://features/inventory/resources/items/tomato_seeds.tres")
+	assert_eq(seeds.grid_size, Vector2i.ONE)
+	for y in range(inventory.rows):
+		for x in range(inventory.columns):
+			var cell := Vector2i(x, y)
+			if inventory.can_place_item(seeds, cell):
+				inventory.entries.append(inventory.create_entry(seeds, cell))
+	inventory.changed.emit()
+
+func test_shift_click_equipped_theft_cannot_retry_through_pockets() -> void:
+	target.gear.equip_item_to_slot(SWORD, "weapon", "guard-sword")
+	open_body()
+	var window := _open_owned_bag()
+	perception.seen[guard.stable_id] = true
+	await _shift_click_equipment(inventories.secondary_inventory_window, "weapon")
+	assert_eq(law.reports.size(), 1, "A refused take is not retried at the next destination")
+	assert_eq(target.gear.get_equipped_stack_id("weapon"), "guard-sword")
+	assert_eq(thief.bag.count_item(SWORD), 0)
+	assert_eq(window.inventory_owner.inventory.count_item(SWORD), 0)
+	perception.seen.clear()
+	law.reports.clear()
+	await _shift_click_equipment(inventories.secondary_inventory_window, "weapon")
+	assert_null(target.gear.get_equipped_item("weapon"))
+	assert_eq(window.inventory_owner.inventory.count_item(SWORD), 1)
+	assert_eq(thief.bag.count_item(SWORD), 0)
+	assert_true(law.reports.is_empty())
+
+func test_shift_click_pickpocket_failure_rolls_once_with_open_bag() -> void:
+	thief.sneaking = true
+	assert_true(target.bag.add_entry_with_contents(BREAD, 1, {}, {"quality": 0.42}, "victim.bread"))
+	var entry = target.bag.entries[0]
+	inventories.open_npc_inventory(thief, target, "pickpocket")
+	var window := _open_owned_bag()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 123
+	assert_gt(rng.randf(), 0.03, "This controlled unskilled attempt must fail")
+	ownership._rng.seed = 123
+	await _shift_click_grid(inventories.secondary_inventory_window, entry)
+	assert_eq(ownership._rng.state, rng.state, "One attempt must not roll again at pockets")
+	assert_eq(law.reports.size(), 1)
+	assert_has(target.bag.entries, entry)
+	assert_eq(entry.metadata, {"quality": 0.42})
+	assert_eq(thief.bag.count_item(BREAD), 0)
+	assert_eq(window.inventory_owner.inventory.count_item(BREAD), 0)
+
+func test_shift_click_pickpocket_full_bag_fallback_rolls_only_for_actual_move() -> void:
+	thief.sneaking = true
+	thief.levels[SkillRules.SUBTERFUGE_SLEIGHT_OF_HAND] = 100
+	thief.levels[SkillRules.ATTRIBUTE_DEXTERITY] = 100
+	assert_true(target.bag.add_entry_with_contents(BREAD, 1, {}, {"quality": 0.42}, "victim.bread"))
+	var entry = target.bag.entries[0]
+	inventories.open_npc_inventory(thief, target, "pickpocket")
+	var window := _open_owned_bag()
+	_fill_grid(window.inventory_owner.inventory)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 123
+	assert_lt(rng.randf(), 0.97, "This controlled expert attempt must succeed")
+	ownership._rng.seed = 123
+	await _shift_click_grid(inventories.secondary_inventory_window, entry)
+	assert_eq(ownership._rng.state, rng.state, "A full preferred bag is not a separate attempt")
+	assert_eq(target.bag.count_item(BREAD), 0)
+	assert_eq(thief.bag.count_item(BREAD), 1)
+	assert_eq(window.inventory_owner.inventory.count_item(BREAD), 0)
+	assert_true(law.reports.is_empty())
+	assert_eq(thief.bag.entries[-1].stack_id, "victim.bread")
+	assert_eq(thief.bag.entries[-1].metadata, {"quality": 0.42})
+
+func test_shift_click_equipped_loot_both_full_does_not_report_theft() -> void:
+	target.gear.equip_item_to_slot(SWORD, "weapon", "guard-sword")
+	open_body()
+	var window := _open_owned_bag()
+	_fill_grid(window.inventory_owner.inventory)
+	_fill_grid(thief.bag)
+	perception.seen[guard.stable_id] = true
+	await _shift_click_equipment(inventories.secondary_inventory_window, "weapon")
+	assert_true(law.reports.is_empty())
+	assert_eq(target.gear.get_equipped_stack_id("weapon"), "guard-sword")
+	assert_eq(thief.bag.count_item(SWORD), 0)
+	assert_eq(window.inventory_owner.inventory.count_item(SWORD), 0)
+
+func test_shift_click_nested_body_bag_obeys_witness_and_destination_rules() -> void:
+	var bag: ItemDefinition = load("res://features/inventory/resources/items/medium_leather_bag.tres")
+	var contents := InventoryData.create_item_storage(bag, {}, "victim.bag")
+	assert_true(contents.add_entry_with_contents(BREAD, 1, {}, {"quality": 0.42}, "victim.bread"))
+	assert_true(target.bag.add_entry_with_contents(bag, 1, {}, {InventoryData.ITEM_STORAGE_KEY: contents.serialize_contents()}, "victim.bag"))
+	var source = inventories.open_item_storage(open_body(), "victim.bag")
+	var receiver := _open_owned_bag()
+	# Four full windows may overlap in this small fixture; isolate input targets.
+	await get_tree().process_frame
+	source.position = Vector2(700, 450)
+	receiver.position = Vector2(20, 450)
+	var entry = source.inventory_owner.inventory.entries[0]
+	perception.seen[guard.stable_id] = true
+	await _shift_click_grid(source, entry)
+	assert_eq(law.reports.size(), 1)
+	assert_eq(source.inventory_owner.inventory.count_item(BREAD), 1)
+	assert_eq(receiver.inventory_owner.inventory.count_item(BREAD), 0)
+	perception.seen.clear()
+	law.reports.clear()
+	await _shift_click_grid(source, entry)
+	assert_eq(source.inventory_owner.inventory.count_item(BREAD), 0)
+	assert_eq(receiver.inventory_owner.inventory.count_item(BREAD), 1)
+	assert_eq(thief.bag.count_item(BREAD), 0)
+	assert_eq(receiver.inventory_owner.inventory.entries[0].stack_id, "victim.bread")
+	assert_true(law.reports.is_empty())
+
 func test_direct_equipment_transfer_cannot_bypass_theft() -> void:
 	target.gear.equip_item_to_slot(SWORD, "weapon", "guard-sword")
 	var view = open_body()
@@ -261,6 +448,53 @@ func test_recovery_or_lod_invalidates_body_window_and_pending_drag() -> void:
 	target.queue_free()
 	inventories._enforce_open_inventory_context()
 	assert_null(inventories.secondary_inventory_window)
+
+func test_shift_click_cannot_take_from_a_recovered_opponent() -> void:
+	assert_true(target.bag.add_entry_with_contents(BREAD, 1, {}, {}, "victim.bread"))
+	target.gear.equip_item_to_slot(SWORD, "weapon", "guard-sword")
+	open_body()
+	var source := inventories.secondary_inventory_window
+	var receiver := _open_owned_bag()
+	target.life_state = NpcRules.LifeState.ALIVE
+	await _shift_click_grid(source, target.bag.entries[0])
+	await _shift_click_equipment(source, "weapon")
+	assert_eq(target.bag.count_item(BREAD), 1)
+	assert_eq(target.gear.get_equipped_stack_id("weapon"), "guard-sword")
+	assert_eq(receiver.inventory_owner.inventory.entries.size(), 0)
+	assert_eq(thief.bag.count_item(BREAD), 0)
+	assert_eq(thief.bag.count_item(SWORD), 0)
+	assert_true(law.reports.is_empty(), "Invalid access cannot attempt theft")
+	inventories._enforce_open_inventory_context()
+	assert_null(inventories.secondary_inventory_window)
+	open_body()
+	await _shift_click_equipment(inventories.secondary_inventory_window, "weapon")
+	assert_null(target.gear.get_equipped_item("weapon"))
+	assert_eq(receiver.inventory_owner.inventory.count_item(SWORD), 1)
+
+func test_late_quick_transfer_after_body_destruction_is_refused_then_reopens() -> void:
+	assert_true(target.bag.add_entry_with_contents(BREAD, 1, {}, {}, "victim.bread"))
+	var entry = target.bag.entries[0]
+	target.gear.equip_item_to_slot(SWORD, "weapon", "guard-sword")
+	var view = open_body()
+	var source := inventories.secondary_inventory_window
+	var receiver := _open_owned_bag()
+	target.queue_free()
+	await get_tree().process_frame
+	# An input callback may already be queued when LOD removes the body.
+	source.quick_transfer_requested.emit(view, entry)
+	source.equipment_quick_transfer_requested.emit(view, "weapon")
+	assert_eq(receiver.inventory_owner.inventory.entries.size(), 0)
+	assert_eq(thief.bag.count_item(BREAD), 0)
+	assert_eq(thief.bag.count_item(SWORD), 0)
+	assert_true(law.reports.is_empty())
+	inventories._enforce_open_inventory_context()
+	assert_null(inventories.secondary_inventory_window)
+	target = _actor("victim", "town")
+	target.gear.equip_item_to_slot(SWORD, "weapon", "guard-sword")
+	open_body()
+	await _shift_click_equipment(inventories.secondary_inventory_window, "weapon")
+	assert_eq(receiver.inventory_owner.inventory.entries[0].stack_id, "guard-sword")
+	assert_null(target.gear.get_equipped_item("weapon"))
 
 func test_body_crime_uses_owner_faction_not_local_jurisdiction() -> void:
 	var boundary := LawBoundary.new()
@@ -337,3 +571,19 @@ func test_loot_window_stays_open_during_the_battle() -> void:
 	thief.global_position = Vector3(10, 0, 0)
 	inventories._enforce_open_inventory_context()
 	assert_null(inventories.secondary_inventory_window, "Battle access still enforces physical reach")
+
+func test_backpack_currency_cannot_bypass_loot_by_merging_pouches() -> void:
+	var bag: ItemDefinition = load("res://features/inventory/resources/items/medium_leather_bag.tres")
+	var pouch: ItemDefinition = load("res://features/inventory/resources/items/silver_pouch.tres")
+	assert_true(target.bag.add_item(bag))
+	var item = target.bag.entries[0]
+	var storage := InventoryData.create_item_storage(bag, {}, item.stack_id)
+	assert_true(storage.add_entry_with_contents(pouch, 1, {InventoryData.SILVER_ITEM.resource_path: 7}))
+	item.metadata[InventoryData.ITEM_STORAGE_KEY] = storage.serialize_contents()
+	assert_true(thief.bag.add_item(pouch))
+	var window = inventories.open_item_storage(open_body(), item.stack_id)
+	var view = window.inventory_owner
+	perception.seen[guard.stable_id] = true
+	inventories._on_inventory_transfer_requested(view, thief, view.inventory.entries[0], Vector2i.ZERO)
+	assert_eq(thief.bag.count_item(InventoryData.SILVER_ITEM), 0)
+	assert_eq(view.inventory.count_item(InventoryData.SILVER_ITEM), 7)

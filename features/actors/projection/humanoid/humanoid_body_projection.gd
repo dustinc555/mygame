@@ -23,6 +23,7 @@ const HUMAN_MALE_BODY_ARCHETYPE = preload("res://features/actors/resources/chara
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://features/actors/resources/character_body_archetypes/human_female.tres")
 const SKIN_TEXTURE_BUILDER = preload("res://features/actors/projection/appearance/skin_texture_builder.gd")
 const CLOTHING_FITTER = preload("res://features/actors/projection/appearance/clothing_fitter.gd")
+const RIGID_BACK_FITTER = preload("res://features/actors/projection/appearance/rigid_back_fitter.gd")
 const DEFAULT_MALE_EYEBROW_STYLE = preload("res://features/actors/resources/character_appearance/eyebrows_regular.tres")
 const DEFAULT_FEMALE_EYEBROW_STYLE = preload("res://features/actors/resources/character_appearance/eyebrows_female.tres")
 const MALE_VISUAL_SCENE = preload("res://assets/vendor/quaternius/universal_base_characters/base_characters/Superhero_Male_FullBody.gltf")
@@ -43,6 +44,10 @@ const FOLD_ARMS_IDLE_ANIMATION_NAME := "Idle_FoldArms"
 const WALK_ANIMATION_NAME := "Walk"
 const MINING_ANIMATION_NAME := "Mining"
 const SCAVENGING_ANIMATION_NAME := "Fixing_Kneeling"
+const KNEELING_WORK_SETTINGS = preload("res://features/actors/resources/characters/kneeling_work_animation.tres")
+const KNEELING_WORK_ENTER := "Kneeling_Work_Enter"
+const KNEELING_WORK_LOOP := "Kneeling_Work_Loop"
+const KNEELING_WORK_EXIT := "Kneeling_Work_Exit"
 const FARM_HARVEST_ANIMATION_NAME := "Farm_Harvest"
 const FARM_PLANT_ANIMATION_NAME := "Farm_PlantSeed"
 const FARM_WATER_ANIMATION_NAME := "Farm_Watering"
@@ -172,6 +177,7 @@ func _authored_character_race() -> Resource:
 	return appearance_data.character_race
 
 var _visual_root: Node3D = null
+var _lockpick_pose: Node
 var _default_ragdoll_profile: Resource
 @warning_ignore("unused_private_class_variable")
 var _ragdoll_simulator: PhysicalBoneSimulator3D
@@ -278,7 +284,6 @@ func setup_visual() -> void:
 	var character_skeleton := _find_skeleton(model_root)
 	_character_skeleton = character_skeleton
 	_bone_pose_position_offsets = _get_bone_pose_position_offsets(resolved_body_archetype)
-	_setup_equipped_clothing_visuals(_visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale, model_root.scene_file_path)
 	# Share the creator's hair-matched default. Fitted embedded styles are reused;
 	# older bodies still get the external replacement for their placeholder brows.
 	if appearance_data != null and appearance_data.eyebrow_style == null:
@@ -291,6 +296,9 @@ func setup_visual() -> void:
 	else:
 		stop_clip(true)
 	apply_bone_pose_offsets()
+	# Rigid wearables measure the posed body, not the imported T-pose. This
+	# keeps hydrated/rebuilt equipment consistent with equipping a live actor.
+	_setup_equipped_clothing_visuals(_visual_root, character_skeleton, resolved_body_archetype, body_mesh, visual_fit_scale, model_root.scene_file_path)
 	refresh_foot_ground_alignment()
 	set_equipped_clothing_visuals_visible(_preview_clothes_visible)
 	_ensure_non_null_visual_materials(_visual_root)
@@ -1099,6 +1107,55 @@ func _copy_character_animations(animation_library: AnimationLibrary, target_skel
 			ual2_names.append(animation_name)
 	_adapt_animation_names(animation_library, ual2_names, _find_skeleton(ual2_source), target_skeleton)
 	ual2_source.queue_free()
+	_copy_kneeling_work_animations(animation_library)
+
+
+func _copy_kneeling_work_animations(library: AnimationLibrary) -> void:
+	if not library.has_animation(SCAVENGING_ANIMATION_NAME):
+		return
+	var source := library.get_animation(SCAVENGING_ANIMATION_NAME)
+	var start := clampf(KNEELING_WORK_SETTINGS.work_start_seconds, 0.1, source.length - 0.2)
+	var end := clampf(KNEELING_WORK_SETTINGS.work_end_seconds, start + 0.1, source.length)
+	var rise := clampf(KNEELING_WORK_SETTINGS.rise_start_seconds, end, source.length - 0.1)
+	for cut in [[KNEELING_WORK_ENTER, 0.0, start], [KNEELING_WORK_LOOP, start, end], [KNEELING_WORK_EXIT, rise, source.length]]:
+		var clip := Animation.new()
+		clip.length = float(cut[2]) - float(cut[1])
+		_copy_animation_time_window(source, clip, cut[1], cut[2], 0.0, {})
+		var is_loop: bool = cut[0] == KNEELING_WORK_LOOP
+		var blend := minf(KNEELING_WORK_SETTINGS.loop_blend_seconds, minf(start, clip.length * 0.5)) if is_loop else 0.0
+		for track in range(clip.get_track_count()):
+			# Exact interpolated boundaries avoid a skipped key at a fractional cut.
+			clip.track_insert_key(track, 0.0, _sample_transform_track(source, track, cut[1]))
+			clip.track_insert_key(track, clip.length, _sample_transform_track(source, track, cut[2]))
+			if not is_loop:
+				continue
+			for key in range(clip.track_get_key_count(track)):
+				var time := clip.track_get_key_time(track, key)
+				if time < clip.length - blend:
+					continue
+				# Blend into motion just BEFORE the first pose so hands keep moving
+				# across the wrap rather than freezing or snapping at the seam.
+				var amount := smoothstep(clip.length - blend, clip.length, time) if blend > 0.0 else 1.0
+				var value = clip.track_get_key_value(track, key)
+				var seam = _sample_transform_track(source, track, start + time - clip.length)
+				if value is Quaternion:
+					value = (value as Quaternion).slerp(seam, amount)
+				else:
+					value = (value as Vector3).lerp(seam, amount)
+				clip.track_set_key_value(track, key, value)
+		clip.loop_mode = Animation.LOOP_LINEAR if is_loop else Animation.LOOP_NONE
+		library.add_animation(cut[0], clip)
+
+
+func _sample_transform_track(animation: Animation, track: int, time: float) -> Variant:
+	match animation.track_get_type(track):
+		Animation.TYPE_POSITION_3D:
+			return animation.position_track_interpolate(track, time)
+		Animation.TYPE_ROTATION_3D:
+			return animation.rotation_track_interpolate(track, time)
+		Animation.TYPE_SCALE_3D:
+			return animation.scale_track_interpolate(track, time)
+	return animation.track_get_key_value(track, _get_animation_sample_key_index(animation, track, time))
 
 
 func _adapt_animation_names(library: AnimationLibrary, names, source: Skeleton3D, target: Skeleton3D) -> void:
@@ -1295,6 +1352,36 @@ func _find_animation_player(root: Node) -> AnimationPlayer:
 
 # --- Clip playback ---
 
+func play_kneeling_work() -> void:
+	if get_current_clip() == KNEELING_WORK_ENTER:
+		if _character_animation_player.get_playing_speed() < 0.0:
+			# A new work order can resume a cancelled kneel without snapping.
+			var time := _character_animation_player.current_animation_position
+			play_clip(KNEELING_WORK_ENTER, 0.0, true)
+			seek_clip(KNEELING_WORK_ENTER, time)
+		if not is_current_clip_playing():
+			play_clip(KNEELING_WORK_LOOP, 0.0, true)
+	elif get_current_clip() == KNEELING_WORK_EXIT:
+		play_clip(KNEELING_WORK_LOOP, 0.0, true, 0.2)
+	elif get_current_clip() != KNEELING_WORK_LOOP:
+		play_clip(KNEELING_WORK_ENTER, 0.0, true)
+
+
+func finish_kneeling_work() -> float:
+	if get_current_clip() == KNEELING_WORK_ENTER:
+		# Interrupted during the descent: reverse only the part already played.
+		var time := _character_animation_player.current_animation_position
+		for player in _character_animation_players:
+			player.speed_scale = 1.0
+			player.play(KNEELING_WORK_ENTER, DEFAULT_MOVE_BLEND_SECONDS, -1.0)
+			player.seek(time, true)
+		return time
+	if get_current_clip() == KNEELING_WORK_LOOP:
+		play_clip(KNEELING_WORK_EXIT, 0.0, true, 0.2)
+		return clip_length(KNEELING_WORK_EXIT)
+	return 0.0
+
+
 func play_clip(animation_name: String, speed_ratio: float = 0.0, force_restart: bool = false, blend_seconds: float = DEFAULT_MOVE_BLEND_SECONDS) -> bool:
 	if _character_animation_player == null or not _character_animation_player.has_animation(animation_name):
 		return false
@@ -1363,6 +1450,17 @@ func get_animation_players() -> Array[AnimationPlayer]:
 
 func get_skeleton() -> Skeleton3D:
 	return _character_skeleton
+
+
+func set_lockpick_pose(active: bool, item: ItemDefinition) -> void:
+	if not active and not is_instance_valid(_lockpick_pose):
+		return
+	if not is_instance_valid(_lockpick_pose):
+		_lockpick_pose = preload("res://features/lockpicking/projection/lockpick_work_pose.gd").new()
+		_lockpick_pose.name = "LockpickWorkPose"
+		add_child(_lockpick_pose)
+		_lockpick_pose.configure(self)
+	_lockpick_pose.set_work(active, item)
 
 
 func seek_clip(animation_name: String, time: float, update: bool = true, speed_scale: float = 1.0) -> void:
@@ -1811,6 +1909,8 @@ func _refresh_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String) -> vo
 	_remove_bone_equipment_slot(skeleton, slot_name)
 	var item: ItemDefinition = _actor.get_equipped_item(slot_name)
 	_add_bone_equipment_slot(skeleton, slot_name, item)
+	if is_instance_valid(_lockpick_pose) and _lockpick_pose.is_working():
+		_lockpick_pose.hide_held_equipment()
 
 
 func _remove_bone_equipment_slot(skeleton: Skeleton3D, slot_name: String) -> void:
@@ -1859,9 +1959,10 @@ func _setup_equipped_clothing_slot(visual_root: Node3D, character_skeleton: Skel
 		surface_offset_ratio = float(equipment_visual.get("surface_offset_ratio"))
 	var surface_offset := _clothing_surface_offset_base * surface_offset_ratio
 	var binding: Resource = equipment_visual.get("clothing_binding") if equipment_visual != null else null
-	if binding != null:
+	var rigid_back: bool = equipment_visual is EquipmentVisualDefinition and equipment_visual.rigid_back_fit
+	if binding != null or rigid_back:
 		var profile: Resource = visual_body_archetype.get_wardrobe_profile(_clothing_body_scene_path) if visual_body_archetype != null else null
-		var result := CLOTHING_FITTER.fit(model_root, binding, profile, character_skeleton)
+		var result := RIGID_BACK_FITTER.fit(model_root, equipment_visual, character_skeleton, visual_root) if rigid_back else CLOTHING_FITTER.fit(model_root, binding, profile, character_skeleton)
 		model_root.free()
 		if not result.error.is_empty():
 			_clothing_fit_errors[slot_name] = result.error

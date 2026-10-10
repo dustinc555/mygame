@@ -4,6 +4,8 @@ extends ModularBuildingPiece
 class_name WorldDoor
 
 const DOOR_SERVICE_ID := &"doors"
+const LOCK_TARGET := preload("res://features/lockpicking/bridge/lockpick_target.gd")
+const LOCK_CHECK := preload("res://features/skills/resources/checks/lockpicking_check.tres")
 ## Physics layer 4 (value 8) is reserved for runtime door blockers. Layers
 ## already taken: 1 = world, 2 = actors (ACTOR_COLLISION_LAYER), 3 = furniture.
 const BLOCKER_COLLISION_LAYER := 8
@@ -13,6 +15,7 @@ const BLOCKER_COLLISION_LAYER := 8
 @export var door_id := ""
 @export var building_id := ""
 @export var door_definition: Resource
+@export var lock_contact_offset := Vector3(0.3, 1.0, 0.0)
 @export var authorized_actor_ids := PackedStringArray()
 @export var authorized_faction_ids := PackedStringArray()
 @export var authorized_key_ids := PackedStringArray()
@@ -26,6 +29,13 @@ const BLOCKER_COLLISION_LAYER := 8
 ## reused as a jail cell needs "symmetric" without a new definition resource).
 @export_enum("definition_default", "free_exit", "symmetric", "authorized_exit") var exit_policy_override := "definition_default"
 
+@export_group("Door Audio")
+## Shared opening/closing recording and volume. Clear to silence this door.
+@export var movement_sound: GameSoundCue = preload("res://features/doors/resources/wooden_door_movement_sound.tres")
+## Distance from the active 3D listener (normally the camera), in meters.
+@export_range(1.0, 150.0, 1.0) var sound_max_distance_m := 35.0
+@export_range(0.1, 20.0, 0.1) var sound_unit_size_m := 5.0
+
 var _door_controller: Node
 var _door_interactions: Node
 var _closed_blocker: StaticBody3D
@@ -33,12 +43,16 @@ var _hinge_pivot: Node3D
 var _closed_hinge_rotation := Vector3.ZERO
 var _is_open := false
 var _motion_tween: Tween
+var _movement_audio: AudioStreamPlayer3D
+var _sound_rng := RandomNumberGenerator.new()
+var _registering_door := false
 
 
 func _ready() -> void:
 	super._ready()
 	if not Engine.is_editor_hint():
 		add_to_group("world_door")
+		add_to_group("lockpick_target")
 	_closed_blocker = get_node_or_null("ClosedBlocker") as StaticBody3D
 	_hinge_pivot = get_node_or_null("HingePivot") as Node3D
 	if _hinge_pivot != null:
@@ -99,11 +113,12 @@ func get_world_context_actions(actor: Node = null) -> Array:
 	var restricted := _actor_lacks_access(actor)
 	if bool(state.get("is_locked", false)):
 		var unlock_action := {"key": "unlock", "label": "Unlock"}
-		var lockpick_action := {"key": "lockpick", "label": "Pick Lock"}
+		var pick_actions: Array = LOCK_TARGET.actions(self, actor)
 		if restricted:
 			unlock_action["color"] = PRIVATE_ACTION_COLOR
-			lockpick_action["color"] = PRIVATE_ACTION_COLOR
-		return [unlock_action, lockpick_action]
+			for action in pick_actions:
+				action["color"] = PRIVATE_ACTION_COLOR
+		return [unlock_action] + pick_actions
 	var door_open := bool(state.get("is_open", false))
 	var open_action := {"key": "close" if door_open else "open", "label": "Close" if door_open else "Open"}
 	if restricted and not door_open:
@@ -125,6 +140,8 @@ func _actor_lacks_access(actor: Node) -> bool:
 
 
 func perform_world_context_action(action_key: String, actors: Array = []) -> String:
+	if action_key in ["pick_lock", "pick_lock_rushed", "lockpick"]:
+		return LOCK_TARGET.request(self, action_key, actors)
 	if _door_interactions == null or not _door_interactions.has_method("request_world_action"):
 		return "Door controls unavailable."
 	return str(_door_interactions.call("request_world_action", self, action_key, actors))
@@ -161,9 +178,45 @@ func _register_with_door_system() -> void:
 	_door_interactions = BootstrapContext.service(&"door_interactions")
 	if _door_interactions != null and _door_interactions.has_method("register_door_projection"):
 		_door_interactions.call("register_door_projection", self)
+	# Registration may synchronously emit an initial business-hours state.
+	_registering_door = true
 	var state: Dictionary = _door_controller.register_door(_door_record())
 	if not state.is_empty():
 		_apply_door_state(state, false)
+	_registering_door = false
+	LOCK_TARGET.bind(self)
+
+
+func get_lockpick_record() -> Dictionary:
+	if _door_controller == null or door_id.is_empty():
+		return {}
+	var state: Dictionary = _door_controller.get_door_state(door_id)
+	var tier: Resource = LOCK_CHECK.get_tier(str(state.get("lock_tier_id", "easy")))
+	if tier == null:
+		return {}
+	return {"lock_id": "door:%s" % door_id, "door_id": door_id,
+		"difficulty": tier.difficulty_level, "minimum_skill": tier.minimum_attempt_level}
+
+
+func get_lockpick_contact(_actor = null) -> Vector3:
+	var marker := get_node_or_null("LockPoint") as Node3D
+	return marker.global_position if marker != null else global_transform * lock_contact_offset
+
+
+func get_lockpick_position(actor: WorldActor) -> Vector3:
+	var closest := Vector3.INF
+	for point in get_interaction_positions():
+		if closest == Vector3.INF or actor.global_position.distance_squared_to(point) < actor.global_position.distance_squared_to(closest):
+			closest = point
+	if closest == Vector3.INF:
+		return closest
+	var contact := get_lockpick_contact(actor)
+	var normal := global_basis.z.normalized()
+	if (closest - contact).dot(normal) < 0.0:
+		normal = -normal
+	var stand := contact + normal * 0.6
+	stand.y = closest.y
+	return stand
 
 
 func _door_record() -> Dictionary:
@@ -202,9 +255,35 @@ func _on_auto_open_area_body_entered(body: Node3D) -> void:
 
 
 func _apply_door_state(state: Dictionary, animate: bool) -> void:
+	var was_open := _is_open
 	_is_open = bool(state.get("is_open", false))
 	_set_closed_blocker_enabled(not _is_open)
 	_apply_hinge_rotation(_is_open, animate)
+	if animate and not _registering_door and was_open != _is_open:
+		_play_movement_sound()
+
+
+func _play_movement_sound() -> void:
+	if Engine.is_editor_hint() or not is_inside_tree() or get_tree().paused or movement_sound == null:
+		return
+	var path := movement_sound.choose_path("", _sound_rng)
+	var stream := movement_sound.get_stream(path)
+	if stream == null:
+		return
+	if _movement_audio == null:
+		_movement_audio = AudioStreamPlayer3D.new()
+		_movement_audio.name = "MovementSound"
+		_movement_audio.process_mode = Node.PROCESS_MODE_PAUSABLE
+		_movement_audio.max_polyphony = 1
+		_movement_audio.bus = &"Master"
+		add_child(_movement_audio)
+	_movement_audio.stop()
+	_movement_audio.stream = stream
+	_movement_audio.volume_db = movement_sound.volume_db
+	_movement_audio.pitch_scale = movement_sound.choose_pitch(_sound_rng)
+	_movement_audio.max_distance = sound_max_distance_m
+	_movement_audio.unit_size = sound_unit_size_m
+	_movement_audio.play()
 
 
 func _set_closed_blocker_enabled(enabled: bool) -> void:

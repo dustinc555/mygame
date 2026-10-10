@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="AmbientMusicProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/audio/resources/ambient_music_profile.gd" id="1_profile"]
+
+[resource]
+resource_name = "Rustwash Basin Ambient Music"
+script = ExtResource("1_profile")
+tracks = PackedStringArray("res://assets/vendor/dark-fantasy-studio/audio/7-Dark Fantasy Studio- The forest.wav")

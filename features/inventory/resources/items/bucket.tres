@@ -5,9 +5,11 @@
 [ext_resource type="PackedScene" path="res://features/world/projection/equipment/bucket_model.tscn" id="3_model"]
 [ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="4_grip"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_6kajl"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/tool_wood.tres" id="audio_profile"]
 
 [resource]
 script = ExtResource("1_item")
+combat_audio = ExtResource("audio_profile")
 display_name = "Bucket"
 item_id = "tool.bucket"
 icon = ExtResource("2_icon")

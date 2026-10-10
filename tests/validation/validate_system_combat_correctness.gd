@@ -86,7 +86,7 @@ func _run() -> void:
 	_expect(components[3][1].life_state == NpcRules.LifeState.ALIVE, "Receiving an impact must wake canonical sleeping vitals")
 	var sync := gecs.find_child("GameActorSyncSystem", true, false)
 	var sync_components: Array = []
-	for script in [gecs.C_NODE, gecs.C_IDENTITY, gecs.C_FACTION, gecs.C_SETTLEMENT, gecs.C_SPATIAL, gecs.C_VITALS, gecs.C_VITALS_INPUTS]:
+	for script in [gecs.C_NODE, gecs.C_SPATIAL, gecs.C_VITALS, gecs.C_VITALS_INPUTS]:
 		sync_components.append([entities[0].get_component(script), entities[1].get_component(script)])
 	sync.process(entities, sync_components, 0.05)
 	_expect(defender.life_state == NpcRules.LifeState.ALIVE, "Normal actor sync must present the wake transition")
@@ -154,7 +154,7 @@ func _run() -> void:
 	response.authorize_response(CGameCombatEvent.Audience.EXPLICIT_ACTORS, uninvolved.stable_id, attacker.stable_id, "validation.reply", attacker.faction_name, "", Vector3.ZERO, 40.0, CGameCombatResponseIntent.Kind.LAW_ENFORCEMENT, PackedStringArray([attacker.stable_id]))
 	response.process([], [], 0.05)
 	_expect(bool(response.get_response_context(attacker.stable_id, uninvolved.stable_id).get("authorized_response", false)), "An explicit law responder must remain authorized outside a shared encounter")
-	_expect(int(response.get_response_context(uninvolved.stable_id, attacker.stable_id).get("response_depth", 0)) == 1, "Retaliation against the active law responder must be lawful without a shared encounter")
+	_expect(str(response.get_response_context(uninvolved.stable_id, attacker.stable_id).get("legal_reason", "")) == "resisting_arrest", "Retaliation against the issuing authority is resistance, even outside a shared encounter")
 	_assert_physical_law_retaliation(scene, gecs, resolution, response)
 	scene.queue_free()
 	await process_frame
@@ -213,9 +213,9 @@ func _assert_physical_law_retaliation(scene: Node, gecs: GecsWorldController, re
 		if officer.reaction_count > 0:
 			break
 	_expect(components[3][0].blunt_damage > 0.0, "The suspect must complete an actual physical retaliatory impact")
-	_expect(not crimes.has(suspect.stable_id), "Legal response depth must survive physical impact event processing without a new root crime")
-	_expect(response.get_response_depth(suspect.stable_id, officer.stable_id) == 1 and response.is_law_enforcement_pair(officer.stable_id, suspect.stable_id), "Physical retaliation must retain both response depth and the original exact law authorization")
-	print("LAWFUL_RETALIATION_TRACE officer=%s suspect=%s officer_wounds=%.3f suspect_wounds=%.3f response_depth=%d roots=%s" % [officer.stable_id, suspect.stable_id, components[3][0].blunt_damage, components[3][1].blunt_damage, response.get_response_depth(suspect.stable_id, officer.stable_id), crimes])
+	_expect(crimes.count(suspect.stable_id) == 1, "Physical resistance must emit one incident, not immunity or one charge per swing")
+	_expect(response.get_response_depth(suspect.stable_id, officer.stable_id) == 0 and response.is_law_enforcement_pair(officer.stable_id, suspect.stable_id), "Resistance must preserve the officer's exact nonlethal arrest authorization")
+	print("ARREST_RESISTANCE_TRACE officer=%s suspect=%s officer_wounds=%.3f suspect_wounds=%.3f response_depth=%d roots=%s" % [officer.stable_id, suspect.stable_id, components[3][0].blunt_damage, components[3][1].blunt_damage, response.get_response_depth(suspect.stable_id, officer.stable_id), crimes])
 
 
 func _step_resolution(resolution: Node, entities: Array, components: Array) -> void:
@@ -230,6 +230,14 @@ func _actor(scene: Node, actor_id: String, position: Vector3) -> ReactionActor:
 	actor.name = actor_id
 	actor.stable_id = actor_id
 	actor.position = position
+	# Strike obstruction requires the same named body capsule as production.
+	var shape := CollisionShape3D.new()
+	shape.name = "CollisionShape3D"
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.3
+	capsule.height = 1.2
+	shape.shape = capsule
+	actor.add_child(shape)
 	scene.add_child(actor)
 	actor.set_physics_process(false)
 	return actor

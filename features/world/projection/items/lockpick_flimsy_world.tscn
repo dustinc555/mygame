@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/items/tools/lockpick/lockpick_flimsy.glb" id="1"]
+
+[node name="LockpickWorld" type="Node3D"]
+
+[node name="Model" parent="." instance=ExtResource("1")]
+rotation = Vector3(1.5707963, 0, 0)

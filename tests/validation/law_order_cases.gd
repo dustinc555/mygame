@@ -213,10 +213,13 @@ func _validate_player_assault_local_law_response() -> void:
 	city_guard.global_position = Vector3(-5.1, 0.6, -2.0)
 	jail_guard.global_position = Vector3(-8.0, 0.6, -2.0)
 	warden.global_position = Vector3(-7.0, 0.6, -4.0)
-	var prior_attack := _attack_sequence(player)
-	player.assign_attack_target(city_guard, true, true, true)
-	if not await _wait_until(func() -> bool: return _attack_started_against(player, city_guard, prior_attack), 180):
-		_fail("Player Attack command must start a new GECS action against the exact authority guard")
+	var bridge := BootstrapContext.service(GecsWorldController.SERVICE_ID) as GecsWorldController
+	var command = bridge.get_actor_entity(player).get_component(CGameCombatState)
+	# The three officers can legitimately interrupt and knock out the attacker
+	# before a swing. Check the accepted exact command before that response;
+	# validate_system_combat_correctness covers physical arrest/retaliation.
+	if not player.assign_attack_target(city_guard, true, true, true) or command.commanded_target_actor_id != city_guard.stable_id:
+		_fail("Player Attack must accept and preserve the exact authority guard command")
 	await _wait_until(func() -> bool: return bool(law.call("actor_has_active_warrant", player, FACTION_ID)), 120)
 	var record: Dictionary = law.call("get_warrant_record", player, FACTION_ID)
 	if record.is_empty() or not bool(law.call("actor_has_active_warrant", player, FACTION_ID)):

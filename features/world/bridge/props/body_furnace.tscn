@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dw7cy74yqtfvo" path="res://features/world/bridge/props/body_furnace.gd" id="1_furnace"]
 [ext_resource type="PackedScene" uid="uid://bmf5oybbk0lb2" path="res://assets/world/props/body_furnace/meshy_corpse_furnace_1.glb" id="2_mesh"]
+[ext_resource type="Script" path="res://features/audio/projection/fire_audio_emitter.gd" id="3_audio"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_collision"]
 size = Vector3(2.6622558, 3.064502, 3.3147216)
@@ -43,3 +44,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 visible = false
 light_color = Color(1, 0.42, 0.13, 1)
 light_energy = 0.0
+
+[node name="FireAudio" type="AudioStreamPlayer3D" parent="."]
+position = Vector3(0, 1.2, 0)
+script = ExtResource("3_audio")
+fire_kind = 2

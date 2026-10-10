@@ -7,10 +7,10 @@ const WORK_SCHEDULE = preload("res://features/settlements/resources/work_schedul
 
 @export var role_id := ""
 @export var display_name := "Role"
-@export_enum("employment", "residence") var assignment_domain := "employment"
+@export_enum("employment", "residence", "custody") var assignment_domain := "employment"
 ## "default" delegates role-to-type selection to the effective CharacterTypeSet.
 @export var default_character_type_id := "default"
-@export_enum("employment", "residence") var assignment_exclusivity_group := "employment"
+@export_enum("employment", "residence", "custody") var assignment_exclusivity_group := "employment"
 @export var uses_settlement_jobs := false
 ## Shared by town occupations and facility staff. Override for night shifts;
 ## door opening hours do not determine employment hours.

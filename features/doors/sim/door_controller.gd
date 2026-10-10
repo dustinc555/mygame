@@ -8,8 +8,7 @@ const ENTITY_SCRIPT := preload("res://addons/gecs/ecs/entity.gd")
 const C_DOOR_STATE := preload("res://features/doors/sim/c_game_door_state.gd")
 const C_DOOR_COMMAND := preload("res://features/doors/sim/c_game_door_command.gd")
 const GAME_DOOR_SYSTEM := preload("res://features/doors/sim/game_door_system.gd")
-const DOOR_LOCK_RULES := preload("res://features/doors/sim/door_lock_rules.gd")
-const SKILL_RULES := preload("res://features/skills/sim/skill_rules.gd")
+
 
 ## How long door-state drift may stand mid-business before the keeper is sent.
 ## Variable rather than const so validation can shorten the wait.
@@ -24,6 +23,8 @@ var _pending_building_config := {}
 var _door_system
 
 signal door_state_changed(door_id: String, state: Dictionary)
+## Live successful unlocks only; registration and save restoration stay silent.
+signal door_unlocked(door_id: String)
 signal door_command_resolved(result: Dictionary)
 signal scheduled_door_action_requested(actor_id: String, door_id: String, action: String)
 
@@ -42,11 +43,9 @@ func register_door(record: Dictionary) -> Dictionary:
 	var door_id := str(record.get("door_id", "")).strip_edges()
 	if door_id.is_empty() or _gecs_world == null or _gecs_world.world == null:
 		return {}
-	var entity = _door_entity_by_id.get(door_id)
+	var entity = _gecs_world.world.get_entity_by_id(_door_entity_id(door_id))
 	var created := entity == null or not is_instance_valid(entity)
 	if created:
-		entity = _gecs_world.world.get_entity_by_id(_door_entity_id(door_id))
-	if entity == null or not is_instance_valid(entity):
 		entity = ENTITY_SCRIPT.new()
 		entity.name = "Door_%s" % _sanitize_id(door_id)
 		entity.id = _door_entity_id(door_id)
@@ -183,6 +182,10 @@ func get_door_state(door_id: String) -> Dictionary:
 
 func submit_command(actor_id: String, door_id: String, action_name: String, actor_snapshot: Dictionary = {}, expected_state_revision := -1) -> Dictionary:
 	_ensure_system()
+	# Picking must physically execute with an exact carried stack. Snapshot-only
+	# commands (including old saves) cannot bypass that work/inventory authority.
+	if action_name == "lockpick":
+		return {"accepted": false, "result_code": "use_lockpick_work"}
 	var state = _get_door_component(door_id)
 	if state == null:
 		return {"accepted": false, "result_code": "door_missing"}
@@ -230,7 +233,7 @@ func begin_command(command_id: String) -> Dictionary:
 	if command.phase != command.Phase.APPROACHING:
 		return {"started": false, "result_code": "invalid_phase"}
 	command.phase = command.Phase.PERFORMING
-	command.remaining_seconds = DOOR_LOCK_RULES.get_attempt_duration_seconds() if command.action == command.Action.LOCKPICK else 0.0
+	command.remaining_seconds = 0.0
 	return {"started": true, "command_id": command.command_id, "remaining_seconds": command.remaining_seconds}
 
 
@@ -272,6 +275,7 @@ func resolve_performing_command(entity, command) -> void:
 
 
 func _resolve_open(command, state) -> void:
+	var was_locked: bool = state.is_locked
 	if state.exit_policy == "authorized_exit" and command.from_inside and not _has_authorized_access(command, state):
 		_fail(command, "exit_denied")
 		return
@@ -290,6 +294,8 @@ func _resolve_open(command, state) -> void:
 	state.is_open = true
 	_commit_state_change(state)
 	_resolve(command, "opened")
+	if was_locked:
+		door_unlocked.emit(state.door_id)
 
 
 func _resolve_close(command, state) -> void:
@@ -330,26 +336,25 @@ func _resolve_unlock(command, state) -> void:
 	state.relock_on_close = false
 	_commit_state_change(state)
 	_resolve(command, "unlocked")
+	door_unlocked.emit(state.door_id)
 
 
-func _resolve_lockpick(command, state) -> void:
-	if not state.is_locked:
-		_resolve(command, "already_unlocked")
-		return
-	if not DOOR_LOCK_RULES.can_attempt(state.lock_tier_id, command.lockpick_skill_level, command.has_required_lockpick):
-		_fail(command, "lockpick_ineligible")
-		return
-	command.result_chance = DOOR_LOCK_RULES.get_success_chance(state.lock_tier_id, command.lockpick_skill_level, command.assisting_attribute_level)
-	command.result_roll = DOOR_LOCK_RULES.roll(command.command_id)
-	var passed: bool = command.result_roll <= command.result_chance
-	command.result_xp = SKILL_RULES.get_chance_check_xp(command.result_chance, passed)
-	command.lockpick_broke = not passed and DOOR_LOCK_RULES.roll_tool_break(command.command_id) <= float(DOOR_LOCK_RULES.LOCKPICKING_CHECK.get("tool_break_chance_on_failure"))
-	if passed:
-		state.is_locked = false
-		_commit_state_change(state)
-		_resolve(command, "lockpicked")
-	else:
-		_fail(command, "lockpick_failed")
+func _resolve_lockpick(command, _state) -> void:
+	_fail(command, "use_lockpick_work")
+
+
+func complete_lockpick(door_id: String, expected_revision: int) -> bool:
+	var state = _get_door_component(door_id)
+	var picking := _context.get_optional(&"lockpicking") if _context != null else null
+	if state == null or not state.is_realized or not state.is_locked or state.state_revision != expected_revision:
+		return false
+	if picking == null or not picking.is_complete("door:%s" % door_id):
+		return false
+	state.is_locked = false
+	state.relock_on_close = false
+	_commit_state_change(state)
+	door_unlocked.emit(door_id)
+	return true
 
 
 func _has_authorized_access(command, state) -> bool:
@@ -419,6 +424,7 @@ func _on_world_hour_changed(_absolute_hour: int, _day_index: int, hour: int) -> 
 			# No keeper to perform the ceremony: the building flips its own
 			# lock state at the hour.
 			if opens:
+				var was_locked: bool = state.is_locked
 				var changed := false
 				if state.is_locked:
 					state.is_locked = false
@@ -428,6 +434,8 @@ func _on_world_hour_changed(_absolute_hour: int, _day_index: int, hour: int) -> 
 					changed = true
 				if changed:
 					_commit_state_change(state)
+				if was_locked:
+					door_unlocked.emit(state.door_id)
 			elif closes and (state.is_open or not state.is_locked):
 				state.is_open = false
 				state.is_locked = true
@@ -471,11 +479,9 @@ func _finish_command(entity, command, state) -> void:
 func _get_door_component(door_id: String):
 	if door_id.is_empty() or _gecs_world == null or _gecs_world.world == null:
 		return null
-	var entity = _door_entity_by_id.get(door_id)
-	if entity == null or not is_instance_valid(entity):
-		entity = _gecs_world.world.get_entity_by_id(_door_entity_id(door_id))
-		if entity != null:
-			_door_entity_by_id[door_id] = entity
+	var entity = _gecs_world.world.get_entity_by_id(_door_entity_id(door_id))
+	if entity != null:
+		_door_entity_by_id[door_id] = entity
 	return entity.get_component(C_DOOR_STATE) if entity != null and is_instance_valid(entity) else null
 
 

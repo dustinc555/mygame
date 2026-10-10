@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="StartScenarioDefinition" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/start_scenario_definition.gd" id="1_scenario"]
+[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="2_character"]
+[ext_resource type="Resource" path="res://features/actors/resources/characters/mira.tres" id="3_mira"]
+[ext_resource type="Resource" path="res://features/actors/resources/characters/tomas.tres" id="4_tomas"]
+[ext_resource type="Resource" path="res://features/actors/resources/characters/sable.tres" id="5_sable"]
+[ext_resource type="Resource" path="res://features/actors/resources/characters/bram.tres" id="6_bram"]
+[ext_resource type="Resource" path="res://features/actors/resources/characters/nika.tres" id="7_nika"]
+
+[resource]
+script = ExtResource("1_scenario")
+scenario_id = "miras_gang"
+display_name = "Mira's Gang"
+description = "Mira, Tomas, Sable, Bram and Nika begin together in Rustwash Basin."
+squad_name = "Mira's Gang"
+faction_id = "Player"
+characters = Array[ExtResource("2_character")]([ExtResource("3_mira"), ExtResource("4_tomas"), ExtResource("5_sable"), ExtResource("6_bram"), ExtResource("7_nika")])
+spawn_position = Vector3(35.335403, 3.6512661, -339.7429)
+member_spacing_meters = 1.8
+member_colors = PackedColorArray(0.72, 0.48, 0.78, 1, 0.35, 0.56, 0.42, 1, 0.58, 0.72, 0.38, 1, 0.33, 0.55, 0.78, 1, 0.67, 0.45, 0.75, 1)

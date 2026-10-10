@@ -100,10 +100,11 @@ func _build_controls() -> void:
 	_add_button("+", func(): _zoom_at(_canvas.position + _canvas.size * 0.5, 1.25))
 	_add_button("Fit world", fit_world)
 	_add_button("Party", focus_party)
-	_add_button("Close · M", close_map)
+	_add_button("Close · M", close_map, &"close")
 
-func _add_button(text: String, action: Callable) -> void:
+func _add_button(text: String, action: Callable, audio_action: StringName = &"click") -> void:
 	var button := Button.new()
+	button.set_meta(&"ui_audio_action", audio_action)
 	button.text = text
 	button.custom_minimum_size = Vector2(42, 34)
 	button.focus_mode = Control.FOCUS_NONE

@@ -9,7 +9,10 @@ extends RefCounted
 ## handles/claims_node/edit/refresh/is_active/process/shortcut_input/
 ## forward_3d_gui_input/on_selection_changed/on_scene_changed/teardown.
 
-const CATALOG_PATH := "res://features/world/resources/building_pieces/quaternius/medieval_village_full_catalog.tres"
+const CATALOG_PATHS := [
+	"res://features/world/resources/building_pieces/quaternius/medieval_village_full_catalog.tres",
+	"res://features/world/resources/building_pieces/plaster/catalog.tres",
+]
 const WORLD_BUILDING_ICON_PATH := "res://addons/world_authoring/icons/world_building.svg"
 const WORLD_BUILDING_SCRIPT := preload("res://features/world/projection/buildings/world_building.gd")
 const MODULAR_BUILDING_PIECE_SCRIPT := preload("res://features/world/projection/buildings/modular_building_piece.gd")
@@ -737,17 +740,18 @@ func _build_toolbar() -> void:
 func _add_piece_drawer() -> void:
 	# One "Building Pieces" drawer with a submenu per category (Terrain3D-style),
 	# instead of a row of category buttons cluttering the spatial menu bar.
-	var catalog = load(CATALOG_PATH)
-	if catalog == null:
-		return
 	var pieces_by_category := {}
-	for piece in catalog.get("pieces"):
-		if piece == null:
+	for path: String in CATALOG_PATHS:
+		var catalog = load(path)
+		if catalog == null:
 			continue
-		var category := str(piece.get("category"))
-		if not pieces_by_category.has(category):
-			pieces_by_category[category] = []
-		pieces_by_category[category].append(piece)
+		for piece in catalog.get("pieces"):
+			if piece == null:
+				continue
+			var category := str(piece.get("category"))
+			if not pieces_by_category.has(category):
+				pieces_by_category[category] = []
+			pieces_by_category[category].append(piece)
 	_pieces_menu_button = MenuButton.new()
 	_pieces_menu_button.text = "Building Pieces"
 	_pieces_menu_button.icon = _get_world_building_icon()

@@ -9,3 +9,6 @@ visible = false
 position = Vector3(0, 0.2, 0)
 [node name="Light" parent="."]
 position = Vector3(0, 0.6, 0)
+[node name="FireAudio" parent="."]
+position = Vector3(0, 0.2, 0)
+fire_kind = 2

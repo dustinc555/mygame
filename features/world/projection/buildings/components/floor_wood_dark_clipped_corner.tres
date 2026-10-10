@@ -1,0 +1,30 @@
+[gd_resource type="ArrayMesh" format=4 uid="uid://b83qw6lunsoyu"]
+
+[ext_resource type="Texture2D" uid="uid://ccnx06r54ka50" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/T_WoodTrim_BaseColor.png" id="1_uw4um"]
+[ext_resource type="Texture2D" uid="uid://bau15syys6s8x" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/T_WoodTrim_Roughness.png" id="2_7crua"]
+[ext_resource type="Texture2D" uid="uid://cfgat61dhjlsg" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/T_WoodTrim_Normal.png" id="3_x5c8l"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_xstcn"]
+resource_name = "MI_WoodTrim"
+cull_mode = 2
+albedo_texture = ExtResource("1_uw4um")
+metallic_texture = ExtResource("2_7crua")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("2_7crua")
+roughness_texture_channel = 1
+normal_enabled = true
+normal_texture = ExtResource("3_x5c8l")
+
+[resource]
+_surfaces = [{
+"aabb": AABB(-1, -0.010000168, -0.99999976, 1, 0.02000016, 1.9999998),
+"attribute_data": PackedByteArray("r/j/Phx/nz6xQn2+9GjdPgGlwb4cf58+r/j/PvRo3T6v/P++F4XePshm7j2fEA4/tTp9PheF3j6v/P++nxAOP6/9fz8cf58+U7QDP/Ro3T79ZMQ+HH+fPq/9fz/0aN0+r/j/PrsRDj8/2xQ+F4XePty+bDyfEA4/r/j/PheF3j7Idu69nxAOP6/4/z4Xhd4+sUJ9vheF3j6v+P8+nxAOP7iU+D70aN0+r/1/Nxx/nz4wzB0/HH+fPq/9fzf0aN0+O+MUvheF3j6v/P++nxAOP9o+bbyfEA4/r/z/vheF3j61On0+9GjdPq/8/74cf58+/6DBPhx/nz6v/P++9GjdPg=="),
+"format": 34359742487,
+"index_count": 48,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABAAHAAUACAAJAAoACAALAAkADAANAA4ADAAPAA0AEAARABIAEAATABEAFAAVABYAFAAXABUAGAAZABoAGAAbABkAHAAdAB4AHAAfAB0A"),
+"material": SubResource("StandardMaterial3D_xstcn"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 32,
+"vertex_data": PackedByteArray("AACAv3fWI7z//38/wABAv7/XI7xYAEC/AACAv7/XI7z8/3+/wABAv3fWI7z//38/wABAv3fWI7z//38/gAAAv7/XI7yAAAC/wABAv7/XI7xYAEC/gAAAv3fWI7z//38/gAAAv3fWI7z//38/gACAvr/XI7yAAIC+gAAAv7/XI7yAAAC/gACAvnfWI7z//38/gACAvnfWI7z//38/AAAAAL/XI7wAAAAAgACAvr/XI7yAAIC+AACAt3fWI7z//38/gAAAvwHXIzyAAAC/wABAvwHXIzz//38/wABAvwHXIzxYAEC/gAAAvwHXIzz//38/gACAvgHXIzyAAIC+gAAAvwHXIzz//38/gAAAvwHXIzyAAAC/gACAvgHXIzz//38/AAAAAAHXIzwAAAAAgACAvgHXIzz//38/gACAvgHXIzyAAIC+AACAtwHXIzz//38/wABAvwHXIzxYAEC/AACAvwHXIzz//38/AACAvwHXIzz8/3+/wABAvwHXIzz//38/AIABAAGA/78AgAEAAYD/vwCAAQABgP+/AIABAAGA/78IgAIA+P8BAAiAAgD4/wEACIACAPj/AQAIgAIA+P8BAACAAQABgP+/AIABAAGA/78AgAEAAYD/vwCAAQABgP+/AoACAACAAEACgAIAAIAAQAKAAgAAgABAAoACAACAAEABgP7//n//PwGA/v/+f/8/AYD+//5//z8BgP7//n//PwGA+/8AAP7/AYD7/wAA/v8BgPv/AAD+/wGA+/8AAP7/AYD+/wAA/n8BgP7/AAD+fwGA/v8AAP5/AYD+/wAA/n8BgPv/AAD+/wGA+/8AAP7/AYD7/wAA/v8BgPv/AAD+/w==")
+}]

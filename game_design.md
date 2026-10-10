@@ -84,6 +84,12 @@
 ## Skills
 - Skills improve quickly at first, then progressively slower.
 - Example skills include mining, blacksmithing, running, sneaking, swords, axes, maces, dexterity, and strength.
+- Intended direction: skills are granular and distinct. Sets of skills at specified proficiency levels unlock new skills, forming a network of prerequisite combinations rather than only independent skill progression.
+- Example supplied by Dustin: `repair 25 | electronics 25 -> unlocks robotics`. Both repair and electronics must reach at least 25. This describes the intended pattern, not an implemented prerequisite rule.
+- Current state: skills are all listed. Prerequisite-based hiding, revealing, and unlocking are future work; documenting this direction does not implement or authorize those changes.
+- Building must follow this granular prerequisite model. The existing `labor.construction` entry does not settle the final building skill taxonomy. Specific skills, combinations, thresholds, and training activities for shells and interior walls remain undecided.
+- Construction work requires a builder's kit and sufficient proficiency in the relevant skills. Define those requirements, room/interior creation, and grid snapping before implementing player construction. Generating room layouts per building shell through an expanded furnisher remains a proposal.
+- Durable design note: `/HardDrive/Obsidian/hermes/mygame/design/skill-progression.md`.
 
 ## Hunger
 - Hunger is `0..100`.

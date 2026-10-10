@@ -8,6 +8,7 @@ class_name CGamePopulationRecord
 @export var generation_source := ""
 @export var generation_index := 0
 @export var member_name := ""
+@export_multiline var backstory := ""
 @export var birth_day_index := CharacterAgeRules.UNKNOWN_BIRTH_DAY
 @export var actor_script_path := ""
 @export var character_realizer_id := ""
@@ -29,7 +30,7 @@ class_name CGamePopulationRecord
 @export var hostile_faction_ids: PackedStringArray = PackedStringArray()
 @export var combat_stance := 0
 @export var auto_heal_enabled := false
-@export var auto_burn_rustdead_enabled := false
+@export var share_food_enabled := false
 @export var base_color := Color(0.62, 0.62, 0.62, 1.0)
 @export var skill_levels: Dictionary = {}
 @export var skill_xp: Dictionary = {}
@@ -93,6 +94,7 @@ func apply_record(source: Dictionary) -> void:
 	generation_source = str(source.get("generation_source", generation_source))
 	generation_index = int(source.get("generation_index", generation_index))
 	member_name = str(source.get("member_name", member_name))
+	backstory = str(source.get("backstory", backstory))
 	birth_day_index = int(source.get("birth_day_index", birth_day_index))
 	actor_script_path = str(source.get("actor_script_path", actor_script_path))
 	character_realizer_id = str(source.get("character_realizer_id", character_realizer_id))
@@ -115,7 +117,7 @@ func apply_record(source: Dictionary) -> void:
 	hostile_faction_ids = PackedStringArray(source.get("hostile_faction_ids", hostile_faction_ids))
 	combat_stance = int(source.get("combat_stance", combat_stance))
 	auto_heal_enabled = bool(source.get("auto_heal_enabled", auto_heal_enabled))
-	auto_burn_rustdead_enabled = bool(source.get("auto_burn_rustdead_enabled", auto_burn_rustdead_enabled))
+	share_food_enabled = bool(source.get("share_food_enabled", false))
 	base_color = source.get("base_color", base_color)
 	skill_levels = (source.get("skill_levels", skill_levels) as Dictionary).duplicate(true)
 	skill_xp = (source.get("skill_xp", skill_xp) as Dictionary).duplicate(true)
@@ -166,6 +168,7 @@ func to_record() -> Dictionary:
 		"generation_source": generation_source,
 		"generation_index": generation_index,
 		"member_name": member_name,
+		"backstory": backstory,
 		"birth_day_index": birth_day_index,
 		"actor_script_path": actor_script_path,
 		"character_realizer_id": character_realizer_id,
@@ -187,7 +190,7 @@ func to_record() -> Dictionary:
 		"hostile_faction_ids": Array(hostile_faction_ids),
 		"combat_stance": combat_stance,
 		"auto_heal_enabled": auto_heal_enabled,
-		"auto_burn_rustdead_enabled": auto_burn_rustdead_enabled,
+		"share_food_enabled": share_food_enabled,
 		"base_color": base_color,
 		"skill_levels": skill_levels.duplicate(true),
 		"skill_xp": skill_xp.duplicate(true),

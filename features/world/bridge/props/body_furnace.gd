@@ -2,6 +2,8 @@ extends StaticBody3D
 
 class_name BodyFurnace
 
+signal fire_active_changed(active: bool)
+
 const ACTION_PLACE_IN := "place_in"
 
 @export var display_name := "Body Furnace"
@@ -18,6 +20,7 @@ var _population_ref: WeakRef
 var _burn_remaining := 0.0
 var _burn_effect: Node3D
 var _burn_light: Light3D
+var _burn_active := false
 
 
 func _ready() -> void:
@@ -182,6 +185,13 @@ func _set_burn_effect_active(active: bool) -> void:
 	if _burn_light != null:
 		_burn_light.visible = active
 		_burn_light.light_energy = 1.8 if active else 0.0
+	if _burn_active != active:
+		_burn_active = active
+		fire_active_changed.emit(active)
+
+
+func is_fire_active() -> bool:
+	return _burn_active
 
 
 func _update_burn_effect() -> void:

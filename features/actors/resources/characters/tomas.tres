@@ -65,6 +65,11 @@ inventory_entries = [{
 "grid_position": Vector2i(0, 0),
 "item_id": "res://features/inventory/resources/items/silver_pouch.tres",
 "metadata": {}
+}, {
+"count": 1,
+"grid_position": Vector2i(2, 0),
+"item_id": "res://features/inventory/resources/items/lockpick.tres",
+"metadata": {}
 }]
 personality = {
 "risk_tolerance": 0.45,

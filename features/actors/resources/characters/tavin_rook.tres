@@ -1,0 +1,70 @@
+[gd_resource type="Resource" script_class="CharacterRecordDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+actor_id = "tavin_rook"
+member_name = "Tavin Rook"
+backstory = "Tavin Rook is a salvage mechanic who repairs pumps and other worn machinery with recovered parts. He is patient with broken machines, impatient with people, and meticulous about debts, including his own.
+
+A merchant hired him to repair a water pump, then refused to pay. Tavin returned at night, removed the regulator he had fitted, and sold it. He calls that taking back his property. The pump also supplied several households. He knew they depended on it and took the part anyway.
+
+He is being held for theft and sabotage. The merchant exaggerates the damage; Tavin's account leaves out the people who went without water. Neither version is entirely false. He is a capable craftsperson whose stubbornness became somebody else's problem, not a secret assassin or an innocent waiting to be vindicated.
+
+He notices defects before introductions. On meeting somebody at his cell: 'Lift the gate before you try the lock. Hinge is sagging. You'll bend your pick.' Freeing him does not automatically earn his loyalty or recruit him."
+age_years = 38
+appearance = {
+"arm_length_slider": 0.02,
+"beard_color": Color(0.19, 0.15, 0.12, 1),
+"beard_style": "res://features/actors/resources/character_appearance/beard_moustache.tres",
+"body_archetype": "res://features/actors/resources/character_body_archetypes/human_male.tres",
+"character_race": "res://features/actors/resources/character_races/human.tres",
+"eyebrow_color": Color(0.16, 0.12, 0.1, 1),
+"eyebrow_style": "res://features/actors/resources/character_appearance/eyebrows_thick.tres",
+"hair_color": Color(0.19, 0.15, 0.12, 1),
+"hair_style": "res://features/actors/resources/character_appearance/hair_balding.tres",
+"height_slider": -0.05,
+"neck_length_slider": 0.0,
+"shoulder_width_slider": 0.1,
+"skin_color": Color(0.57, 0.39, 0.28, 1),
+"skin_color_customized": true,
+"visual_body_type": 2.0
+}
+skill_levels = {
+"attribute.charisma": 28.0,
+"attribute.dexterity": 56.0,
+"attribute.endurance": 45.0,
+"attribute.perception": 58.0,
+"attribute.strength": 44.0,
+"attribute.toughness": 39.0,
+"combat.axes_one_handed": 22.0,
+"combat.daggers": 18.0,
+"combat.shields": 12.0,
+"combat.swords_one_handed": 14.0,
+"combat.unarmed": 24.0,
+"craft.blacksmithing": 68.0,
+"craft.leatherworking": 27.0,
+"craft.weaving": 14.0,
+"knowledge.archeology": 40.0,
+"knowledge.medicine": 16.0,
+"labor.construction": 54.0,
+"labor.farming": 18.0,
+"labor.fishing": 14.0,
+"labor.mining": 38.0,
+"labor.scavenging": 72.0,
+"movement.running": 32.0,
+"subterfuge.lockpicking": 26.0,
+"subterfuge.sleight_of_hand": 18.0,
+"subterfuge.sneaking": 24.0,
+"tech.robotics": 38.0
+}
+equipment_slots = {
+"chest": "res://features/inventory/resources/items/peasant_tunic.tres",
+"feet": "res://features/inventory/resources/items/peasant_shoes.tres",
+"legs": "res://features/inventory/resources/items/peasant_trousers.tres"
+}
+personality = {
+"risk_tolerance": 0.35,
+"temperament": "stubborn"
+}

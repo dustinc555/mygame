@@ -1,0 +1,812 @@
+[
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe body impact 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe body impact 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 164896,
+    "sha256": "eef1e862f02739a9c92c0e5843a3657d933aa9b45aa0bd999f7801ea8f325684",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.9342630385487528,
+    "imported_seconds": 0.528979591836735,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe body impact_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe body impact_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 100152,
+    "sha256": "af7fd8ed7e5d26af0d9a1fc943756dd63cc7c524ef4140de5ef7ca3cdc4ed8fd",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.5672335600907029,
+    "imported_seconds": 0.464784580498866,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe chain armor hit 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe chain armor hit 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 147240,
+    "sha256": "d9d1671114e3a9dd68de6c85b1f5f59c158181911e97791d7171e5477efff3c4",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.834172335600907,
+    "imported_seconds": 0.3759410430839,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe chain armor hit_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe chain armor hit_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 147240,
+    "sha256": "641800d11596fd6de0d22bd94f008a161ac22c4e160d744132cfe410c251705c",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.834172335600907,
+    "imported_seconds": 0.445238095238095,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe wood impact 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe wood impact 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 270840,
+    "sha256": "0643be8bcedaf54a24e8a0734a2d0694311ff628c72d3a77372113a493dd594b",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.5348526077097506,
+    "imported_seconds": 0.530975056689342,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe wood impact_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Battle Axes/Axe Impacts/WEAPAxe_Battle axe wood impact_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 270840,
+    "sha256": "49c41b14a4661915e972f50a3d8102e571e8ab7748fe4218112700342eb51d01",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.5348526077097506,
+    "imported_seconds": 0.420408163265306,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Swings/WEAPAxe_Battle axe swing 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Battle Axes/Axe Swings/WEAPAxe_Battle axe swing 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 64836,
+    "sha256": "3184543b1d24614214b1412b462446a56c1825ad04ec108da1a81e094b6d5179",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.3670294784580499,
+    "imported_seconds": 0.191700680272109,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Swings/WEAPAxe_Battle axe swing 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Battle Axes/Axe Swings/WEAPAxe_Battle axe swing 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 64836,
+    "sha256": "a4dd37a61a261bf51ee63ac14480aeb40e18508cae4fd50a50289b8d4ee77d58",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.3670294784580499,
+    "imported_seconds": 0.251927437641723,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Battle Axes/Axe Swings/WEAPAxe_Battle axe swing_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Battle Axes/Axe Swings/WEAPAxe_Battle axe swing_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 70720,
+    "sha256": "6a633359f3be80016fb68543c5c00536b72275ab60850cd5517e1728283034d8",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.4003854875283447,
+    "imported_seconds": 0.155034013605442,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 64840,
+    "sha256": "a67e5bf7312f80e0fba8c9a47c35295767882ea633dea2235c950cfb8ec41a81",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.36705215419501136,
+    "imported_seconds": 0.149319727891156,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 100152,
+    "sha256": "21af95df5da71e2c58906e61f16f2aff1e6fc6bb93367557fc06cac2e3c4967f",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.5672335600907029,
+    "imported_seconds": 0.237097505668934,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash 4_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash 4_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 159008,
+    "sha256": "f167a8e1b15269d15d1aa11d5c47627937789b951679ab14b711cb7926f45b91",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.9008843537414966,
+    "imported_seconds": 0.527619047619048,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Clashes Parries/WEAPSwrd_Single sword clash_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 106040,
+    "sha256": "f48f7178ca9b193165a9b0b5aa687c757d9c7bc14be821999868b7cee8c83c93",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.6006122448979592,
+    "imported_seconds": 0.190045351473923,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword body hit swipe 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword body hit swipe 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 247296,
+    "sha256": "70b59ea8509640ac4f7c162ce6dcd117bb246c519033720e2c75d007e2e018c2",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.4013832199546485,
+    "imported_seconds": 1.06190476190476,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword body hit swipe 4_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword body hit swipe 4_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 164896,
+    "sha256": "1f01ca49df9484937e7539ce6bf52e5014d6302af5cf74f08521b792613ddbec",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.9342630385487528,
+    "imported_seconds": 0.493605442176871,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword body hit swipe_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword body hit swipe_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 188440,
+    "sha256": "2f7289f9923196af641ed44eed76e2ba1fe10ba9df63fe5e8b8df0d51f3f25a2",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.0677324263038548,
+    "imported_seconds": 0.612063492063492,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword stab gore 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword stab gore 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 262752,
+    "sha256": "72353af924c905a21cfbf069331babd9d1b2e7dc8e1bf5e0ecd972c35aadb386",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.3680208333333332,
+    "imported_seconds": 0.795458333333333,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword stab gore 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Impacts Gore/WEAPSwrd_Sword stab gore 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 269160,
+    "sha256": "dff64a6b85502fbf9846960aa221e747e66940149afd99475876c8f092e068bf",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.4013958333333334,
+    "imported_seconds": 0.850020833333333,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Scrapes Shields/WEAPSwrd_Sword armor shield hit 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Scrapes Shields/WEAPSwrd_Sword armor shield hit 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 217872,
+    "sha256": "10c3e40b47f7d35ed00cda9a0b03d9ec511a7a264d72627917e583b6c43ea95f",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.2345804988662132,
+    "imported_seconds": 0.689773242630386,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Scrapes Shields/WEAPSwrd_Sword armor shield hit 4_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Scrapes Shields/WEAPSwrd_Sword armor shield hit 4_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 170780,
+    "sha256": "046444f9af07224846288c4666ae5b973cf6c31d5c8a788b659ff0660c47516c",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.9676190476190476,
+    "imported_seconds": 0.567414965986395,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Scrapes Shields/WEAPSwrd_Sword armor shield hit_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Scrapes Shields/WEAPSwrd_Sword armor shield hit_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 141352,
+    "sha256": "697627fbe836456656334d3124b5f58a4b7241435da6181610fff95a489a5292",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.8007936507936508,
+    "imported_seconds": 0.642222222222222,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Swings Unsheathes/WEAPSwrd_Sword swing accent 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Swings Unsheathes/WEAPSwrd_Sword swing accent 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 35408,
+    "sha256": "95be801c54f6be7f61b2160e6cd09fb681edd120a471458db35750386296daaf",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.20020408163265307,
+    "imported_seconds": 0.0796598639455782,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Combat Weapons/Swords/Sword Swings Unsheathes/WEAPSwrd_Sword swing accent_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Combat Weapons/Swords/Sword Swings Unsheathes/WEAPSwrd_Sword swing accent_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 58952,
+    "sha256": "1645033b6723d22071daed528a667a7487a7b1450be259c0439c953f877051bd",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.3336734693877551,
+    "imported_seconds": 0.102834467120181,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Female zombie attack 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Female zombie attack 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 211504,
+    "sha256": "7a2c6d4041243c73ac65495e3b6897fe3eee3dc89be9db35020e10edd4999c85",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.1011041666666668,
+    "imported_seconds": 0.43625,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Female zombie attack 5_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Female zombie attack 5_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 224316,
+    "sha256": "41cbaebb60112e2a5693044d110eb9a29de20936178a32353d81ca979349f7b6",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.1678333333333333,
+    "imported_seconds": 0.619875,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Female zombie attack_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Female zombie attack_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 269160,
+    "sha256": "87c7af57afc290ad40a3aafa6761bae2e46db558a1a0050e33f22c0591acddc7",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.4013958333333334,
+    "imported_seconds": 0.703020833333333,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Male zombie attack 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Male zombie attack 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 179468,
+    "sha256": "cc32a76ad34f2b562a604008db993cdb7d28e9054be54fbdd778f024d98f220e",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.93425,
+    "imported_seconds": 0.414395833333333,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Male zombie attack 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Male zombie attack 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 173064,
+    "sha256": "ea01a94fb20a6f1605e52615b3a866cba6a869259019a5841911dedb0854629a",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.9008958333333333,
+    "imported_seconds": 0.414395833333333,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Male zombie attack_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Creatures And Monsters/Undead/Zombie/Attacks/CREAHmn_Male zombie attack_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 237128,
+    "sha256": "db8efaf8e6c6a2510779eb6f7de433e1c61535022c705a1c62be8276db459f50",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.2345625,
+    "imported_seconds": 0.616958333333333,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 166656,
+    "sha256": "8c55f85fd8ab553044bb9c31a079f595edd4f4486fd8803067b64d42419df678",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.8675208333333333,
+    "imported_seconds": 0.475416666666667,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 205096,
+    "sha256": "66e964d74811d334a24f2cce27020691add207e03abc1844e0c226398651af9d",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.0677291666666666,
+    "imported_seconds": 0.534166666666667,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 5_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 5_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 153848,
+    "sha256": "2031ba36ae5c6cf530ad4c8d119cc74ac71c8580182d2350da6c63ecaee55a61",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.8008125,
+    "imported_seconds": 0.534541666666667,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 6_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Creatures And Monsters/Undead/Zombie/Bites and Feeding/CREAHmn_Zombie infected bite 6_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 166660,
+    "sha256": "a9dba9f94997d1144dda21218b83a0e4be303be188c06fe7943d19f80da15b79",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.8675416666666667,
+    "imported_seconds": 0.731125,
+    "imported_channels": 1,
+    "used_by": [
+      "features/combat/resources/audio/default_combat_sound_bank.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Environment Ambience/Dragon Crater Ambience/FIREBurn_Quiet campfire burn 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Environment Ambience/Dragon Crater Ambience/FIREBurn_Quiet campfire burn 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 9288010,
+    "sha256": "841b27a5a81ffe47614d54d6ab0fc9ada015515ea8adb940fc5e208ff6ea50f3",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 52.65260770975057,
+    "imported_seconds": 52.4798639455782,
+    "imported_channels": 1,
+    "used_by": [
+      "features/audio/resources/fire_campfire.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Environment Ambience/Dragon Crater Ambience/FIREBurn_Quiet campfire burn_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Environment Ambience/Dragon Crater Ambience/FIREBurn_Quiet campfire burn_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 4496902,
+    "sha256": "94fd835ac55ed521fad44f41c16a9fb95c5445021fffbc60dee4127618efa08e",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 25.492131519274377,
+    "imported_seconds": 25.3266666666667,
+    "imported_channels": 1,
+    "used_by": [
+      "features/audio/resources/fire_campfire.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Bags Cloth Inventory/CLOTHHndl_Inventory clothes shuffle_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Bags Cloth Inventory/CLOTHHndl_Inventory clothes shuffle_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 135468,
+    "sha256": "c77d36f1cc842f436c00c06c5f299cb481a3b76adf521930bed1fc48ce0633e2",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.767437641723356,
+    "imported_seconds": 0.523968253968254,
+    "imported_channels": 2,
+    "used_by": [
+      "features/ui/resources/ui_audio_settings.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Coins Treasure/OBJCoin_Coin pickup handling 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Coins Treasure/OBJCoin_Coin pickup handling 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 170784,
+    "sha256": "4bfbc12438d7242bd51a6b5ea52261553f2d786838853cfe3e80de29f466d2cc",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.9676417233560091,
+    "imported_seconds": 0.693174603174603,
+    "imported_channels": 2,
+    "used_by": [
+      "features/ui/resources/ui_audio_settings.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Doors/DOORWood_Wooden door close_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Doors Locks Mechanisms/Doors/DOORWood_Wooden door close_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 141352,
+    "sha256": "6deb55cd69028c26722a9c1905f93c4656754c6755db2db566c25d00433a21a8",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.8007936507936508,
+    "imported_seconds": 0.494399092970522,
+    "imported_channels": 1,
+    "used_by": [
+      "features/doors/resources/wooden_door_movement_sound.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/MECHLock_Chain lock opening_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/MECHLock_Chain lock opening_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 589480,
+    "sha256": "8cba4995f338ca7427b96ef8c6bc46ef9c689278abbc64a48bd58353bfb96a79",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 3.069729166666667,
+    "imported_channels": 1,
+    "used_by": [
+      "features/lockpicking/resources/unlock_success_sound.tres"
+    ],
+    "imported_seconds": 2.20772916666667
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/MECHLock_Large padlock open 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/MECHLock_Large padlock open 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 261080,
+    "sha256": "b0792e7b61f2563d17752c5543010558d2ac7e8f7dedcf7b2cfc33449d09708d",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 24,
+    "source_seconds": 0.90625,
+    "imported_channels": 1,
+    "used_by": [
+      "features/lockpicking/resources/unlock_success_sound.tres"
+    ],
+    "imported_seconds": 0.464979166666667
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/MECHLock_Large padlock open_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/MECHLock_Large padlock open_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 189080,
+    "sha256": "dfeeaf5de1c342a6395e38c8465c121d87dd12743b5935bc10affa149fef6d53",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 24,
+    "source_seconds": 0.65625,
+    "imported_channels": 1,
+    "used_by": [
+      "features/lockpicking/resources/unlock_success_sound.tres"
+    ],
+    "imported_seconds": 0.197645833333333
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/OBJKey_Key unlock door 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/OBJKey_Key unlock door 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 147240,
+    "sha256": "73dbad19402801d3834f09cea709bc213e1d8e33ffc7f2be62a5278f664a2b81",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.834172335600907,
+    "imported_channels": 1,
+    "used_by": [
+      "features/lockpicking/resources/unlock_success_sound.tres"
+    ],
+    "imported_seconds": 0.427142857142857
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/OBJKey_Key unlock door_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Doors Locks Mechanisms/Locks Keys Chains/OBJKey_Key unlock door_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 147240,
+    "sha256": "d0b4f046e641daacc6d62ce815ef5aaefc2a9a7b183d35f6f1b3f8de4acdc612",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.834172335600907,
+    "imported_channels": 1,
+    "used_by": [
+      "features/lockpicking/resources/unlock_success_sound.tres"
+    ],
+    "imported_seconds": 0.538163265306122
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 243532,
+    "sha256": "6813053958c88e6a2c6594b6c37e16b03f1b2116978470f109a0f38467798315",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 1.2679166666666666,
+    "imported_seconds": 0.628020833333333,
+    "imported_channels": 1,
+    "used_by": [
+      "features/inventory/resources/food_eating_sound.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 121812,
+    "sha256": "dc193012971f845d1228a8c46beddbcf21d966291233123466389bfccdf1059f",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.6339583333333333,
+    "imported_seconds": 0.253958333333333,
+    "imported_channels": 1,
+    "used_by": [
+      "features/inventory/resources/food_eating_sound.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 4_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 4_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 166660,
+    "sha256": "bafe3ebee4c0ac56bffee352bc6c745757b6dd95bfbcc075128623b8bab8750b",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.8675416666666667,
+    "imported_seconds": 0.3216875,
+    "imported_channels": 1,
+    "used_by": [
+      "features/inventory/resources/food_eating_sound.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 5_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 5_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 106036,
+    "sha256": "16391c2cdf4e81d482a26e1af8d141e5693d34926817402127c935d97c28c0ef",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.6005895691609977,
+    "imported_seconds": 0.250770975056689,
+    "imported_channels": 1,
+    "used_by": [
+      "features/inventory/resources/food_eating_sound.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 185880,
+    "sha256": "28d48cea446dd292fba75ab5361e151c3d7c46b5047be58862ae90eb1fe25adb",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.9676458333333333,
+    "imported_seconds": 0.4790625,
+    "imported_channels": 1,
+    "used_by": [
+      "features/inventory/resources/food_eating_sound.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Fruit bite crunch 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Food Drink/FOODEat_Fruit bite crunch 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 470960,
+    "sha256": "afcd623513154495437b6a77cd53a43b677ad466dcf7c70f5393dcfad9f463aa",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 24,
+    "source_seconds": 1.6349583333333333,
+    "imported_seconds": 1.02754166666667,
+    "imported_channels": 1,
+    "used_by": [
+      "features/inventory/resources/food_eating_sound.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Fruit bite crunch 3_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Food Drink/FOODEat_Fruit bite crunch 3_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 432524,
+    "sha256": "b74b6bfcafbf9f6f6c4b60b12f18613e21278044123ecb3f3babac1fe386978e",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 24,
+    "source_seconds": 1.5015,
+    "imported_seconds": 1.00629166666667,
+    "imported_channels": 1,
+    "used_by": [
+      "features/inventory/resources/food_eating_sound.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Fruit bite crunch_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Food Drink/FOODEat_Fruit bite crunch_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 701588,
+    "sha256": "da281483d6dc5f7bee2a28961c5e75e91d2f09055cef11fe3c3fafb0ec33d447",
+    "source_channels": 2,
+    "sample_rate_hz": 48000,
+    "source_bits_per_sample": 24,
+    "source_seconds": 2.43575,
+    "imported_seconds": 1.95627083333333,
+    "imported_channels": 1,
+    "used_by": [
+      "features/inventory/resources/food_eating_sound.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Lanterns Torches/FIRETrch_Torch fire crackle_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/Foley Interactions/Lanterns Torches/FIRETrch_Torch fire crackle_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 1453904,
+    "sha256": "cb3ee1eca5992fd524808fd5a31cb643a11624746091ee7e2e3ed73cb2e00d81",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 8.24156462585034,
+    "imported_seconds": 7.55709750566893,
+    "imported_channels": 1,
+    "used_by": [
+      "features/audio/resources/fire_small_flame.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/UI Feedback/Buttons/UIClick_Button click_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/UI Feedback/Buttons/UIClick_Button click_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 106036,
+    "sha256": "7a74e8bcea31c5deafd03bad1e73952513f8d61a0cd5134bdd8cf30859df9ea5",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.6005895691609977,
+    "imported_seconds": 0.0792063492063492,
+    "imported_channels": 2,
+    "used_by": [
+      "features/ui/resources/ui_audio_settings.tres"
+    ]
+  },
+  {
+    "path": "assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/UI Feedback/Buttons/UIClick_Switch off 2_GfxSounds_FantasyGameBundle.wav",
+    "source_archive_path": "Fantasy Game Bundle/UI Feedback/Buttons/UIClick_Switch off 2_GfxSounds_FantasyGameBundle.wav",
+    "bytes": 111924,
+    "sha256": "26f24a9b5adfaf8178ff0f2997984c9705b226ca26e1763ffccc2fb18a15da24",
+    "source_channels": 2,
+    "sample_rate_hz": 44100,
+    "source_bits_per_sample": 16,
+    "source_seconds": 0.633968253968254,
+    "imported_seconds": 0.138866213151927,
+    "imported_channels": 2,
+    "used_by": [
+      "features/ui/resources/ui_audio_settings.tres"
+    ]
+  }
+]

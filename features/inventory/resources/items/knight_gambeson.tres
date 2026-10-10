@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://baagnpb7k1pob" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Knight_Body_Cloth.gltf" id="3_male"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="5_1s1ji"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="5_visual"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/worn_cloth.tres" id="audio_profile"]
 [ext_resource type="Resource" uid="uid://d05h2ossd2wys" path="res://assets/items/equipment/wardrobe_bindings/knight_gambeson.res" id="wardrobe_binding"]
 
 [sub_resource type="Resource" id="Visual_shared"]
@@ -22,6 +23,7 @@ icon = ExtResource("2_icon")
 grid_size = Vector2i(2, 3)
 unit_weight = 2.0
 equip_slot = "undershirt"
+combat_audio = ExtResource("audio_profile")
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray()
 world_scene = ExtResource("3_male")

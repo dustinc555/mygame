@@ -173,7 +173,7 @@ func _handle_caught_theft(actor: HumanoidCharacter, item, witnesses: Array[Human
 
 func get_take_item_metadata(actor: HumanoidCharacter, item, current_metadata: Dictionary = {}) -> Dictionary:
 	var metadata := current_metadata.duplicate(true)
-	if actor == null or item == null or _can_take_legally(actor, item):
+	if actor == null or item == null or not is_take_item_theft(actor, item):
 		return metadata
 	# Unobserved body loot must not create a delayed, omniscient town crime.
 	# Pickpocketed living owners retain the existing stolen-property rules.
@@ -188,21 +188,27 @@ func get_take_item_metadata(actor: HumanoidCharacter, item, current_metadata: Di
 
 
 func get_take_item_label(actor: HumanoidCharacter, item) -> String:
-	return "Pick Up" if _can_take_legally(actor, item) or _actor_is_in_theft_combat(actor, item) else "Steal"
+	return "Steal" if is_take_item_theft(actor, item) else "Pick Up"
 
 
 ## Opening someone else's container is always allowed — the red tint is the
 ## warning that taking anything from it is burglary for this actor.
 func get_open_container_color(actor: HumanoidCharacter, container) -> Color:
-	return Color.TRANSPARENT if _can_take_legally(actor, container) or _actor_is_in_theft_combat(actor, container) else STEAL_ACTION_COLOR
+	return get_take_item_color(actor, container)
 
 
 func get_take_item_color(actor: HumanoidCharacter, item) -> Color:
-	return Color.TRANSPARENT if _can_take_legally(actor, item) or _actor_is_in_theft_combat(actor, item) else STEAL_ACTION_COLOR
+	return STEAL_ACTION_COLOR if is_take_item_theft(actor, item) else Color.TRANSPARENT
 
 
 func is_take_item_theft(actor: HumanoidCharacter, item) -> bool:
-	return not (_can_take_legally(actor, item) or _actor_is_in_theft_combat(actor, item))
+	if _can_take_legally(actor, item):
+		return false
+	# Body property survives combat. Match the actual item-transfer boundary.
+	if not item is WorldActor and _actor_is_in_theft_combat(actor, item):
+		return false
+	var law := _get_law_order_controller()
+	return bool(law.call("theft_is_illegal", actor, item)) if law != null and law.has_method("theft_is_illegal") else true
 
 
 func _can_take_legally(actor: HumanoidCharacter, target) -> bool:

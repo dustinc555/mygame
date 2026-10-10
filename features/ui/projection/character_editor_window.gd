@@ -8,6 +8,7 @@ signal cancel_requested
 const CHARACTER_APPEARANCE_DATA_SCRIPT = preload("res://features/actors/resources/character_appearance/character_appearance_data.gd")
 const SKIN_TEXTURE_BUILDER = preload("res://features/actors/projection/appearance/skin_texture_builder.gd")
 const CLOTHING_FITTER = preload("res://features/actors/projection/appearance/clothing_fitter.gd")
+const RIGID_BACK_FITTER = preload("res://features/actors/projection/appearance/rigid_back_fitter.gd")
 const HUMAN_RACE = preload("res://features/actors/resources/character_races/human.tres")
 const HUMAN_MALE_BODY_ARCHETYPE = preload("res://features/actors/resources/character_body_archetypes/human_male.tres")
 const HUMAN_FEMALE_BODY_ARCHETYPE = preload("res://features/actors/resources/character_body_archetypes/human_female.tres")
@@ -327,6 +328,7 @@ func _build_ui() -> void:
 	footer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_column.add_child(footer)
 	_cancel_button = Button.new()
+	_cancel_button.set_meta(&"ui_audio_action", &"close")
 	_cancel_button.text = "Cancel"
 	_cancel_button.pressed.connect(_on_cancel_pressed)
 	footer.add_child(_cancel_button)
@@ -997,6 +999,7 @@ func _setup_preview_idle_animation(body_root: Node3D) -> void:
 	animation_library.add_animation(IDLE_ANIMATION_NAME, idle_animation.duplicate(true) as Animation)
 	animation_player.add_animation_library("", animation_library)
 	animation_player.play(IDLE_ANIMATION_NAME)
+	animation_player.advance(0.0)
 	source_root.queue_free()
 
 
@@ -1099,9 +1102,10 @@ func _setup_preview_clothing_visuals(visual_root: Node3D, skeleton: Skeleton3D, 
 		_preview_clothing_surface_offsets[slot_name] = surface_offset
 		var node_name := "Equipped_%s" % slot_name.capitalize()
 		var binding: Resource = equipment_visual.get("clothing_binding") if equipment_visual != null else null
-		if binding != null:
+		var rigid_back: bool = equipment_visual is EquipmentVisualDefinition and equipment_visual.rigid_back_fit
+		if binding != null or rigid_back:
 			var profile: Resource = body_archetype.get_wardrobe_profile(body_scene_path) if body_archetype != null else null
-			var result := CLOTHING_FITTER.fit(source_root, binding, profile, skeleton)
+			var result := RIGID_BACK_FITTER.fit(source_root, equipment_visual, skeleton, visual_root) if rigid_back else CLOTHING_FITTER.fit(source_root, binding, profile, skeleton)
 			source_root.free()
 			_preview_clothing_surface_offsets[slot_name] = 0.0
 			if not result.error.is_empty():

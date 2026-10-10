@@ -3,6 +3,8 @@ extends Resource
 
 class_name ItemDefinition
 
+const CombatAudioProfile = preload("res://features/combat/resources/combat_item_audio_profile.gd")
+
 const EQUIP_SLOT_NONE := ""
 const EQUIP_SLOT_UNDERSHIRT := "undershirt"
 const EQUIP_SLOT_HANDS := "hands"
@@ -28,15 +30,22 @@ enum ReadBehavior {
 @export var grid_size := Vector2i(1, 1)
 @export var unit_weight := 1.0
 @export var max_stack := 1
+## Independent item-owned slots, not character slots. Zero disables storage.
+## Changed dimensions apply when the bag is next opened; saved goods are retained.
+@export var storage_grid_size := Vector2i.ZERO
 ## Total hunger points this food restores, dripped in over the food effect
 ## duration (NpcRules.FOOD_EFFECT_DURATION_SECONDS). 100 points = one full bar.
 @export var nutrition_value := 0.0
 @export var bandage_power := 0.0
 @export_range(0, 100, 1) var bandage_max_uses := 0
 @export var equip_slot := EQUIP_SLOT_NONE
+## Shared audio-only contact classification; does not change damage or protection.
+@export var combat_audio: CombatAudioProfile
 @export var alternate_equip_slots: PackedStringArray = PackedStringArray()
 ## Empty means unrestricted. Fit affects equipping only, never carrying or trading.
 @export var compatible_races: PackedStringArray = PackedStringArray()
+## Anatomy restriction, independent of race names and inventory/trade access.
+@export var humanoid_only := false
 @export var world_scene: PackedScene
 @export var world_visual_height_meters := 0.0
 @export var world_visual_long_axis_meters := 0.0
@@ -46,6 +55,8 @@ enum ReadBehavior {
 @export var equipped_transform := Transform3D.IDENTITY
 @export var stat_modifiers: Array[ItemStatModifier] = []
 @export var tool_tags: PackedStringArray = PackedStringArray()
+## Total strain a lockpick tolerates. Current wear is inventory-entry metadata.
+@export_range(1.0, 500.0, 1.0) var lockpick_durability := 60.0
 @export var access_key_ids: PackedStringArray = PackedStringArray()
 @export var currency_id := ""
 @export_range(0, 1000000, 1) var currency_container_capacity := 0
@@ -57,6 +68,10 @@ enum ReadBehavior {
 
 func is_equippable() -> bool:
 	return not equip_slot.is_empty()
+
+
+func has_storage() -> bool:
+	return storage_grid_size.x > 0 and storage_grid_size.y > 0
 
 
 func has_tool_tag(tag: String) -> bool:

@@ -2,12 +2,17 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_qayo7"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/scrap_metal.png" id="3_icon"]
+[ext_resource type="PackedScene" path="res://features/world/projection/items/scrap_metal_world.tscn" id="4_world"]
 
 [resource]
 script = ExtResource("1_item")
-display_name = "Scrap Metal"
-grid_size = Vector2i(2, 1)
+display_name = "Mixed Metal Scrap"
+icon = ExtResource("3_icon")
+grid_size = Vector2i(2, 2)
 unit_weight = 1.5
+world_scene = ExtResource("4_world")
+world_visual_long_axis_meters = 0.36
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray()
 tool_tags = PackedStringArray()

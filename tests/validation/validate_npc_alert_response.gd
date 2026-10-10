@@ -1,6 +1,9 @@
 extends Node
 
-const WORLD_SCENE := "res://scenes/zones/rustwash_basin/rustwash_basin.tscn"
+const WORLD_SCENE := "res://tests/validation/fixtures/jail_custody/custody_world.tscn"
+const PARTY_MEMBER := preload("res://features/core/party/party_member.tscn")
+const SETTLEMENT_ID := "jail_custody"
+const FACTION_ID := "Farmers"
 const C_EVENT := preload("res://features/combat/sim/c_game_combat_event.gd")
 const C_INTENT := preload("res://features/combat/sim/c_game_combat_response_intent.gd")
 
@@ -18,12 +21,19 @@ func _ready() -> void:
 func _run() -> void:
 	var world_scene := (load(WORLD_SCENE) as PackedScene).instantiate()
 	_world = world_scene
-	var terrain := world_scene.get_node_or_null("Terrain")
-	if terrain != null:
-		world_scene.remove_child(terrain)
-		terrain.free()
+	# Preserve the five-member/three-officer workload without unrelated mutable
+	# production shops, terrain or population. Reuse the real bootstrapped town.
+	for index in range(4):
+		var member := PARTY_MEMBER.instantiate() as HumanoidCharacter
+		member.name = "Companion%d" % index
+		member.stable_id = "validation.response.companion_%d" % index
+		member.fatigue_enabled = false
+		world_scene.get_node("PartyMembers").add_child(member)
 	add_child(world_scene)
-	await _wait_frames(60)
+	if not await FIXTURE.wait_world_ready(get_tree()):
+		_fail("Response fixture must complete ordinary world startup")
+		_finish()
+		return
 	var party_manager := world_scene.find_child("PartyManager", true, false)
 	var gecs := world_scene.find_child("GecsWorldController", true, false)
 	var response_system := world_scene.find_child("GameCombatResponseSystem", true, false)
@@ -46,17 +56,10 @@ func _run() -> void:
 	var mira_id := _actor_id(mira)
 	for member in members:
 		member.set_physics_process(false)
-	# A controlled civilian, not an arbitrary first outsider (which may be a guard).
-	var resident := HumanoidCharacter.new()
-	resident.name = "ResponseCivilian"
-	resident.stable_id = "validation.canyon.response_civilian"
-	resident.faction_name = "Canyonites"
-	resident.set_meta("settlement_id", "canyon")
-	world_scene.add_child(resident)
-	gecs.register_actor(resident, "canyon", {"role_id": "resident", "authority_scopes": PackedStringArray()})
+	var resident := world_scene.get_node("CustodyTown/Residents/Witness") as HumanoidCharacter
 	_expect(not resident.is_player_party_member() and resident.life_state == NpcRules.LifeState.ALIVE, "Civilian fixture must be alive and outside the party")
 	var resident_id := _actor_id(resident)
-	var origin := Vector3(0.0, 1.0, 0.0)
+	var origin := Vector3(70.0, 1.0, 0.0)
 	for index in range(members.size()):
 		var member = members[index]
 		member.global_position = origin + Vector3(float(index) * 1.5, 0.0, 0.0)
@@ -89,17 +92,17 @@ func _run() -> void:
 	# Put the encounter at the guards. The existing encounter is kept so this
 	# validates the exact progression from root aggressor to arriving allies.
 	var settlements := BootstrapContext.service(SettlementController.SERVICE_ID) as SettlementController
-	for slot in settlements.get_assignment_slots_for_realization("canyon"):
+	for slot in settlements.get_assignment_slots_for_realization(SETTLEMENT_ID):
 		if str(slot.get("role_id", "")) in ["guard", "warden"]:
-			settlements.realize_assignment_slot("canyon", str(slot.get("assignment_domain", "employment")), str(slot.get("slot_id", "")))
+			settlements.realize_assignment_slot(SETTLEMENT_ID, str(slot.get("assignment_domain", "employment")), str(slot.get("slot_id", "")))
 	await get_tree().physics_frame
 	var authority_ids := PackedStringArray()
 	for actor_state_value in (gecs.call("get_actor_states") as Dictionary).values():
 		var actor_state: Dictionary = actor_state_value
-		if str(actor_state.get("settlement_id", "")) == "canyon" and Array(actor_state.get("authority_scopes", [])).has("settlement_authority") and str(actor_state.get("role_id", "")) in ["guard", "warden"] and gecs.get_actor_by_stable_id(str(actor_state.get("actor_id", ""))) != null:
+		if str(actor_state.get("settlement_id", "")) == SETTLEMENT_ID and Array(actor_state.get("authority_scopes", [])).has("settlement_authority") and str(actor_state.get("role_id", "")) in ["guard", "warden"] and gecs.get_actor_by_stable_id(str(actor_state.get("actor_id", ""))) != null:
 			authority_ids.append(str(actor_state.get("actor_id", "")))
 	authority_ids.sort()
-	_expect(authority_ids.size() >= 2, "Rustwash must expose at least two settlement-authority actors")
+	_expect(authority_ids.size() >= 3, "Response fixture must realize the town guard, jail guard and warden")
 	if authority_ids.is_empty():
 		_finish()
 		return
@@ -107,7 +110,7 @@ func _run() -> void:
 	var first_guard = gecs.call("get_actor_by_stable_id", authority_ids[0])
 	if first_guard != null:
 		law_origin = first_guard.global_position
-	var town := settlements.get_settlement_anchor("canyon")
+	var town := settlements.get_settlement_anchor(SETTLEMENT_ID)
 	if town != null:
 		resident.reparent(town, true)
 	resident.global_position = law_origin + Vector3(0.0, 0.0, 2.5)
@@ -134,7 +137,7 @@ func _run() -> void:
 	await _wait_frames(8)
 	_expect(_law_event_count == law_events_before + 1, "Law authorization must emit one typed response event")
 	_expect(not authority_id.is_empty(), "Mira's warrant must own a stable response authority ID")
-	_expect(str(warrant.get("faction_id", "")) == "Canyonites", "Settlement jurisdiction must own the assault warrant")
+	_expect(str(warrant.get("faction_id", "")) == FACTION_ID, "Settlement jurisdiction must own the assault warrant")
 	var intents: Array[Dictionary] = response_system.get_active_intents()
 	if intents.is_empty():
 		print("LAW_RESPONSE_DIAG warrant=%s" % JSON.stringify(warrant))
@@ -173,9 +176,9 @@ func _run() -> void:
 	var officer_context: Dictionary = response_system.get_response_context(responding_guard_id, mira_id)
 	_expect(bool(officer_context.get("authorized_response", false)), "Retaliation fixture must retain an active officer-to-Mira law authorization")
 	var retaliation_context: Dictionary = response_system.get_response_context(mira_id, responding_guard_id)
-	_expect(int(retaliation_context.get("response_depth", 0)) > 0, "Reverse response must classify retaliation against the active authorized officer")
+	_expect(str(retaliation_context.get("legal_reason", "")) == "resisting_arrest", "Reverse response must classify resistance to the active issuing authority")
 	var retaliation_warrant: Dictionary = law.call("report_player_assault", mira, gecs.call("get_actor_by_stable_id", responding_guard_id))
-	_expect(retaliation_warrant.is_empty(), "Retaliation against the active authorized responder must not add an assault warrant")
+	_expect(not retaliation_warrant.is_empty() and str((retaliation_warrant.get("crimes", []) as Array).back().get("crime_type", "")) == "resisting_arrest", "Fighting an arrest must create a resistance charge, not self-defense immunity")
 	var warrants: Dictionary = law.get("warrants")
 	_expect(not warrants.has(responding_guard_id), "Authorized law attacks must not create warrants against guards")
 
@@ -208,7 +211,7 @@ func _run() -> void:
 	await _wait_frames(30)
 	for blocker_id in blocker_ids:
 		var blocker = gecs.call("get_actor_by_stable_id", blocker_id)
-		_expect(not (law.call("get_warrant_record", blocker, "Canyonites") as Dictionary).is_empty(), "Each committed party attacker must receive an individual assault warrant: %s" % blocker_id)
+		_expect(not (law.call("get_warrant_record", blocker, FACTION_ID) as Dictionary).is_empty(), "Each committed party attacker must receive an individual resistance warrant: %s" % blocker_id)
 
 
 	_finish()

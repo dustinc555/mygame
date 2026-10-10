@@ -2,6 +2,47 @@ extends GutTest
 
 const SHELL := preload("res://features/world/projection/buildings/shells/modular/medium_wood_hall.tscn")
 
+func test_rear_entrance_is_replaced_by_matching_wall_without_door_fittings() -> void:
+	var shell := SHELL.instantiate()
+	autofree(shell)
+	var pieces := shell.get_node("Pieces")
+	var wall: Node3D = pieces.get_node("GroundBackEWall")
+	var neighbor: Node3D = pieces.get_node("GroundBackD")
+	assert_eq(wall.scene_file_path, neighbor.scene_file_path, "Use the existing solid plaster module")
+	for removed: String in ["GroundBackEDoor", "DoorWoodFlat2", "DoorFrameFlatBrick22", "BackSteps"]:
+		assert_null(pieces.get_node_or_null(removed), "No rear door, frame, or abandoned steps: " + removed)
+	for retained: String in ["GroundFrontCWall", "GroundFrontCDoor", "DoorWoodFlat", "DoorFrameFlatBrick", "FrontSteps", "BackRoomStairs", "StairInteriorSimple"]:
+		assert_not_null(pieces.get_node_or_null(retained), "Keep the front entrance and interior stairs: " + retained)
+	for collision in [false, true]:
+		var wall_box := _bounds(wall, Transform3D.IDENTITY, collision)
+		var neighbor_box := _bounds(neighbor, Transform3D.IDENTITY, collision)
+		assert_almost_eq(wall_box.position.x, neighbor_box.end.x, 0.001, "Rear wall modules meet without a gap")
+		assert_almost_eq(wall_box.size, neighbor_box.size, Vector3.ONE * 0.001, "Matching mesh and collision dimensions")
+		assert_almost_eq(wall_box.position.z, neighbor_box.position.z, 0.001, "Flush rear facade")
+
+func test_replacement_rear_wall_blocks_a_person_from_both_sides() -> void:
+	var shell := SHELL.instantiate()
+	var wall: Node3D = shell.get_node("Pieces/GroundBackEWall")
+	wall.get_parent().remove_child(wall)
+	shell.free()
+	add_child_autofree(wall)
+	var body := CharacterBody3D.new()
+	var collision := CollisionShape3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.25
+	capsule.height = 1.8
+	collision.shape = capsule
+	body.add_child(collision)
+	add_child_autofree(body)
+	for side: float in [-1.0, 1.0]:
+		body.position = wall.position + Vector3(0, 1, side)
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		var hit := body.move_and_collide(Vector3(0, 0, -side * 2.0))
+		assert_not_null(hit, "A person cannot cross the former rear opening from either side")
+		if hit != null:
+			assert_true(wall.is_ancestor_of(hit.get_collider()), "The replacement wall itself stops the body")
+
 func test_divider_wall_meshes_and_collision_fit_between_floor_slabs() -> void:
 	_assert_dividers_fit("WallPlasterStraight", 5)
 

@@ -10,18 +10,39 @@ func _shell() -> Node3D:
 	add_child_autofree(shell)
 	return shell
 
-func test_each_distinct_hall_entrance_gets_one_exterior_torch() -> void:
+func test_hall_front_entrance_gets_one_exterior_torch() -> void:
 	var shell := _shell()
 	var solver := FURNISHER.new()
 	var placements := solver.furnish(shell, SHOP, 0)
 	var exterior := placements.filter(func(p): return p.get("exterior_entry_light", false))
-	# The real hall has two entrances, each authored with overlapping door
-	# wall/trim pieces. Those are not four independent entrances.
-	assert_eq(exterior.size(), 2)
+	# Overlapping wall/trim pieces describe the single front entrance.
+	# The closed rear wall must not remain an entrance-light candidate.
+	assert_eq(exterior.size(), 1)
 	var front := exterior.filter(func(p): return p.transform.origin.z > 6.0)
 	var back := exterior.filter(func(p): return p.transform.origin.z < -4.0)
-	assert_eq(front.size(), 1, "Shopfront must not lose to the back door's alphabetical name")
-	assert_eq(back.size(), 1)
+	assert_eq(front.size(), 1)
+	assert_eq(back.size(), 0)
+	for light in exterior:
+		assert_almost_eq(light.transform.origin.y, SHOP.light_mount_height, 0.01)
+
+func test_distinct_entrances_each_get_one_light_despite_overlapping_pieces() -> void:
+	var solver := FURNISHER.new()
+	var walls: Array[Dictionary] = []
+	var anchors: Array[Dictionary] = []
+	# Keep multiple-entrance coverage independent of the hall's authored layout.
+	for entrance in [{"name": "Back", "z": -4.0, "side": 1.0}, {"name": "Front", "z": 6.0, "side": -1.0}]:
+		for piece_index in range(2):
+			var piece := Node3D.new()
+			add_child_autofree(piece)
+			walls.append({"node": piece, "category": "wall_door", "transform": Transform3D(Basis.IDENTITY, Vector3(0, 0, entrance.z)), "bounds": Vector3(2, 3, 0.4)})
+			anchors.append({"name": "%s%d" % [entrance.name, piece_index], "wall_node_id": piece.get_instance_id(), "category": "wall_door", "side": entrance.side, "position": Vector2(0, entrance.z), "normal": Vector2(0, entrance.side)})
+			solver._exterior_door_interior_sides[piece.get_instance_id()] = entrance.side
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0
+	var exterior := solver._place_exterior_entry_lights(walls, anchors, SHOP, rng, {})
+	assert_eq(exterior.size(), 2)
+	assert_eq(exterior.filter(func(p): return p.transform.origin.z > 6.0).size(), 1, "The front entrance must not lose to an alphabetically earlier entrance")
+	assert_eq(exterior.filter(func(p): return p.transform.origin.z < -4.0).size(), 1)
 	for light in exterior:
 		assert_almost_eq(light.transform.origin.y, SHOP.light_mount_height, 0.01)
 

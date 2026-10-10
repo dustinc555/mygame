@@ -21,10 +21,12 @@ extends Node
 
 const CORE_SERVICES_MODULE := preload("res://features/core/core_services_module.gd")
 const WORLD_MODULE := preload("res://features/world/world_module.gd")
+const AUDIO_MODULE := preload("res://features/audio/audio_module.gd")
 const WORLD_MAP_MODULE := preload("res://features/world_map/world_map_module.gd")
 const WORLD_SIM_MODULE := preload("res://features/world_sim/world_sim_module.gd")
 const FACTIONS_MODULE := preload("res://features/factions/factions_module.gd")
 const ACTORS_MODULE := preload("res://features/actors/actors_module.gd")
+const COMBAT_MODULE := preload("res://features/combat/combat_module.gd")
 const AI_MODULE := preload("res://features/ai/ai_module.gd")
 const SETTLEMENTS_MODULE := preload("res://features/settlements/settlements_module.gd")
 const INVENTORY_MODULE := preload("res://features/inventory/inventory_module.gd")
@@ -32,6 +34,7 @@ const FARMING_MODULE := preload("res://features/farming/farming_module.gd")
 const CONVERSATION_MODULE := preload("res://features/conversation/conversation_module.gd")
 const UI_MODULE := preload("res://features/ui/ui_module.gd")
 const DOORS_MODULE := preload("res://features/doors/doors_module.gd")
+const LOCKPICKING_MODULE := preload("res://features/lockpicking/lockpicking_module.gd")
 const CAMPS_MODULE := preload("res://features/camps/camps_module.gd")
 
 # Core services install first (time / GECS / actor lookup that everything else
@@ -41,14 +44,17 @@ const CAMPS_MODULE := preload("res://features/camps/camps_module.gd")
 const MODULES := [
 	CORE_SERVICES_MODULE,
 	WORLD_MODULE,
+	AUDIO_MODULE,
 	FACTIONS_MODULE,
 	WORLD_MAP_MODULE,
 	WORLD_SIM_MODULE,
 	ACTORS_MODULE,
+	COMBAT_MODULE,
 	AI_MODULE,
 	SETTLEMENTS_MODULE,
 	INVENTORY_MODULE,
 	FARMING_MODULE,
+	LOCKPICKING_MODULE,
 	DOORS_MODULE,
 	CONVERSATION_MODULE,
 	UI_MODULE,
@@ -83,6 +89,11 @@ func _deferred_bootstrap() -> void:
 	_context.world_sim_root = world_sim_root
 	_context.bridge_root = bridge_root
 	BootstrapContext.active = _context
+	# The player is user-authored and outlives individual worlds. Only this
+	# composition root resolves its autoload path; controllers receive it normally.
+	var music_player := get_node_or_null("/root/MusicPlayer")
+	if music_player != null:
+		_context.register(AUDIO_MODULE.ZONE_MUSIC.MUSIC_PLAYER_SERVICE_ID, music_player)
 
 	var installed: Array[Node] = []
 	for module in MODULES:
@@ -91,7 +102,20 @@ func _deferred_bootstrap() -> void:
 	for controller in installed:
 		if controller.has_method("initialize"):
 			controller.initialize(_context)
+	if not _load_saved_start():
+		push_error("Could not load the requested saved game; the default start was not applied.")
+		return
 	get_tree().call_group(BootstrapContext.SERVICE_CONSUMER_GROUP, "_on_bootstrap_context_ready", _context)
+
+
+func _load_saved_start() -> bool:
+	var world_root := root_scene
+	while world_root != null and not (world_root is WorldRoot):
+		world_root = world_root.get_parent()
+	if world_root == null or world_root.saved_game_path.is_empty():
+		return true
+	var simulation := _context.require(WorldSimulationController.SERVICE_ID) as WorldSimulationController
+	return simulation.load_world_from_file(world_root.saved_game_path)
 
 
 func _exit_tree() -> void:

@@ -1,6 +1,6 @@
 extends "res://tests/validation/test_case.gd"
 ## Ordinary human death through real capabilities, corpse LOD and GECS disk IO.
-## Cremation is covered separately by validate_body_furnace_auto_burn.gd.
+## Cremation is covered separately by validate_body_furnace.gd.
 const ACTOR_ID := "validation.corpse.person"
 const LOOT := preload("res://features/inventory/resources/items/tomato_seeds.tres")
 const C_POPULATION := preload("res://features/world_sim/sim/population/c_game_population_record.gd")

@@ -14,8 +14,7 @@ const SKILL_CHECK_TIER_SCRIPT := preload("res://features/skills/resources/skill_
 @export_range(0.0, 0.25, 0.001) var chance_per_level_delta := 0.02
 @export_range(0.0, 1.0, 0.01) var minimum_success_chance := 0.01
 @export_range(0.0, 1.0, 0.01) var maximum_success_chance := 0.99
-@export_range(0.0, 120.0, 0.1) var attempt_duration_seconds := 5.0
-@export_range(0.0, 1.0, 0.01) var tool_break_chance_on_failure := 0.15
+
 @export var tiers: Array[Resource] = []
 
 
