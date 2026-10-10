@@ -1,0 +1,80 @@
+{
+  "asset": "terracotta_floor_tiles",
+  "source": "https://polyhaven.com/a/terracotta_floor_tiles",
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "info": {
+    "type": 1,
+    "name": "Terracotta Floor Tiles",
+    "categories": [
+      "man made",
+      "indoor",
+      "tiles"
+    ],
+    "tags": [
+      "terracotta",
+      "tiles",
+      "ceramic",
+      "square",
+      "consistent",
+      "grout lines",
+      "indoor flooring",
+      "chipped",
+      "ceramic tiles",
+      "uneven",
+      "weathered",
+      "grout"
+    ],
+    "description": "Free 8K terracotta floor tile material: warm red-brown squares with soft gloss, uneven surfaces, worn edges, and dark recessed grout lines with light stains.",
+    "authors": {
+      "Dimitrios Savva": "All"
+    },
+    "max_resolution": [
+      8192,
+      8192
+    ],
+    "dimensions": [
+      2079.9999237060547,
+      2079.9999237060547
+    ],
+    "files_hash": "269baa11e585f97d7c9f51bc9c6b2fc6abbe3dc0",
+    "staging": null,
+    "date_published": 1781827200,
+    "category_id": "6165a492-c53c-5b5f-96df-20c96a7763df",
+    "category": "Ceramic/Terracotta",
+    "attributes": {
+      "surface_use": "floor",
+      "condition": [
+        "weathered",
+        "worn"
+      ],
+      "origin": "man_made",
+      "setting": "indoor"
+    },
+    "img_version": "616bffb6",
+    "download_count": 3472,
+    "thumbnail_url": "https://cdn.polyhaven.com/asset_img/thumbs/terracotta_floor_tiles.png?width=256&height=256&format=webp&v=616bffb6"
+  },
+  "files": {
+    "Diffuse": {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/terracotta_floor_tiles/terracotta_floor_tiles_diff_4k.png",
+      "md5": "bcf6a0e28da23bebb5abf5fa5b31edea",
+      "size": 83605427
+    },
+    "nor_gl": {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/terracotta_floor_tiles/terracotta_floor_tiles_nor_gl_4k.png",
+      "md5": "7786127bd2cb79c95247b744c2b011a0",
+      "size": 85281929
+    },
+    "Rough": {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/terracotta_floor_tiles/terracotta_floor_tiles_rough_4k.png",
+      "md5": "b9534df64f3581e3cac731ef2ee34fcf",
+      "size": 29459664
+    },
+    "AO": {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/4k/terracotta_floor_tiles/terracotta_floor_tiles_ao_4k.png",
+      "md5": "e91b4528089316522775280e54e0f36b",
+      "size": 29535081
+    }
+  }
+}

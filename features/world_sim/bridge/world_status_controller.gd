@@ -488,6 +488,7 @@ func _setup_escape_menu() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_margin.add_child(title)
 	escape_menu_resume_button = Button.new()
+	escape_menu_resume_button.set_meta(&"ui_audio_action", &"close")
 	escape_menu_resume_button.text = "Resume"
 	escape_menu_resume_button.focus_mode = Control.FOCUS_NONE
 	escape_menu_resume_button.pressed.connect(_on_escape_menu_resume_pressed)

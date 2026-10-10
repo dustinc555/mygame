@@ -139,6 +139,7 @@ func _build_layout() -> void:
 	header.add_child(title_label)
 
 	var close_button := Button.new()
+	close_button.set_meta(&"ui_audio_action", &"close")
 	close_button.text = "X"
 	close_button.focus_mode = Control.FOCUS_NONE
 	close_button.pressed.connect(hide)

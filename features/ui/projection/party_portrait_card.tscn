@@ -16,6 +16,7 @@ border_width_bottom = 1
 border_color = Color(0.34, 0.34, 0.38, 1)
 
 [node name="PartyPortraitCard" type="Button"]
+metadata/ui_audio_disabled = true
 custom_minimum_size = Vector2(76, 68)
 theme_override_styles/normal = SubResource("StyleBoxFlat_card")
 theme_override_styles/hover = SubResource("StyleBoxFlat_card")

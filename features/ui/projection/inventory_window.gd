@@ -8,8 +8,10 @@ signal quick_transfer_requested(inventory_owner, entry)
 signal quick_equip_requested(inventory_owner, entry)
 signal notice_requested(message)
 signal item_action_requested(inventory_owner, entry, action)
+signal storage_open_requested(inventory_owner, stack_id: String)
 signal equip_requested(source_owner, entry, target_owner, slot_name)
 signal equipment_transfer_requested(source_owner, source_slot_name, target_owner, target_slot_name)
+signal equipment_quick_transfer_requested(source_owner, slot_name)
 signal unequip_requested(source_owner, slot_name, target_owner, target_cell)
 signal item_drop_requested(source_owner, entry)
 signal equipment_drop_requested(source_owner, slot_name)
@@ -21,10 +23,14 @@ signal trade_cancelled
 signal trade_item_requested(inventory_owner, entry, amount: int)
 
 @export var transfer_distance := 5.0
+## Item-owned storage shows its complete grid when the viewport has room.
+@export var show_full_grid := false
 
+const ITEM_ACTIONS = preload("res://features/inventory/bridge/inventory_item_actions.gd")
 const ACTION_EAT := 1
 const ACTION_READ := 2
 const ACTION_TAKE_ALL := 3
+const ACTION_OPEN_BAG := 4
 const ACTION_TAKE_SILVER_1 := 101
 const ACTION_TAKE_SILVER_5 := 105
 const ACTION_TAKE_SILVER_10 := 110
@@ -53,6 +59,8 @@ var trade_total: Label
 var trade_button: Button
 var grid_scroll: ScrollContainer
 var _height_source: Control
+## Temporary viewport constraint; never changes inventory cells or item positions.
+var content_width_limit := 0.0
 
 @onready var grab_area: Control = $Margin/WindowVBox/TitleBar/TitleBarHBox/GrabArea
 @onready var title_label: Label = $Margin/WindowVBox/TitleBar/TitleBarHBox/GrabArea/Title
@@ -97,6 +105,7 @@ func _ready() -> void:
 	body_vbox.add_child(grid_scroll)
 	inventory_grid.reparent(grid_scroll)
 	grid_scroll.custom_minimum_size = inventory_grid.custom_minimum_size
+	get_viewport().size_changed.connect(fit_to_content)
 
 
 func setup(target_owner) -> void:
@@ -112,6 +121,9 @@ func refresh() -> void:
 		return
 	title_label.text = _get_owner_inventory_title()
 	var inventory = _get_owner_inventory()
+	if inventory == null:
+		return
+	var carrying_inventory: InventoryData = inventory.get_carrying_inventory()
 	var merchant := MerchantRole.for_display(inventory_owner)
 	if trade_session != null:
 		inventory = trade_session.views[trade_side]
@@ -121,16 +133,21 @@ func refresh() -> void:
 	auto_sort_button.visible = trade_session == null and merchant == null
 	if _owner_shows_weight() and merchant == null:
 		weight_label.visible = true
-		weight_label.text = "%.1f / %.1f" % [inventory.get_total_weight(), inventory.max_weight]
+		weight_label.text = "%.1f / %.1f" % [carrying_inventory.get_total_weight(), carrying_inventory.max_weight]
 		weight_label.tooltip_text = "Carried weight / capacity"
 	else:
 		weight_label.visible = false
 	inventory_grid.set_inventory_data(inventory)
 	var grid_size: Vector2 = inventory_grid.custom_minimum_size
-	grid_scroll.custom_minimum_size = Vector2(grid_size.x + (14 if grid_size.y > 256 else 0), minf(grid_size.y, 256))
+	var visible_height := grid_size.y if show_full_grid else minf(grid_size.y, 256)
+	grid_scroll.custom_minimum_size = Vector2(grid_size.x + (14 if grid_size.y > visible_height else 0), visible_height)
+	if content_width_limit > 0:
+		grid_scroll.custom_minimum_size.x = minf(grid_scroll.custom_minimum_size.x, content_width_limit)
 	# Align the action row to the drawn cells, not extra width from equipment
 	# or the window title. Sort occupies two cell columns at the same scale.
 	bag_actions.custom_minimum_size.x = InventoryGridControl.ITEM_GEOMETRY.grid_pixel_size(Vector2i(inventory.columns, inventory.rows), inventory_grid.cell_size, inventory_grid.cell_gap).x
+	if content_width_limit > 0:
+		bag_actions.custom_minimum_size.x = minf(bag_actions.custom_minimum_size.x, content_width_limit)
 	auto_sort_button.custom_minimum_size = Vector2(inventory_grid.cell_size.x * 2 + inventory_grid.cell_gap, inventory_grid.cell_size.y)
 	inventory_grid.set_meta("source_owner", inventory_owner)
 	_refresh_equipment_slots()
@@ -138,8 +155,9 @@ func refresh() -> void:
 		_equipment_section.hide()
 	if trade_session != null:
 		weight_label.show()
-		var purse := "%d silver" % trade_session.inventories[trade_side].count_item(InventoryData.SILVER_ITEM)
-		weight_label.text = "%s · %s" % [weight_label.text, purse] if trade_side == 0 else purse
+		if trade_side < 2:
+			var purse := "%d silver" % trade_session.inventories[trade_side].count_item(InventoryData.SILVER_ITEM)
+			weight_label.text = "%s · %s" % [weight_label.text, purse] if trade_side == 0 else purse
 		var net: int = trade_session.net_silver()
 		trade_total.text = "Pay %d silver" % net if net >= 0 else "Receive %d silver" % -net
 		trade_button.disabled = trade_session.offers.is_empty() or not trade_session.is_current()
@@ -172,6 +190,8 @@ func bind_trade(session: RefCounted, side: int, owners: Array) -> void:
 			trade_button = Button.new()
 			trade_button.name = "TradeButton"
 			trade_button.text = "Trade"
+			# Settlement owns this feedback; never layer an ordinary button click.
+			trade_button.set_meta(&"ui_audio_disabled", true)
 			trade_button.pressed.connect(func(): trade_confirmed.emit())
 			trade_footer.add_child(trade_button)
 	if trade_footer != null:
@@ -214,14 +234,8 @@ func _get_drop_error(data, target_cell: Vector2i) -> String:
 		return "" if bool(source_owner.call("can_release_inventory_entry", entry, inventory)) else "No room"
 	if inventory_owner != null and inventory_owner.has_method("can_receive_inventory_entry"):
 		return "" if bool(inventory_owner.call("can_receive_inventory_entry", entry)) else "No room"
-	var transfer_count := int(entry.count)
-	if source_owner != null and source_owner.has_method("get_inventory_transfer_count"):
-		transfer_count = maxi(1, int(source_owner.call("get_inventory_transfer_count", entry)))
-	if inventory.use_weight and inventory.get_total_weight() + inventory.get_item_weight(entry.definition, transfer_count, entry.contained_item_counts) > inventory.max_weight:
-		return "Too heavy"
-	if not inventory.can_place_item(entry.definition, target_cell):
-		return "No room"
-	return ""
+	var source: InventoryData = source_owner.get_inventory_for_display() if source_owner.has_method("get_inventory_for_display") else source_owner.get("inventory")
+	return "" if source != null and source.can_move_entry_to_inventory(entry, inventory, target_cell) else "No room or carrying capacity"
 
 
 func _handle_drop(data, target_cell: Vector2i) -> void:
@@ -253,37 +267,39 @@ func _on_inventory_item_right_clicked(entry, _local_position: Vector2, shift_pre
 	if trade_session != null:
 		_context_entry = entry
 		item_menu.clear()
+		if trade_side != 1 and entry.definition.has_storage() and trade_session.entry_state(trade_side, entry) != "incoming":
+			item_menu.add_item("Open Bag", ACTION_OPEN_BAG)
 		if trade_session.entry_state(trade_side, entry) == "incoming":
 			item_menu.add_item("Withdraw", 200)
 		else:
-			if not entry.definition.sellable or entry.definition.is_currency_item() or int(trade_session.quote.call(trade_side, entry)) < 0:
-				return
-			var verb := "Buy" if trade_side == 1 else "Sell"
-			item_menu.add_item(verb + " 1", 201)
-			if entry.count > 1:
-				item_menu.add_item(verb + " stack", 202)
+			if entry.definition.sellable and not entry.definition.is_currency_item() and trade_session.quote_price(trade_side, entry) >= 0:
+				var verb := "Buy" if trade_side == 1 else "Sell"
+				item_menu.add_item(verb + " 1", 201)
+				if entry.count > 1:
+					item_menu.add_item(verb + " stack", 202)
+		if item_menu.item_count == 0:
+			return
 		item_menu.position = Vector2i(get_viewport().get_mouse_position())
 		item_menu.popup()
 		return
 	if shift_pressed:
 		quick_transfer_requested.emit(inventory_owner, entry)
 		return
-	var can_eat := false
-	if inventory_owner.has_method("can_eat_inventory_entry"):
-		can_eat = inventory_owner.can_eat_inventory_entry(entry)
-	else:
-		can_eat = inventory_owner.has_method("can_eat_item") and inventory_owner.can_eat_item(entry.definition)
+	var can_eat := ITEM_ACTIONS.can_eat(inventory_owner, entry)
 	var can_take_silver := _can_take_silver_from_pouch(entry)
 	var can_read: bool = entry.definition != null and entry.definition.read_behavior != ItemDefinition.ReadBehavior.NONE
 	var can_take_all: bool = inventory_owner.has_method("release_inventory_entry_count_with_metadata") and int(entry.count) > 0
-	if not can_eat and not can_take_silver and not can_read and not can_take_all:
+	var can_open: bool = entry.definition != null and entry.definition.has_storage()
+	if not can_eat and not can_take_silver and not can_read and not can_take_all and not can_open:
 		return
 	_context_entry = entry
 	item_menu.clear()
 	if can_take_all:
 		item_menu.add_item("Take All", ACTION_TAKE_ALL)
+	if can_open:
+		item_menu.add_item("Open Bag", ACTION_OPEN_BAG)
 	if can_eat:
-		var digesting: bool = inventory_owner.has_method("is_food_effect_active") and inventory_owner.is_food_effect_active()
+		var digesting: bool = ITEM_ACTIONS.character_for(inventory_owner).is_food_effect_active()
 		item_menu.add_item("Eat (digesting)" if digesting else "Eat", ACTION_EAT)
 		if digesting:
 			item_menu.set_item_disabled(item_menu.get_item_index(ACTION_EAT), true)
@@ -474,12 +490,15 @@ func _refresh_equipment_slots() -> void:
 			_equipment_slots[slot_name] = slot_control
 			slot_control.slot_drop_requested.connect(_on_equipment_slot_drop_requested)
 			slot_control.slot_drag_dropped_outside.connect(_on_equipment_slot_drag_dropped_outside)
+			slot_control.storage_open_requested.connect(_open_equipped_storage)
+			slot_control.quick_transfer_requested.connect(func(slot): equipment_quick_transfer_requested.emit(inventory_owner, slot))
 		var slot_label := slot_name.capitalize()
 		if inventory_owner.has_method("get_equipment_slot_label"):
 			slot_label = inventory_owner.get_equipment_slot_label(slot_name)
 		slot_control.item_provider = Callable()
 		slot_control.drag_provider = Callable()
 		slot_control.drop_validator = Callable()
+		slot_control.storage_open_validator = _can_open_equipped_storage
 		if trade_session != null and trade_side == 0:
 			slot_control.item_provider = func(slot):
 				var entry = trade_session.equipment_entry(slot)
@@ -488,6 +507,23 @@ func _refresh_equipment_slots() -> void:
 			slot_control.drop_validator = _trade_equipment_accepts
 		slot_control.setup(inventory_owner, slot_name, slot_label, inventory_grid)
 	_equipment_grid.arrange()
+
+
+func _can_open_equipped_storage(slot: String) -> bool:
+	if not is_instance_valid(inventory_owner) or not inventory_owner.has_method("get_equipment"):
+		return false
+	var equipment: EquipmentCapability = inventory_owner.get_equipment()
+	if equipment == null or equipment.get_equipped_stack_id(slot).is_empty():
+		return false
+	if trade_session != null:
+		var entry = trade_session.equipment_entry(slot)
+		return entry != null and entry.stack_id == equipment.get_equipped_stack_id(slot) and trade_session.offer_for(entry).is_empty()
+	return true
+
+
+func _open_equipped_storage(slot: String) -> void:
+	if _can_open_equipped_storage(slot):
+		storage_open_requested.emit(inventory_owner, inventory_owner.get_equipment().get_equipped_stack_id(slot))
 
 func _trade_equipment_drag(slot: String) -> Dictionary:
 	var entry = trade_session.equipment_entry(slot)
@@ -504,7 +540,7 @@ func _trade_equipment_accepts(slot: String, data) -> bool:
 		var side := trade_owners.find(data.get("source_owner"))
 		if side == 1 or not trade_session.offer_for(data.entry).is_empty():
 			return trade_session.equipment_drop_error(side, data.entry, slot).is_empty()
-		return side == 0 and trade_session.owned_equipment_error(data.entry, slot).is_empty()
+		return side >= 0 and side != 1 and trade_session.owned_equipment_error(data.entry, slot, side).is_empty()
 	if data.get("equipment_owner") == inventory_owner and data.has("equip_slot"):
 		return trade_session.owned_equipment_error(trade_session.equipment_entry(data.equip_slot), slot).is_empty()
 	return false
@@ -516,8 +552,9 @@ func _get_equipment_drop_to_grid_error(data: Dictionary, target_cell: Vector2i) 
 	if source_owner != inventory_owner and _owners_too_far(source_owner, inventory_owner):
 		return "Too far away"
 	var inventory = _get_owner_inventory()
-	if inventory.use_weight and inventory.get_total_weight() + definition.unit_weight > inventory.max_weight:
-		return "Too heavy"
+	# Exact equipped payload/weight is validated by the controller at commit.
+	if not inventory.accepts_item_count(definition, 1):
+		return "Cannot store that here"
 	if not inventory.can_place_item(definition, target_cell):
 		return "No room"
 	return ""
@@ -531,7 +568,9 @@ func _get_cursor_item_drop_error(data: Dictionary, target_cell: Vector2i) -> Str
 	if source_owner != inventory_owner and _owners_too_far(source_owner, inventory_owner):
 		return "Too far away"
 	var inventory = _get_owner_inventory()
-	if inventory.use_weight and inventory.get_total_weight() + inventory.get_item_weight(definition, count, contained_item_counts) > inventory.max_weight:
+	if not inventory.accepts_item_count(definition, count):
+		return "Cannot store that here"
+	if inventory.use_weight and inventory.get_capacity_weight() + inventory.get_item_weight(definition, count, contained_item_counts, data.get("metadata", {})) > inventory.get_capacity_limit():
 		return "Too heavy"
 	if not inventory.can_place_item(definition, target_cell):
 		return "No room"
@@ -560,6 +599,10 @@ func _on_equipment_slot_drag_dropped_outside(slot_name: String) -> void:
 func _on_item_menu_id_pressed(action_id: int) -> void:
 	if inventory_owner == null or _context_entry == null:
 		return
+	if action_id == ACTION_OPEN_BAG:
+		item_action_requested.emit(inventory_owner, _context_entry, "open_bag")
+		_context_entry = null
+		return
 	if trade_session != null:
 		if action_id in [200, 201, 202]:
 			trade_item_requested.emit(inventory_owner, _context_entry, 0 if action_id == 200 else (1 if action_id == 201 else -1))
@@ -570,10 +613,7 @@ func _on_item_menu_id_pressed(action_id: int) -> void:
 		ACTION_READ:
 			item_action_requested.emit(inventory_owner, _context_entry, "read")
 		ACTION_EAT:
-			if inventory_owner.has_method("consume_inventory_entry"):
-				inventory_owner.consume_inventory_entry(_context_entry)
-			else:
-				item_action_requested.emit(inventory_owner, _context_entry, "eat")
+			item_action_requested.emit(inventory_owner, _context_entry, "eat")
 		ACTION_TAKE_SILVER_1:
 			item_action_requested.emit(inventory_owner, _context_entry, "take_silver_1")
 		ACTION_TAKE_SILVER_5:
@@ -588,14 +628,7 @@ func _on_item_menu_id_pressed(action_id: int) -> void:
 
 
 func _can_take_silver_from_pouch(entry) -> bool:
-	if inventory_owner == null or entry == null:
-		return false
-	if not inventory_owner.has_method("is_player_party_member") or not bool(inventory_owner.call("is_player_party_member")):
-		return false
-	var inventory = _get_owner_inventory()
-	if inventory == null or not inventory.has_method("is_entry_currency_container") or not bool(inventory.call("is_entry_currency_container", entry, InventoryData.SILVER_ITEM)):
-		return false
-	return int(inventory.call("get_entry_contained_item_count", entry, InventoryData.SILVER_ITEM)) > 0
+	return ITEM_ACTIONS.can_take_silver(inventory_owner, entry)
 
 
 func _get_pouch_deposit_error(data: Dictionary, target_cell: Vector2i) -> String:
@@ -661,10 +694,24 @@ func match_height_to(source: Control) -> void:
 	fit_to_content()
 
 
+func limit_content_width(value: float) -> void:
+	if is_equal_approx(content_width_limit, value):
+		return
+	content_width_limit = maxf(0.0, value)
+	refresh()
+	fit_to_content()
+
+
 func fit_to_content() -> void:
 	if not is_inside_tree():
 		return
 
+	if show_full_grid and is_instance_valid(grid_scroll):
+		var chrome_height := get_combined_minimum_size().y - grid_scroll.custom_minimum_size.y
+		var grid_size := inventory_grid.custom_minimum_size
+		var available_height := maxf(inventory_grid.cell_size.y, get_viewport_rect().size.y - chrome_height)
+		var visible_height := minf(grid_size.y, available_height)
+		grid_scroll.custom_minimum_size = Vector2(grid_size.x + (14 if grid_size.y > visible_height else 0), visible_height)
 	var fitted_size := get_combined_minimum_size()
 	if is_instance_valid(_height_source):
 		fitted_size.y = maxf(fitted_size.y, _height_source.size.y)

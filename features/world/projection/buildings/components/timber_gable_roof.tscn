@@ -1,0 +1,104 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_piece"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Corner_Exterior_Wood.gltf" id="2_timber"]
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Wooden_2x1_Center.gltf" id="3_roof"]
+
+[ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Front_Wood8.gltf" id="4_gable"]
+
+[node name="TimberGableRoof" type="Node3D"]
+script = ExtResource("1_piece")
+piece_id = "timber_gable_roof"
+display_name = "Timber Gable Roof"
+category = "roof"
+building_level = 3
+occluder_side = "roof"
+bounds_size_meters = Vector3(13.3, 1.7, 11.6)
+
+[node name="FrontBeam" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 3.83333333, 0, -1.52254487, 0, 0, 0, 0, 1.58571111, -5.75, 0.04, 4.5)
+
+[node name="BackBeam" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 3.83333333, 0, -1.52254487, 0, 0, 0, 0, 1.58571111, -5.75, 0.04, -4.5)
+
+[node name="WestTie" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 0, 1.58571111, 1.52254487, 0, 0, 0, 3.1, 0, -5.5, 0.04, -4.65)
+
+[node name="EastTie" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 0, 1.58571111, 1.52254487, 0, 0, 0, 3.1, 0, 5.5, 0.04, -4.65)
+
+[node name="Rafter0Front" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 0, 0.918043273, 0.831974422, -0.46, 0, 0.203207912, 1.88333333, 0, -5.5, 1.35, 0)
+
+[node name="Rafter0Back" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 0, 0.918043273, -0.831974422, -0.46, 0, 0.203207912, -1.88333333, 0, -5.5, 1.35, 0)
+
+[node name="Rafter1Front" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 0, 0.918043273, 0.831974422, -0.46, 0, 0.203207912, 1.88333333, 0, -1.85, 1.35, 0)
+
+[node name="Rafter1Back" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 0, 0.918043273, -0.831974422, -0.46, 0, 0.203207912, -1.88333333, 0, -1.85, 1.35, 0)
+
+[node name="Rafter2Front" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 0, 0.918043273, 0.831974422, -0.46, 0, 0.203207912, 1.88333333, 0, 1.85, 1.35, 0)
+
+[node name="Rafter2Back" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 0, 0.918043273, -0.831974422, -0.46, 0, 0.203207912, -1.88333333, 0, 1.85, 1.35, 0)
+
+[node name="Rafter3Front" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 0, 0.918043273, 0.831974422, -0.46, 0, 0.203207912, 1.88333333, 0, 5.5, 1.35, 0)
+
+[node name="Rafter3Back" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 0, 0.918043273, -0.831974422, -0.46, 0, 0.203207912, -1.88333333, 0, 5.5, 1.35, 0)
+
+[node name="RidgeBeam" parent="." instance=ExtResource("2_timber")]
+transform = Transform3D(0, 4.43333333, 0, -1.14190865, 0, 0, 0, 0, 1.16841871, -6.65, 1.35, 0)
+
+[node name="RoofPanelFront1" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(0.95, 0, 0, 0, 1.35, 0, 0, 0, 3.86926785, -5.7, 0.15, 0)
+
+[node name="RoofPanelBack1" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(-0.95, 0, 0, 0, 1.35, 0, 0, 0, -3.86926785, -5.7, 0.15, 0)
+
+[node name="RoofPanelFront2" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(0.95, 0, 0, 0, 1.35, 0, 0, 0, 3.86926785, -3.8, 0.15, 0)
+
+[node name="RoofPanelBack2" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(-0.95, 0, 0, 0, 1.35, 0, 0, 0, -3.86926785, -3.8, 0.15, 0)
+
+[node name="RoofPanelFront3" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(0.95, 0, 0, 0, 1.35, 0, 0, 0, 3.86926785, -1.9, 0.15, 0)
+
+[node name="RoofPanelBack3" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(-0.95, 0, 0, 0, 1.35, 0, 0, 0, -3.86926785, -1.9, 0.15, 0)
+
+[node name="RoofPanelFront4" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(0.95, 0, 0, 0, 1.35, 0, 0, 0, 3.86926785, 0, 0.15, 0)
+
+[node name="RoofPanelBack4" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(-0.95, 0, 0, 0, 1.35, 0, 0, 0, -3.86926785, 0, 0.15, 0)
+
+[node name="RoofPanelFront5" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(0.95, 0, 0, 0, 1.35, 0, 0, 0, 3.86926785, 1.9, 0.15, 0)
+
+[node name="RoofPanelBack5" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(-0.95, 0, 0, 0, 1.35, 0, 0, 0, -3.86926785, 1.9, 0.15, 0)
+
+[node name="RoofPanelFront6" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(0.95, 0, 0, 0, 1.35, 0, 0, 0, 3.86926785, 3.8, 0.15, 0)
+
+[node name="RoofPanelBack6" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(-0.95, 0, 0, 0, 1.35, 0, 0, 0, -3.86926785, 3.8, 0.15, 0)
+
+[node name="RoofPanelFront7" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(0.95, 0, 0, 0, 1.35, 0, 0, 0, 3.86926785, 5.7, 0.15, 0)
+
+[node name="RoofPanelBack7" parent="." instance=ExtResource("3_roof")]
+transform = Transform3D(-0.95, 0, 0, 0, 1.35, 0, 0, 0, -3.86926785, 5.7, 0.15, 0)
+
+
+[node name="EastGable" parent="." instance=ExtResource("4_gable")]
+transform = Transform3D(0, 0, 0.3, 0, 0.245, 0, -1.18, 0, 0, 5.7, 0, 0)
+
+[node name="WestGable" parent="." instance=ExtResource("4_gable")]
+transform = Transform3D(0, 0, -0.3, 0, 0.245, 0, 1.18, 0, 0, -5.7, 0, 0)

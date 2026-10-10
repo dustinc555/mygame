@@ -8,6 +8,7 @@ var _projected_door: Node
 var _projected_blocker: StaticBody3D
 var _interactions: Node
 var _actor: Node3D
+var _locks: Node
 
 
 class DoorActuator extends Node3D:
@@ -65,6 +66,10 @@ func _run() -> void:
 	context.register(&"doors", _doors)
 	BootstrapContext.active = context
 	_doors.initialize(context)
+	_locks = load("res://features/lockpicking/sim/lockpicking_controller.gd").new()
+	root.add_child(_locks)
+	context.register(&"lockpicking", _locks)
+	_locks.initialize(context)
 	var interaction_controller_script = load("res://features/doors/bridge/door_interaction_controller.gd")
 	_interactions = interaction_controller_script.new()
 	root.add_child(_interactions)
@@ -78,7 +83,7 @@ func _run() -> void:
 	_validate_lock_and_access()
 	_validate_npc_auto_open()
 	_validate_scheduled_duty()
-	_validate_lockpick_gate_and_chance()
+	_validate_lockpick_work_gate()
 	_validate_exit_policies()
 	_expect(_doors._command_entity_by_id.is_empty(), "Resolved commands must not accumulate.")
 	root.free()
@@ -188,7 +193,7 @@ func _setup_projected_access_door(root: Node) -> void:
 	_projected_blocker = _projected_door.get_node("ClosedBlocker") as StaticBody3D
 	await process_frame
 	var locked_actions: Array = _projected_door.get_world_context_actions(_actor)
-	_expect(locked_actions.size() == 2 and str(locked_actions[0].get("key", "")) == "unlock" and str(locked_actions[1].get("key", "")) == "lockpick", "Locked doors must expose unlock and lockpick player actions.")
+	_expect(locked_actions.size() == 1 and str(locked_actions[0].get("key", "")) == "unlock", "Without a carried pick, locked doors must not expose picking.")
 
 
 func _validate_lock_and_access() -> void:
@@ -208,23 +213,27 @@ func _validate_lock_and_access() -> void:
 	_expect(_run_command("validator.actor", "validation.law_access", "unlock", {"active_law_response": true}).get("result_code") == "unlocked", "Dispatched law responders must receive temporary private-door authority.")
 
 
-func _validate_lockpick_gate_and_chance() -> void:
+func _validate_lockpick_work_gate() -> void:
 	_doors.register_door({
 		"door_id": "validation.lockpick",
 		"default_locked": true,
 		"lock_tier_id": "very_hard",
 	})
-	var ineligible := _run_command("validator.actor", "validation.lockpick", "lockpick", {
-		"lockpick_skill_level": 49.0,
+	var bypass: Dictionary = _doors.submit_command("validator.actor", "validation.lockpick", "lockpick", {
+		"lockpick_skill_level": 100.0,
 		"has_required_lockpick": true,
 	})
-	_expect(ineligible.get("result_code") == "lockpick_ineligible", "Very Hard locks must reject Lockpicking below 50.")
-	var result := _run_command("validator.actor", "validation.lockpick", "lockpick", {
-		"lockpick_skill_level": 50.0,
-		"has_required_lockpick": true,
-	})
-	_expect(is_equal_approx(float(result.get("chance", 0.0)), 0.01), "Lockpicking 50 must attempt Very Hard locks at 1%.")
-	_expect(result.get("result_code") == "lockpick_failed" or result.get("result_code") == "lockpicked", "Eligible lockpick must resolve through a chance result.")
+	_expect(not bypass.accepted, "A fabricated inventory snapshot must not bypass timed lock work.")
+	var tier: Resource = load("res://features/skills/resources/checks/lockpicking_check.tres").get_tier("very_hard")
+	_locks.register_lock({"lock_id": "door:validation.lockpick", "door_id": "validation.lockpick", "difficulty": tier.difficulty_level, "minimum_skill": tier.minimum_attempt_level})
+	var bag := InventoryData.new()
+	_expect(not _locks.claim("door:validation.lockpick", "validator.actor", bag, "careful").accepted, "Work requires a real inventory pick.")
+	bag.entries.append(bag.create_entry(load("res://features/inventory/resources/items/lockpick_fine.tres"), Vector2i.ZERO))
+	_locks.claim("door:validation.lockpick", "validator.actor", bag, "careful")
+	_expect(not _locks.advance("door:validation.lockpick", "validator.actor", bag, 49.0, 100.0, 120.0).accepted, "Very Hard locks reject skill below 50 at the work boundary.")
+	_locks.claim("door:validation.lockpick", "validator.actor", bag, "careful")
+	var result: Dictionary = _locks.advance("door:validation.lockpick", "validator.actor", bag, 100.0, 100.0, 120.0)
+	_expect(result.complete and not _doors.get_door_state("validation.lockpick").is_locked, "Completed shared work unlocks the actual door authority.")
 
 
 func _validate_npc_auto_open() -> void:

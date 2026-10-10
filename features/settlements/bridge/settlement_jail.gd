@@ -48,6 +48,14 @@ func _ready() -> void:
 	_repair_authoring_tree()
 	super._ready()
 	_refresh_discovered_furniture()
+	if not Engine.is_editor_hint():
+		_restore_saved_reservations.call_deferred()
+
+
+func _restore_saved_reservations() -> void:
+	var law := BootstrapContext.service(LAW_ORDER_SERVICE_ID)
+	if law != null:
+		law.restore_jail_reservations(self)
 
 
 func _process(delta: float) -> void:
@@ -98,6 +106,13 @@ func configure_settlement_assignment_actor(actor: Node, slot_id: String, slot_re
 	var role_index: int = max(0, int(slot_record.get("role_index", 0)))
 	var staff_root := _ensure_root(staff_root_path)
 	if actor == null or staff_root == null:
+		return
+	if str(slot_record.get("assignment_domain", "")) == "custody":
+		var law := BootstrapContext.service(LAW_ORDER_SERVICE_ID)
+		if law != null and actor is WorldActor:
+			var record: Dictionary = law.prisoner_records.get(actor.stable_id, {})
+			if not record.is_empty():
+				restore_prisoner_to_cell(actor, record)
 		return
 	if role not in ["warden", "guard"]:
 		return

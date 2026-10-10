@@ -5,6 +5,13 @@
 # Downloaded by setup_limboai.sh. Do not commit GDExtension binaries.
 /addons/limboai/
 
+# Sonniss single-user audio library: local use only; never upload raw sounds.
+# Attribution, license notes, and the source manifest remain trackable.
+/assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/
+
+# User-supplied music: keep raw recordings local pending license verification.
+/assets/vendor/dark-fantasy-studio/audio/
+
 # Local opencode behavior overrides.
 /opencode.json
 /.opencode/local-instructions.md

@@ -474,6 +474,7 @@ func _setup_factions_ui() -> void:
 		title.add_theme_font_size_override("font_size", 15)
 		title_row.add_child(title)
 		var close_button := Button.new()
+		close_button.set_meta(&"ui_audio_action", &"close")
 		close_button.name = "CloseButton"
 		close_button.text = "X"
 		close_button.custom_minimum_size = Vector2(32.0, 28.0)

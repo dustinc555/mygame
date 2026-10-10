@@ -12,6 +12,14 @@ class_name CGameCombatEncounter
 @export var defender_side_actor_ids: PackedStringArray = PackedStringArray()
 @export var committed_actor_ids: PackedStringArray = PackedStringArray()
 @export var aggression_target_by_actor: Dictionary = {}
+## Rights belong to the attacked party/squad, not transient tactical sides.
+## They expire with this encounter and survive the original victim going down.
+@export var defense_group_pairs: Dictionary = {}
+@export var aggression_records: Dictionary = {}
+@export var disengaged_targets_by_actor: Dictionary = {}
+## Local aid is directed at an attacker, independent of a battle's two sides.
+## A third party can be attacked without becoming allied to either old side.
+@export var assistance_targets_by_actor: Dictionary = {}
 
 
 func side_of(actor_id: String) -> int:
@@ -41,10 +49,15 @@ func mark_committed(actor_id: String) -> void:
 		committed_actor_ids.sort()
 
 
-func mark_aggression(attacker_actor_id: String, target_actor_id: String) -> bool:
-	if attacker_actor_id.is_empty() or target_actor_id.is_empty() or aggression_target_by_actor.has(attacker_actor_id):
+func mark_aggression(attacker_actor_id: String, target_actor_id: String, context: Dictionary = {}) -> bool:
+	var key := "%s|%s|%s" % [attacker_actor_id, target_actor_id, context.get("legal_reason", "")]
+	var previous: Dictionary = aggression_records.get(key, {})
+	if attacker_actor_id.is_empty() or target_actor_id.is_empty() or (not previous.is_empty() and (previous.get("settled_factions", []) as Array).is_empty()):
 		return false
 	aggression_target_by_actor[attacker_actor_id] = target_actor_id
+	var record := context.duplicate(true)
+	record.merge({"pair_key": key, "attacker_actor_id": attacker_actor_id, "protected_actor_id": target_actor_id, "origin": origin, "encounter_id": encounter_id}, true)
+	aggression_records[key] = record
 	return true
 
 

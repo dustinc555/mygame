@@ -1,8 +1,9 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="PackedScene" path="res://features/ui/projection/floating_notice.tscn" id="1_notice"]
 [ext_resource type="PackedScene" path="res://features/ui/projection/humanoid_details_panel.tscn" id="2_details"]
 [ext_resource type="PackedScene" path="res://features/conversation/conversation_window.tscn" id="3_conversation"]
+[ext_resource type="Script" path="res://features/ui/projection/world_action_popup.gd" id="4_actions"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_party_bar"]
 bg_color = Color(0.075, 0.07, 0.065, 0.96)
@@ -38,7 +39,8 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="ContextMenu" type="PopupMenu" parent="."]
+[node name="ContextMenu" type="PopupPanel" parent="."]
+script = ExtResource("4_actions")
 
 [node name="BuildMenuButton" type="Button" parent="."]
 anchor_top = 1.0
@@ -413,14 +415,13 @@ toggle_mode = true
 focus_mode = 0
 text = "Auto Heal"
 
-[node name="BurnRustdeadButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
-custom_minimum_size = Vector2(104, 24)
+[node name="ShareFoodButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
+custom_minimum_size = Vector2(84, 24)
 layout_mode = 2
 size_flags_horizontal = 3
 toggle_mode = true
 focus_mode = 0
-theme_override_font_sizes/font_size = 9
-text = "Burn Rustdead"
+text = "Share Food"
 
 [node name="JobsButton" type="Button" parent="HudLayout/BottomHud/RightHud/BottomInfoRow/CommandDock/Margin/CommandColumn/BehaviorRows/AssistRow"]
 custom_minimum_size = Vector2(60, 24)
@@ -428,7 +429,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 toggle_mode = true
 focus_mode = 0
-text = "Jobs"
+text = "Work"
 
 [node name="PortraitBar" type="PanelContainer" parent="HudLayout/BottomHud/RightHud/BottomInfoRow"]
 theme_override_styles/panel = SubResource("StyleBoxFlat_party_bar")

@@ -1,0 +1,13 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/items/tools/lockpick/lockpick.glb" id="1"]
+
+[node name="LockpickModel" type="Node3D"]
+
+[node name="GripPoint_Primary" type="Marker3D" parent="."]
+position = Vector3(0, 0.0335, 0)
+
+[node name="ToolTip" type="Marker3D" parent="."]
+position = Vector3(0.009, 0.161, 0)
+
+[node name="Model" parent="." instance=ExtResource("1")]

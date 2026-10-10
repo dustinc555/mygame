@@ -4,6 +4,7 @@ extends StaticBody3D
 class_name WorldContainer
 
 const NAVIGATION_QUERIES := preload("res://features/core/navigation/world_navigation_queries.gd")
+const LOCK_TARGET := preload("res://features/lockpicking/bridge/lockpick_target.gd")
 
 signal inventory_changed
 signal interaction_resolved(container, actor)
@@ -41,6 +42,9 @@ signal interaction_resolved(container, actor)
 @export var inventory_rows := 5
 @export var is_locked := false
 @export var supports_locking := true
+@export_range(0, 100, 1) var lock_difficulty := 25
+## Optional named LockPoint overrides this model-local contact point.
+@export var lock_contact_offset := Vector3(0.0, 0.6, 0.3)
 ## Arm's length: opening a container means standing at it, not across the room.
 @export var interaction_distance := 1.6
 @export var slot_distance := 1.3
@@ -113,6 +117,7 @@ func _ready() -> void:
 	if not container_id.strip_edges().is_empty():
 		inventory.configure_stack_allocator(container_id, next_stack_sequence)
 	add_to_group("world_container")
+	_bind_lockpick_target.call_deferred()
 	add_to_group(FurnitureRules.FURNITURE_GROUP)
 	_apply_collision_settings()
 	_rebuild_visual()
@@ -121,6 +126,44 @@ func _ready() -> void:
 			_seed_starting_inventory()
 	else:
 		call_deferred("_bind_inventory_state")
+
+
+func _bind_lockpick_target() -> void:
+	LOCK_TARGET.bind(self)
+
+
+func get_lockpick_record() -> Dictionary:
+	if not supports_locking or container_id.is_empty():
+		return {}
+	return {"lock_id": "container:%s" % container_id, "is_locked": is_locked, "difficulty": lock_difficulty}
+
+
+func get_lockpick_contact(_actor = null) -> Vector3:
+	var marker := get_node_or_null("LockPoint") as Node3D
+	return marker.global_position if marker != null else global_transform * lock_contact_offset
+
+
+func get_lockpick_position(actor = null) -> Vector3:
+	var marker := get_node_or_null("LockWorkPoint") as Node3D
+	if marker != null:
+		return marker.global_position
+	var contact := get_lockpick_contact(actor)
+	var point := contact + global_basis.z.normalized() * 0.6
+	point.y = global_position.y
+	return point
+
+
+func apply_lockpick_state(state: Dictionary) -> void:
+	if not state.is_empty():
+		is_locked = bool(state.is_locked)
+
+
+func get_world_context_actions(actor = null) -> Array:
+	return LOCK_TARGET.actions(self, actor)
+
+
+func perform_world_context_action(action: String, actors: Array) -> String:
+	return LOCK_TARGET.request(self, action, actors)
 
 
 func _enter_tree() -> void:

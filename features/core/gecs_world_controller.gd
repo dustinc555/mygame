@@ -3,6 +3,8 @@ extends Node
 class_name GecsWorldController
 
 const SERVICE_ID := &"gecs_world"
+## Value-only projection edge from the registered authoritative combat system.
+signal combat_audio_event(event: Dictionary)
 
 const WORLD_SCRIPT_PATH := "res://addons/gecs/ecs/world.gd"
 const ENTITY_SCRIPT_PATH := "res://addons/gecs/ecs/entity.gd"
@@ -308,7 +310,11 @@ func _connect_actor_gecs_sync(actor: Node) -> void:
 	var world_actor := actor as WorldActor
 	if world_actor == null:
 		return
+	if not world_actor.share_food_changed.is_connected(_on_actor_share_food_changed.bind(actor)):
+		world_actor.share_food_changed.connect(_on_actor_share_food_changed.bind(actor))
 	if world_actor.get_inventory() != null:
+		if world_actor.inventory != null:
+			world_actor.inventory.additional_weight_provider = _equipped_storage_weight.bind(weakref(world_actor))
 		var inventory_signal: Signal = world_actor.get_inventory().inventory_changed
 		if not inventory_signal.is_connected(sync_actor_inventory.bind(actor)):
 			inventory_signal.connect(sync_actor_inventory.bind(actor))
@@ -322,8 +328,40 @@ func _connect_actor_gecs_sync(actor: Node) -> void:
 			rest_signal.connect(request_actor_rest_state)
 
 
+func _equipped_storage_weight(actor_ref: WeakRef) -> float:
+	var actor = actor_ref.get_ref()
+	if not is_instance_valid(actor) or actor.is_queued_for_deletion():
+		return 0.0
+	var equipment = actor.get_equipment()
+	if equipment == null or actor.inventory == null:
+		return 0.0
+	var total := 0.0
+	for slot in equipment.get_equipped_items():
+		var item: ItemDefinition = equipment.get_equipped_item(slot)
+		if item == null or not item.has_storage():
+			continue
+		var stack_id: String = equipment.get_equipped_stack_id(slot)
+		# During equip publication the same exact item may still be in the grid.
+		var in_grid := false
+		for entry in actor.inventory.entries:
+			if entry.stack_id == stack_id:
+				in_grid = true
+		if not in_grid:
+			total += item.unit_weight + actor.inventory.get_item_storage_weight(stack_id, get_item_stack(stack_id).get("metadata", {}))
+	return total
+
+
 func _on_actor_equipment_changed(_changed_slots: Array, actor: Node) -> void:
 	sync_actor_inventory(actor)
+
+
+func _on_actor_share_food_changed(enabled: bool, actor: Node) -> void:
+	var entity = _population_entity_by_actor_id.get(_actor_record_id(actor))
+	if not is_instance_valid(entity):
+		return
+	var population = entity.get_component(C_POPULATION_RECORD)
+	if population != null:
+		population.share_food_enabled = enabled
 
 
 ## Queues a voluntary ALIVE/ASLEEP transition by stable ID. GameVitalsSystem
@@ -404,6 +442,8 @@ func _disconnect_actor_gecs_sync(actor: Node) -> void:
 	var world_actor := actor as WorldActor
 	if world_actor == null:
 		return
+	if world_actor.share_food_changed.is_connected(_on_actor_share_food_changed.bind(actor)):
+		world_actor.share_food_changed.disconnect(_on_actor_share_food_changed.bind(actor))
 	if world_actor.get_inventory() != null:
 		var inventory_callback := sync_actor_inventory.bind(actor)
 		if world_actor.get_inventory().inventory_changed.is_connected(inventory_callback):
@@ -2836,6 +2876,7 @@ func _try_initialize() -> void:
 		var combat_resolution = _combat_resolution_system_script.new()
 		combat_resolution.name = "GameCombatResolutionSystem"
 		combat_resolution.combat_response_system = _combat_response_system
+		combat_resolution.combat_audio_event.connect(_on_combat_audio_event)
 		world.add_system(combat_resolution)
 		_vitals_system = _vitals_system_script.new()
 		_vitals_system.name = "GameVitalsSystem"
@@ -2865,6 +2906,10 @@ func _try_initialize() -> void:
 		ecs_node.set("world", world)
 		world.finalize_system_setup()
 	_initialized = true
+
+
+func _on_combat_audio_event(event: Dictionary) -> void:
+	combat_audio_event.emit(event)
 
 
 func _write_actor_components(entity, actor: Node, actor_id: String, settlement_id: String, context: Dictionary) -> void:

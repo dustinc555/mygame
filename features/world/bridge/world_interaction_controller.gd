@@ -4,11 +4,14 @@ class_name WorldInteractionController
 
 const SERVICE_ID := &"world_interaction"
 const NPC_ACTION_KILL := &"kill"
+const NPC_ACTION_DEGRADE_HUNGER := &"degrade_hunger_level"
 const CROP_ACTION_ADVANCE := &"advance_crop"
 const CROP_ACTION_FULL_GROW := &"full_grow_crop"
 
 signal npc_instant_action_finished(action_id: StringName, target: WorldActor, success: bool, message: String)
 signal crop_debug_action_finished(action_id: StringName, success: bool, message: String)
+## The viewed ground/actor focus, not the orbiting camera's offset position.
+signal camera_focus_changed(world_position: Vector3)
 
 const ACTOR_BODY_PICKER = preload("res://features/world/bridge/actor_body_picker.gd")
 const CLICK_RAY_LENGTH := 500.0
@@ -17,6 +20,8 @@ const WORLD_TEXT_NOTICE_SCENE = preload("res://features/world/projection/effects
 const PARTY_PORTRAIT_CARD_SCENE = preload("res://features/ui/projection/party_portrait_card.tscn")
 const COMBAT_COORDINATOR = preload("res://features/combat/bridge/combat_coordinator.gd")
 const WORLD_CONTEXT_ACTION_MENU = preload("res://features/world/bridge/world_context_action_menu.gd")
+const WORLD_ACTION_POPUP = preload("res://features/ui/projection/world_action_popup.gd")
+const LOCK_PROGRESS_SYMBOL := preload("res://features/lockpicking/projection/lock_progress_symbol.gd")
 
 const ACTION_INVENTORY := 1
 const ACTION_MINE := 2
@@ -41,7 +46,7 @@ const ACTION_LOOT := 20
 const ACTION_WORLD_CONTEXT_BASE := 10000
 const SQUAD_MENU_RENAME := 1
 const ALL_SQUADS_FILTER := ""
-const DEFAULT_PLAYER_SQUAD_NAME := "Squad 1"
+
 const FREE_CAMERA_PITCH := -0.65
 const FOLLOW_CAMERA_HEIGHT := 1.35
 const ORBIT_MIN_PITCH := -1.2
@@ -76,6 +81,7 @@ var party_members: Array[WorldActor] = []
 var portrait_cards: Array[PartyPortraitCard] = []
 var work_progress_bars: Dictionary = {}
 var camera_anchor := Vector3.ZERO
+var _last_camera_focus := Vector3.INF
 var camera_yaw := deg_to_rad(45.0)
 var camera_pitch := FREE_CAMERA_PITCH
 var camera_distance := 11.0
@@ -110,7 +116,7 @@ var camera_rig: Node3D
 var camera_pivot: Node3D
 var camera: Camera3D
 var selection_rect: ColorRect
-var context_menu: PopupMenu
+var context_menu: WORLD_ACTION_POPUP
 var build_menu_button: Button
 var build_menu_popup: PopupMenu
 var farming_build_menu: PopupMenu
@@ -129,7 +135,7 @@ var walk_button: Button
 var running_button: Button
 var sneaking_button: Button
 var auto_heal_button: Button
-var auto_burn_rustdead_button: Button
+var share_food_button: Button
 var jobs_button: Button
 var aggressive_button: Button
 var defensive_button: Button
@@ -140,6 +146,7 @@ var conversation_controller
 var ownership_controller
 var item_read_controller: Node
 var population_controller: PopulationController
+var player_party_controller: PlayerPartyController
 var building_visibility_controller
 var terrain_camera_controller
 var floating_notice: FloatingNotice
@@ -156,6 +163,8 @@ var squad_menu: PopupMenu
 var squad_rename_dialog: AcceptDialog
 var squad_rename_line_edit: LineEdit
 var squad_menu_target_name := ""
+var _creating_squad := false
+var _member_squad_names: Dictionary = {}
 var _initialized := false
 
 
@@ -198,7 +207,7 @@ func _do_initialize() -> void:
 	running_button = hud_layer.get_node_or_null(command_rows_path + "/MoveRow/MovementSegment/RunningButton")
 	sneaking_button = hud_layer.get_node_or_null(command_rows_path + "/MoveRow/MovementSegment/SneakingButton")
 	auto_heal_button = hud_layer.get_node_or_null(command_rows_path + "/AssistRow/AutoHealButton")
-	auto_burn_rustdead_button = hud_layer.get_node_or_null(command_rows_path + "/AssistRow/BurnRustdeadButton")
+	share_food_button = hud_layer.get_node_or_null(command_rows_path + "/AssistRow/ShareFoodButton")
 	jobs_button = hud_layer.get_node_or_null(command_rows_path + "/AssistRow/JobsButton")
 	aggressive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/AggressiveButton")
 	defensive_button = hud_layer.get_node_or_null(command_rows_path + "/FightRow/CombatSegment/DefensiveButton")
@@ -221,6 +230,8 @@ func _do_initialize() -> void:
 	ownership_controller = _context.get_optional(OwnershipController.SERVICE_ID)
 	item_read_controller = _context.get_optional(&"item_read")
 	population_controller = _context.require(PopulationController.SERVICE_ID) as PopulationController
+	player_party_controller = _context.require(PlayerPartyController.SERVICE_ID) as PlayerPartyController
+	player_party_controller.roster_changed.connect(_refresh_squad_tabs)
 	law_order_controller = _context.get_optional(LawOrderController.SERVICE_ID) as LawOrderController
 	building_visibility_controller = _context.get_optional(BuildingVisibilityController.SERVICE_ID)
 	terrain_camera_controller = _context.get_optional(TerrainCameraController.SERVICE_ID)
@@ -271,8 +282,9 @@ func _do_initialize() -> void:
 func _register_party_member(member: WorldActor) -> void:
 	if member == null or party_members.has(member):
 		return
-	_normalize_party_member_squad(member)
 	party_members.append(member)
+	_member_squad_names[member] = _get_member_squad_name(member)
+	member.simulation_profile_changed.connect(_on_member_squad_changed.bind(member))
 	if member.has_signal("container_reached"):
 		member.connect("container_reached", Callable(self, "_on_party_member_container_reached"))
 	if member.has_signal("trade_target_reached"):
@@ -299,15 +311,21 @@ func _add_portrait_for_member(member: WorldActor) -> void:
 func _ensure_work_progress_bar(member: WorldActor) -> void:
 	if progress_layer == null or member == null or work_progress_bars.has(member):
 		return
+	var bar := _create_work_progress_bar()
+	progress_layer.add_child(bar)
+	work_progress_bars[member] = bar
+
+
+func _create_work_progress_bar() -> ProgressBar:
 	var bar := ProgressBar.new()
 	bar.min_value = 0.0
 	bar.max_value = 100.0
 	bar.value = 0.0
 	bar.custom_minimum_size = Vector2(90.0, 12.0)
 	bar.show_percentage = false
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar.visible = false
-	progress_layer.add_child(bar)
-	work_progress_bars[member] = bar
+	return bar
 
 
 func _process(delta: float) -> void:
@@ -424,10 +442,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func arm_npc_instant_action(action_id: StringName) -> bool:
-	if action_id != NPC_ACTION_KILL:
+	if action_id not in [NPC_ACTION_KILL, NPC_ACTION_DEGRADE_HUNGER]:
 		return false
+	cancel_crop_debug_action()
 	_pending_npc_instant_action = action_id
 	return true
+
+
+func get_npc_instant_action_prompt(action_id: StringName) -> String:
+	return "Click a living non-party NPC" if action_id == NPC_ACTION_KILL else "Click a living character"
 
 
 func arm_crop_debug_action(action_id: StringName) -> bool:
@@ -494,8 +517,8 @@ func _handle_npc_instant_action_input(event: InputEvent) -> bool:
 	if event.button_index != MOUSE_BUTTON_LEFT:
 		return false
 	var target := _pick_inspectable_target(event.position) as WorldActor
-	if target == null or target.is_player_party_member():
-		npc_instant_action_finished.emit(_pending_npc_instant_action, null, false, "Click a living non-party NPC")
+	if not is_instance_valid(target) or (_pending_npc_instant_action == NPC_ACTION_KILL and target.is_player_party_member()):
+		npc_instant_action_finished.emit(_pending_npc_instant_action, null, false, get_npc_instant_action_prompt(_pending_npc_instant_action))
 		return true
 	var action_id := _pending_npc_instant_action
 	_pending_npc_instant_action = &""
@@ -505,13 +528,24 @@ func _handle_npc_instant_action_input(event: InputEvent) -> bool:
 
 
 func _execute_npc_instant_action(action_id: StringName, target: WorldActor) -> Dictionary:
-	if action_id != NPC_ACTION_KILL or target == null or not is_instance_valid(target) or target.is_player_party_member():
+	if action_id not in [NPC_ACTION_KILL, NPC_ACTION_DEGRADE_HUNGER] or not is_instance_valid(target) or target.is_queued_for_deletion():
+		return {"success": false, "message": "Invalid character target"}
+	if action_id == NPC_ACTION_KILL and target.is_player_party_member():
 		return {"success": false, "message": "Invalid NPC target"}
 	if target.life_state == NpcRules.LifeState.DEAD:
-		return {"success": false, "message": "NPC is already dead"}
+		return {"success": false, "message": "Character is already dead"}
 	var actor_id := str(target.get_meta("actor_record_id", target.stable_id))
 	if population_controller == null or actor_id.is_empty() or population_controller.get_actor_record(actor_id).is_empty():
-		return {"success": false, "message": "NPC has no permanent population record"}
+		return {"success": false, "message": "Character has no permanent population record"}
+	if action_id == NPC_ACTION_DEGRADE_HUNGER:
+		var needs := target.get_needs()
+		if needs == null or not needs.hunger_enabled:
+			return {"success": false, "message": "Character does not use hunger"}
+		if not needs.degrade_hunger_stage():
+			return {"success": false, "message": "Character is already Starving"}
+		population_controller.update_actor_record(actor_id, {"needs_state": needs.durable_state()})
+		target.state_changed.emit()
+		return {"success": true, "message": "%s: %s" % [target.member_name, needs.get_hunger_stage_label()]}
 	population_controller.mark_record_dead(actor_id, target)
 	var record := population_controller.get_actor_record(actor_id)
 	var killed := int(record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD \
@@ -647,7 +681,8 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 		var humanoid_actions: Array = []
 		var inventory_action := OwnershipController.get_character_inventory_action(_get_focused_party_member(), collider)
 		if not inventory_action.is_empty():
-			humanoid_actions.append({"id": ACTION_LOOT if inventory_action == "loot" else ACTION_PICKPOCKET, "label": inventory_action.capitalize()})
+			var loot_color: Color = ownership_controller.get_take_item_color(_get_focused_party_member() as HumanoidCharacter, collider) if ownership_controller != null else Color.TRANSPARENT
+			humanoid_actions.append({"id": ACTION_LOOT if inventory_action == "loot" else ACTION_PICKPOCKET, "label": inventory_action.capitalize(), "color": loot_color})
 		if collider.is_downed_state():
 			_append_downed_target_actions(humanoid_actions, collider)
 		elif collider.life_state == NpcRules.LifeState.DEAD or collider.life_state == NpcRules.LifeState.ASLEEP:
@@ -655,7 +690,12 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 				humanoid_actions.append({"id": ACTION_CARRY, "label": "Carry"})
 			humanoid_actions.append({"id": ACTION_HEAL, "label": "Heal"})
 		else:
-			humanoid_actions.append({"id": ACTION_ATTACK, "label": "Attack"})
+			var attack_color := Color.TRANSPARENT
+			if law_order_controller != null:
+				for member in party_manager.selected_members:
+					if bool(law_order_controller.assess_attack(member, collider).get("illegal", false)):
+						attack_color = OwnershipController.STEAL_ACTION_COLOR
+			humanoid_actions.append({"id": ACTION_ATTACK, "label": "Attack", "color": attack_color})
 			humanoid_actions.append({"id": ACTION_HEAL, "label": "Heal"})
 			if _selection_can_carry_target(collider):
 				humanoid_actions.append({"id": ACTION_CARRY, "label": "Carry"})
@@ -670,14 +710,12 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 	if collider is Node and collider.is_in_group("world_container") and not party_manager.selected_members.is_empty():
 		context_container = collider
 		var container_action := {"id": ACTION_OPEN_CONTAINER, "label": "Open"}
-		if context_container.is_locked:
-			container_action = {"id": ACTION_UNLOCK_CONTAINER, "label": "Unlock"}
 		var container_actor := _get_focused_party_member()
 		if ownership_controller != null and container_actor != null and ownership_controller.has_method("get_open_container_color"):
 			var open_color = ownership_controller.call("get_open_container_color", container_actor, context_container)
 			if open_color is Color and (open_color as Color).a > 0.0:
 				container_action["color"] = open_color
-		var container_actions: Array = [container_action]
+		var container_actions: Array = [] if context_container.is_locked else [container_action]
 		if context_container.has_method("get_world_context_actions"):
 			context_world_action_target = context_container
 			context_world_actions = context_container.call("get_world_context_actions", container_actor)
@@ -685,6 +723,7 @@ func _handle_right_click(screen_position: Vector2) -> bool:
 				container_actions.append({
 					"id": ACTION_WORLD_CONTEXT_BASE + index,
 					"label": str(context_world_actions[index].get("label", "Action")),
+					"color": context_world_actions[index].get("color", Color.TRANSPARENT),
 				})
 		_show_context_menu_actions(screen_position, container_actions)
 		return false
@@ -750,20 +789,7 @@ func _show_context_menu(screen_position: Vector2, action_id: int, label: String)
 func _show_context_menu_actions(screen_position: Vector2, actions: Array) -> void:
 	if context_menu == null:
 		return
-	context_menu.clear()
-	context_menu.remove_theme_color_override("font_color")
-	context_menu.remove_theme_color_override("font_hover_color")
-	# PopupMenu has no per-item font color, so the first colored action tints
-	# the whole menu — right for doors/containers where the color means "this
-	# is someone else's property" and applies to the interaction as a whole.
-	for action in actions:
-		var action_color = action.get("color", null)
-		if action_color is Color and (action_color as Color).a > 0.0:
-			context_menu.add_theme_color_override("font_color", action_color)
-			context_menu.add_theme_color_override("font_hover_color", (action_color as Color).lerp(Color.WHITE, 0.25))
-			break
-	for action in actions:
-		context_menu.add_item(action["label"], action["id"])
+	context_menu.set_actions(actions)
 	context_menu.position = Vector2i(screen_position)
 	context_menu.popup()
 
@@ -1340,41 +1366,39 @@ func _refresh_squad_tabs() -> void:
 
 func _sync_squad_names() -> void:
 	var names: Array[String] = []
-	for existing_name in squad_names:
-		var normalized_existing := str(existing_name).strip_edges()
-		if not normalized_existing.is_empty() and not names.has(normalized_existing):
-			names.append(normalized_existing)
+	if player_party_controller != null:
+		names = player_party_controller.get_squad_names()
 	for member in party_members:
-		var squad_name := _normalize_party_member_squad(member)
-		if not names.has(squad_name):
+		var squad_name := _get_member_squad_name(member)
+		if not squad_name.is_empty() and not names.has(squad_name):
 			names.append(squad_name)
-	if names.is_empty():
-		names.append(DEFAULT_PLAYER_SQUAD_NAME)
 	squad_names = names
 	if not active_squad_filter.is_empty() and not squad_names.has(active_squad_filter):
 		active_squad_filter = ALL_SQUADS_FILTER
 
 
-func _normalize_party_member_squad(member: WorldActor) -> String:
-	if member == null:
-		return DEFAULT_PLAYER_SQUAD_NAME
-	var normalized_name := member.squad_name.strip_edges()
-	if normalized_name.is_empty() or normalized_name == "Default":
-		normalized_name = DEFAULT_PLAYER_SQUAD_NAME
-		member.squad_name = normalized_name
-	return normalized_name
+func _get_member_squad_name(member: WorldActor) -> String:
+	return member.squad_name.strip_edges() if member != null else ""
+
+
+func _on_member_squad_changed(member: WorldActor) -> void:
+	var squad := _get_member_squad_name(member)
+	if _member_squad_names.get(member) == squad:
+		return
+	_member_squad_names[member] = squad
+	_refresh_squad_tabs()
 
 
 func _should_show_member_in_active_squad(member: WorldActor) -> bool:
 	if member == null or active_squad_filter.is_empty():
 		return true
-	return _normalize_party_member_squad(member) == active_squad_filter
+	return _get_member_squad_name(member) == active_squad_filter
 
 
 func _get_squad_member_count(squad_name: String) -> int:
 	var count := 0
 	for member in party_members:
-		if _normalize_party_member_squad(member) == squad_name:
+		if _get_member_squad_name(member) == squad_name:
 			count += 1
 	return count
 
@@ -1400,18 +1424,15 @@ func _on_squad_tab_toggled(button_pressed: bool, squad_name: String) -> void:
 
 
 func _on_add_squad_pressed() -> void:
-	var squad_name := _get_next_squad_name()
-	if not squad_names.has(squad_name):
-		squad_names.append(squad_name)
-	active_squad_filter = squad_name
-	_refresh_squad_tabs()
-
-
-func _get_next_squad_name() -> String:
-	var index := 1
-	while squad_names.has("Squad %d" % index):
-		index += 1
-	return "Squad %d" % index
+	_ensure_squad_menu()
+	if squad_rename_dialog == null or squad_rename_line_edit == null:
+		return
+	_creating_squad = true
+	squad_menu_target_name = ""
+	squad_rename_dialog.title = "Create Squad"
+	squad_rename_line_edit.text = ""
+	squad_rename_dialog.popup_centered(Vector2i(280, 92))
+	call_deferred("_focus_squad_rename_line_edit")
 
 
 func _get_squad_tab_node_name(squad_name: String) -> String:
@@ -1522,6 +1543,7 @@ func _open_squad_rename_dialog(squad_name: String) -> void:
 		return
 	squad_menu_target_name = squad_name
 	squad_rename_dialog.title = "Rename %s" % squad_name
+	_creating_squad = false
 	squad_rename_line_edit.text = squad_name
 	squad_rename_dialog.popup_centered(Vector2i(280, 92))
 	call_deferred("_focus_squad_rename_line_edit")
@@ -1549,34 +1571,18 @@ func _on_squad_rename_confirmed() -> void:
 func _confirm_squad_rename(raw_name: String) -> void:
 	var old_name := squad_menu_target_name.strip_edges()
 	var new_name := raw_name.strip_edges()
-	if old_name.is_empty() or new_name.is_empty() or old_name == new_name:
+	if player_party_controller == null or new_name.is_empty():
 		return
-	if new_name.to_lower() == "all" or new_name.to_lower() == "default":
+	var was_active := active_squad_filter == old_name
+	var changed := player_party_controller.create_squad(new_name) if _creating_squad else player_party_controller.rename_squad(old_name, new_name)
+	if not changed:
 		_show_center_notice("Squad name unavailable")
 		return
-	if _squad_name_exists(new_name, old_name):
-		_show_center_notice("Squad name already exists")
-		return
-	for index in range(squad_names.size()):
-		if squad_names[index] == old_name:
-			squad_names[index] = new_name
-	for member in party_members:
-		if _normalize_party_member_squad(member) == old_name:
-			member.squad_name = new_name
-	if active_squad_filter == old_name:
+	if _creating_squad or was_active:
 		active_squad_filter = new_name
+	_creating_squad = false
 	squad_menu_target_name = new_name
 	_refresh_squad_tabs()
-
-
-func _squad_name_exists(squad_name: String, ignored_name: String = "") -> bool:
-	var normalized_name := squad_name.strip_edges().to_lower()
-	var ignored_normalized := ignored_name.strip_edges().to_lower()
-	for existing_name in squad_names:
-		var normalized_existing := str(existing_name).strip_edges().to_lower()
-		if normalized_existing == normalized_name and normalized_existing != ignored_normalized:
-			return true
-	return false
 
 
 func _setup_command_bar() -> void:
@@ -1587,7 +1593,7 @@ func _setup_command_bar() -> void:
 	_set_command_segment_position(defensive_button, SEGMENT_MIDDLE)
 	_set_command_segment_position(passive_button, SEGMENT_RIGHT)
 	_set_command_segment_position(auto_heal_button, SEGMENT_SINGLE)
-	_set_command_segment_position(auto_burn_rustdead_button, SEGMENT_SINGLE)
+	_set_command_segment_position(share_food_button, SEGMENT_SINGLE)
 	_set_command_segment_position(jobs_button, SEGMENT_SINGLE)
 	if walk_button != null:
 		walk_button.pressed.connect(_on_movement_button_pressed.bind(MOVEMENT_MODE_WALK))
@@ -1597,8 +1603,8 @@ func _setup_command_bar() -> void:
 		sneaking_button.pressed.connect(_on_movement_button_pressed.bind(MOVEMENT_MODE_SNEAK))
 	if auto_heal_button != null:
 		auto_heal_button.toggled.connect(_on_auto_heal_button_toggled)
-	if auto_burn_rustdead_button != null:
-		auto_burn_rustdead_button.toggled.connect(_on_auto_burn_rustdead_button_toggled)
+	if share_food_button != null:
+		share_food_button.toggled.connect(_on_share_food_button_toggled)
 	if jobs_button != null:
 		jobs_button.toggled.connect(_on_jobs_button_toggled)
 	if aggressive_button != null:
@@ -1611,7 +1617,7 @@ func _setup_command_bar() -> void:
 
 
 func _update_command_bar() -> void:
-	if walk_button == null or running_button == null or sneaking_button == null or auto_heal_button == null or auto_burn_rustdead_button == null or jobs_button == null or aggressive_button == null or defensive_button == null or passive_button == null:
+	if walk_button == null or running_button == null or sneaking_button == null or auto_heal_button == null or share_food_button == null or jobs_button == null or aggressive_button == null or defensive_button == null or passive_button == null:
 		return
 	var has_selection := not party_manager.selected_members.is_empty()
 	if not has_selection:
@@ -1619,7 +1625,7 @@ func _update_command_bar() -> void:
 		_set_command_toggle(running_button, false, true)
 		_set_command_toggle(sneaking_button, false, true)
 		_set_command_toggle(auto_heal_button, false, true)
-		_set_command_toggle(auto_burn_rustdead_button, false, true)
+		_set_command_toggle(share_food_button, false, true)
 		_set_command_toggle(jobs_button, false, true)
 		_set_command_toggle(aggressive_button, false, true)
 		_set_command_toggle(defensive_button, false, true)
@@ -1633,8 +1639,8 @@ func _update_command_bar() -> void:
 	var all_sneaking := true
 	var any_auto_heal := false
 	var all_auto_heal := true
-	var any_auto_burn := false
-	var all_auto_burn := true
+	var any_share_food := false
+	var all_share_food := true
 	var any_jobs := false
 	var all_jobs := true
 	var job_system = _context.get_optional(&"job_system") if _context != null else null
@@ -1645,7 +1651,7 @@ func _update_command_bar() -> void:
 		var member_sneaking: bool = member.sneaking
 		var member_walking := not member_running and not member_sneaking
 		var member_auto_heal: bool = member.has_method("is_auto_heal_enabled") and member.is_auto_heal_enabled()
-		var member_auto_burn: bool = member.has_method("is_auto_burn_rustdead_enabled") and member.is_auto_burn_rustdead_enabled()
+		var member_share_food: bool = member.has_method("is_share_food_enabled") and member.is_share_food_enabled()
 		var member_jobs: bool = job_system != null and job_system.has_method("is_actor_jobs_enabled") and bool(job_system.call("is_actor_jobs_enabled", member))
 		if member_walking:
 			any_walking = true
@@ -1663,10 +1669,10 @@ func _update_command_bar() -> void:
 			any_auto_heal = true
 		else:
 			all_auto_heal = false
-		if member_auto_burn:
-			any_auto_burn = true
+		if member_share_food:
+			any_share_food = true
 		else:
-			all_auto_burn = false
+			all_share_food = false
 		if member_jobs:
 			any_jobs = true
 		else:
@@ -1677,7 +1683,7 @@ func _update_command_bar() -> void:
 	_set_command_toggle(running_button, any_running, false, any_running and not all_running)
 	_set_command_toggle(sneaking_button, any_sneaking, false, any_sneaking and not all_sneaking)
 	_set_command_toggle(auto_heal_button, any_auto_heal, false, any_auto_heal and not all_auto_heal)
-	_set_command_toggle(auto_burn_rustdead_button, any_auto_burn, false, any_auto_burn and not all_auto_burn)
+	_set_command_toggle(share_food_button, any_share_food, false, any_share_food and not all_share_food)
 	_set_command_toggle(jobs_button, any_jobs, false, any_jobs and not all_jobs)
 	_set_command_toggle(aggressive_button, not mixed_stance and first_stance == NpcRules.CombatStance.AGGRESSIVE, false)
 	_set_command_toggle(defensive_button, not mixed_stance and first_stance == NpcRules.CombatStance.DEFENSIVE, false)
@@ -1751,7 +1757,9 @@ func _update_progress_bars() -> void:
 		if bar == null:
 			continue
 		var progress_ratio := _get_member_work_progress_ratio(member)
-		if progress_ratio <= 0.0:
+		var picking: bool = member.has_method("is_actively_lockpicking") and member.is_actively_lockpicking()
+		_update_lock_progress(bar, picking, member.get_lockpick_progress_ratio() if picking else 0.0)
+		if progress_ratio <= 0.0 and not picking:
 			bar.visible = false
 			continue
 		var world_position: Vector3 = member.global_position + Vector3(0.0, 2.35, 0.0)
@@ -1764,9 +1772,28 @@ func _update_progress_bars() -> void:
 		bar.value = progress_ratio * 100.0
 
 
+## A lock ornament displays earned passes beside the unchanged shared timer.
+func _update_lock_progress(bar: ProgressBar, active: bool, ratio: float) -> void:
+	var earned := bar.get_node_or_null("LockProgress")
+	if earned == null:
+		if not active:
+			return
+		earned = LOCK_PROGRESS_SYMBOL.new()
+		earned.name = "LockProgress"
+		bar.add_child(earned)
+	var locks := _context.get_optional(&"lockpicking") if _context != null else null
+	if locks == null:
+		earned.visible = false
+		return
+	earned.update_progress(active, ratio, int(locks.settings.successes_required))
+	earned.position = Vector2(-earned.size.x - 6.0, (bar.size.y - earned.size.y) * 0.5)
+
+
 func _get_member_work_progress_ratio(member: WorldActor) -> float:
 	if member == null:
 		return 0.0
+	if member.has_method("is_actively_lockpicking") and member.is_actively_lockpicking():
+		return member.get_lockpick_attempt_progress_ratio()
 	if member.has_method("is_actively_mining") and member.call("is_actively_mining"):
 		return float(member.call("get_mining_progress_ratio"))
 	if member.has_method("is_actively_scavenging") and bool(member.call("is_actively_scavenging")):
@@ -1838,6 +1865,14 @@ func _apply_camera_transform() -> void:
 	camera.rotation = Vector3.ZERO
 	camera.position = Vector3(0.0, 0.0, camera_distance)
 	_clamp_camera_above_floor()
+	var focus := get_camera_focus_position()
+	if focus != _last_camera_focus:
+		_last_camera_focus = focus
+		camera_focus_changed.emit(focus)
+
+
+func get_camera_focus_position() -> Vector3:
+	return camera_rig.global_position if is_instance_valid(camera_rig) else camera_anchor
 
 
 func _clamp_camera_above_floor() -> void:
@@ -1886,10 +1921,10 @@ func _on_auto_heal_button_toggled(button_pressed: bool) -> void:
 	_update_command_bar()
 
 
-func _on_auto_burn_rustdead_button_toggled(button_pressed: bool) -> void:
+func _on_share_food_button_toggled(button_pressed: bool) -> void:
 	for member in party_manager.selected_members:
-		if member.has_method("set_auto_burn_rustdead_enabled"):
-			member.set_auto_burn_rustdead_enabled(button_pressed)
+		if member.has_method("set_share_food_enabled"):
+			member.set_share_food_enabled(button_pressed)
 	_update_command_bar()
 
 
@@ -2062,21 +2097,9 @@ func _action_preserves_field_work(action_key: String) -> bool:
 func _perform_unlock_action(target) -> void:
 	if target == null:
 		return
-	var actor := _get_focused_party_member()
-	if target.has_method("attempt_unlock"):
-		var unlocked := bool(target.call("attempt_unlock", actor))
-		if unlocked and target is Node and _has_property(target, "is_locked"):
-			target.set("is_locked", false)
-		var message := "Unlocked" if unlocked else "Lock too hard"
-		if target is Node3D:
-			_spawn_world_notice((target as Node3D).global_position + Vector3(0.0, 1.6, 0.0), message)
-		else:
-			_show_center_notice(message)
-		return
-	if target is Node3D:
-		_spawn_world_notice((target as Node3D).global_position + Vector3(0.0, 1.6, 0.0), "Lockpicking not implemented")
-	else:
-		_show_center_notice("Lockpicking not implemented")
+	var picking := _context.get_optional(&"lockpick_interactions") if _context != null else null
+	if picking == null or not picking.request_pick(_get_focused_party_member(), target, "careful"):
+		_show_center_notice("A usable lockpick is required.")
 
 
 func _on_context_menu_id_pressed(action_id: int) -> void:
@@ -2185,6 +2208,7 @@ func _perform_world_context_action(action_index: int) -> void:
 			popup_actions.append({
 				"id": ACTION_WORLD_CONTEXT_BASE + index,
 				"label": str(context_world_actions[index].get("label", "Action")),
+				"color": context_world_actions[index].get("color", Color.TRANSPARENT),
 			})
 		var popup_position := Vector2(context_menu.position) if context_menu != null else get_viewport().get_mouse_position()
 		_show_context_menu_actions(popup_position, popup_actions)
@@ -2216,11 +2240,8 @@ func _assign_pickup_to_selection(world_item) -> void:
 func _assign_attack_to_selection(target: WorldActor) -> void:
 	if target == null or party_manager.selected_members.is_empty():
 		return
-	# A player attack command on a neutral is a crime in that jurisdiction: open
-	# the warrant so the law pipeline (guards -> custody -> jail) responds. Must
-	# run BEFORE the attack marks hostility (already-hostile pairs are not crimes).
-	if law_order_controller != null:
-		law_order_controller.report_player_assault(party_manager.selected_members[0] as HumanoidCharacter, target as HumanoidCharacter)
+	# Accepted actor commands emit incidents, not UI clicks. Never charge the
+	# first selected member for everyone or for an order that will be refused.
 	if party_manager.selected_members.size() == 1:
 		party_manager.selected_members[0].assign_attack_target(target)
 		return
@@ -2411,6 +2432,8 @@ func _on_party_member_conversation_target_reached(member: HumanoidCharacter, tar
 
 
 func _on_party_member_added(member: WorldActor) -> void:
+	if party_members.has(member):
+		return
 	_register_party_member(member)
 	_add_portrait_for_member(member)
 	_ensure_work_progress_bar(member)
@@ -2423,6 +2446,20 @@ func _on_party_member_removed(member: WorldActor) -> void:
 	var index := party_members.find(member)
 	if index < 0:
 		return
+	_member_squad_names.erase(member)
+	member.simulation_profile_changed.disconnect(_on_member_squad_changed.bind(member))
+	# Removed projections can remain alive (departure or stable-ID replacement).
+	# Disconnect the same handlers registration installs before allowing rejoin.
+	for binding in [
+		[&"container_reached", _on_party_member_container_reached],
+		[&"trade_target_reached", _on_party_member_trade_target_reached],
+		[&"npc_inventory_target_reached", _on_npc_inventory_target_reached],
+		[&"conversation_target_reached", _on_party_member_conversation_target_reached],
+		[&"center_notice_requested", _show_center_notice],
+		[&"state_changed", _update_command_bar],
+	]:
+		if member.has_signal(binding[0]) and member.is_connected(binding[0], binding[1]):
+			member.disconnect(binding[0], binding[1])
 	party_members.remove_at(index)
 	if index < portrait_cards.size():
 		var card := portrait_cards[index]

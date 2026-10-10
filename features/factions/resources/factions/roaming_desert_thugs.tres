@@ -4,6 +4,7 @@
 [ext_resource type="Resource" uid="uid://rsudkm2j5m7o" path="res://features/world_sim/resources/population_appearance_profiles/desert_thugs.tres" id="2"]
 [ext_resource type="Resource" uid="uid://pjw2qb2u0hbw" path="res://features/world_sim/resources/population_name_profiles/raider_names.tres" id="3"]
 [ext_resource type="Resource" uid="uid://clyogl1gl5cec" path="res://features/world_sim/resources/character_type_sets/standard.tres" id="4"]
+[ext_resource type="Resource" path="res://features/factions/resources/law_profiles/no_formal_law.tres" id="5_law"]
 
 [resource]
 script = ExtResource("1")
@@ -13,6 +14,7 @@ primary_color = Color(0.62, 0.35, 0.15, 1)
 default_hostile_faction_ids = PackedStringArray()
 starting_war_faction_ids = PackedStringArray()
 permanently_hostile = true
+law_profile = ExtResource("5_law")
 race_weights = Dictionary[String, float]({
 "desert_puglin": 0.3,
 "human": 0.7

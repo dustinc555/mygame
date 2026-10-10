@@ -8,7 +8,7 @@
 script = ExtResource("1_script")
 race_id = "puglin"
 display_name = "Puglin"
-equipment_slots = PackedStringArray("weapon", "offhand")
+equipment_slots = PackedStringArray("weapon", "offhand", "backpack")
 bleed_fluid = ExtResource("3_fluid")
 default_male_archetype = ExtResource("2_body")
 default_female_archetype = ExtResource("2_body")

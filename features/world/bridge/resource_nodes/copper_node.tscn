@@ -7,7 +7,7 @@
 [ext_resource type="Resource" path="res://features/world/resources/resource_deposits/copper.tres" id="99_deposit"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_copper"]
-size = Vector3(4.2, 1.8, 4.2)
+size = Vector3(3.9, 2.117642, 2.709646)
 
 [node name="CopperNode" type="StaticBody3D"]
 script = ExtResource("1_node")
@@ -23,6 +23,7 @@ slot_distance = 2.8
 slot_count = 4
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(0.96644, 0, 0.256894, 0, 1, 0, -0.256894, 0, 0.96644, 0.032713305, 0.98262596, 0.05827307)
 shape = SubResource("BoxShape3D_copper")
 
 [node name="Visual" parent="." instance=ExtResource("3_model")]

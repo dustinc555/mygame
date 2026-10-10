@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://nnujv16cqkau"]
 
 [ext_resource type="Script" uid="uid://dv5ymfj63bgah" path="res://features/world/projection/world_root.gd" id="1_world_root"]
+[ext_resource type="Resource" path="res://features/world_sim/resources/start_scenarios/miras_gang.tres" id="13_start"]
 [ext_resource type="PackedScene" uid="uid://bswlf53ythhn2" path="res://scenes/zones/rustwash_basin/rustwash_basin.tscn" id="2_rustwash"]
 [ext_resource type="Script" uid="uid://j7ht3e8ivxm7" path="res://features/factions/bridge/factions.gd" id="3_factions"]
 [ext_resource type="Script" uid="uid://ikuv44ho3ntf" path="res://features/factions/bridge/faction.gd" id="4_faction"]
@@ -18,6 +19,7 @@
 script = ExtResource("1_world_root")
 world_id = "world1"
 start_hour = 12
+default_start_scenario = ExtResource("13_start")
 
 [node name="Factions" type="Node" parent="." unique_id=54634220]
 script = ExtResource("3_factions")

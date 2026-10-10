@@ -1,9 +1,21 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scenes/test_levels/junkyard_scavenging_demo.gd" id="1_demo"]
 [ext_resource type="Script" path="res://features/core/party/party_manager.gd" id="2_manager"]
 [ext_resource type="Script" path="res://features/core/game_bootstrap.gd" id="3_bootstrap"]
 [ext_resource type="Script" path="res://features/world_sim/bridge/character_record_party_spawner.gd" id="4_record_party_spawner"]
+[ext_resource type="Script" path="res://features/world_sim/resources/start_scenario_definition.gd" id="5_start"]
+[ext_resource type="Script" path="res://features/world_sim/resources/character_record_definition.gd" id="6_character"]
+[ext_resource type="Resource" path="res://features/actors/resources/characters/novice_scavenger.tres" id="7_novice"]
+[ext_resource type="Resource" path="res://features/actors/resources/characters/expert_scavenger.tres" id="8_expert"]
+
+[sub_resource type="Resource" id="DemoStart"]
+script = ExtResource("5_start")
+scenario_id = "test.junkyard_scavengers"
+squad_name = "Scavengers"
+characters = Array[ExtResource("6_character")]([ExtResource("7_novice"), ExtResource("8_expert")])
+spawn_position = Vector3(-5.5, 0, -6.2)
+member_colors = PackedColorArray(0.72, 0.58, 0.35, 1, 0.34, 0.67, 0.84, 1)
 
 [node name="JunkyardScavengingDemo" type="Node3D"]
 script = ExtResource("1_demo")
@@ -11,10 +23,8 @@ script = ExtResource("1_demo")
 [node name="PartyMembers" type="Node3D" parent="."]
 
 [node name="CharacterRecordPartySpawner" type="Node3D" parent="PartyMembers"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 0, -6.2)
 script = ExtResource("4_record_party_spawner")
-character_record_paths = PackedStringArray("res://features/actors/resources/characters/novice_scavenger.tres", "res://features/actors/resources/characters/expert_scavenger.tres")
-member_colors = PackedColorArray(0.72, 0.58, 0.35, 1, 0.34, 0.67, 0.84, 1)
+start_scenario = SubResource("DemoStart")
 
 [node name="PartyManager" type="Node" parent="."]
 script = ExtResource("2_manager")

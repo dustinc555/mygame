@@ -69,7 +69,7 @@ func _run() -> void:
 	if jobs_button.position.x + jobs_button.size.x > assist_row.size.x + 0.5:
 		_fail("Jobs button fits inside the Assist row")
 		return
-	for button_name in ["AutoHealButton", "BurnRustdeadButton", "JobsButton"]:
+	for button_name in ["AutoHealButton", "ShareFoodButton", "JobsButton"]:
 		var assist_button := assist_row.get_node_or_null(button_name) as Button
 		var assist_style := assist_button.get_theme_stylebox("normal") as StyleBoxFlat if assist_button != null else null
 		if assist_style == null or mini(

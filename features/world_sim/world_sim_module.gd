@@ -14,6 +14,7 @@ extends RefCounted
 
 const WORLD_SIMULATION := preload("res://features/world_sim/sim/world_simulation_controller.gd")
 const POPULATION := preload("res://features/world_sim/sim/population/population_controller.gd")
+const PLAYER_PARTY := preload("res://features/world_sim/sim/player_party_controller.gd")
 const TERRITORY := preload("res://features/world_sim/sim/territory_controller.gd")
 const ROAD := preload("res://features/world_sim/sim/roads/road_controller.gd")
 const WORLD_EVENT_CHOICE := preload("res://features/world_sim/sim/world_event_choice_controller.gd")
@@ -33,6 +34,7 @@ const PROJECTION := []
 const SIM := [
 	{"name": "WorldSimulationController", "script": WORLD_SIMULATION, "service": WORLD_SIMULATION.SERVICE_ID},
 	{"name": "PopulationController", "script": POPULATION, "service": POPULATION.SERVICE_ID},
+	{"name": "PlayerPartyController", "script": PLAYER_PARTY, "service": PLAYER_PARTY.SERVICE_ID},
 	{"name": "TerritoryController", "script": TERRITORY, "service": TERRITORY.SERVICE_ID},
 	{"name": "RoadController", "script": ROAD, "service": ROAD.SERVICE_ID},
 	{"name": "WorldEventChoiceController", "script": WORLD_EVENT_CHOICE, "service": WORLD_EVENT_CHOICE.SERVICE_ID},

@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Corner_Exterior_Wood.gltf" id="2_timber"]
 [ext_resource type="PackedScene" path="res://assets/vendor/quaternius/medieval_village_megakit/gltf_godot/Roof_Wooden_2x1_Center.gltf" id="3_roof"]
 
+
 [node name="TimberPatioCanopy" type="Node3D"]
 
 [node name="PostWestBack" type="Node3D" parent="."]

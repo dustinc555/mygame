@@ -46,6 +46,9 @@ var _law_response_pairs: Dictionary = {}
 var _available_actor_ids: Dictionary = {}
 var _read_indexes_dirty := false
 var _diplomatic_states: Dictionary = {}
+var _group_key_by_actor: Dictionary = {}
+var _defense_encounter_by_groups: Dictionary = {}
+var _arrest_context_by_group_officer: Dictionary = {}
 
 
 func _init() -> void:
@@ -111,25 +114,23 @@ func get_response_depth(responder_actor_id: String, target_actor_id: String) -> 
 
 
 func get_response_context(responder_actor_id: String, target_actor_id: String) -> Dictionary:
-	# Authority is independent of transient social-encounter membership. Guards
-	# can arrive from another encounter; responding to their authorized attack
-	# must not create another assault charge merely because the indexes differ.
+	# Arrest targets a named suspect, not the party. Fighting that authority
+	# is resistance, even when the officer struck first or another fight exists.
 	if _authorized_response_pairs.has(_actor_pair_key(responder_actor_id, target_actor_id)):
 		return {"response_depth": 0, "authorized_response": true}
+	var arrest_key := _actor_pair_key(_group_key(responder_actor_id), target_actor_id)
+	if _arrest_context_by_group_officer.has(arrest_key):
+		return _arrest_context_by_group_officer[arrest_key].duplicate()
 	if _authorized_response_pairs.has(_actor_pair_key(target_actor_id, responder_actor_id)):
 		return {"response_depth": 1, "authorized_response": false}
-	var responder_encounter_id := str(_encounter_id_by_actor.get(responder_actor_id, ""))
-	var target_encounter_id := str(_encounter_id_by_actor.get(target_actor_id, ""))
-	if not responder_encounter_id.is_empty() and responder_encounter_id == target_encounter_id:
-		var encounter = _encounter_component(responder_encounter_id)
-		if encounter != null and encounter.side_of(responder_actor_id) != 0 and encounter.side_of(responder_actor_id) != encounter.side_of(target_actor_id):
-			var lawful_counterattack: bool = encounter.side_of(responder_actor_id) == SIDE_DEFENDER or _authorized_response_pairs.has(_actor_pair_key(target_actor_id, responder_actor_id))
-			return {
-				"response_depth": 1 if lawful_counterattack else 0,
-				"encounter_id": responder_encounter_id,
-				"authorized_response": false,
-			}
-	return {}
+	var defense_key := _actor_pair_key(_group_key(responder_actor_id), _group_key(target_actor_id))
+	if _defense_encounter_by_groups.has(defense_key):
+		return {"response_depth": 1, "authorized_response": false, "legal_reason": "group_defense", "encounter_id": _defense_encounter_by_groups[defense_key]}
+	return {"response_depth": 0, "encounter_id": str(_encounter_id_by_actor.get(responder_actor_id, ""))}
+
+
+func _group_key(actor_id: String) -> String:
+	return str(_group_key_by_actor.get(actor_id, "actor:" + actor_id))
 
 
 func is_law_enforcement_pair(responder_actor_id: String, target_actor_id: String) -> bool:
@@ -188,6 +189,10 @@ func get_active_root_aggressions() -> Array[Dictionary]:
 		var encounter = entity.get_component(C_ENCOUNTER)
 		if encounter == null:
 			continue
+		if not encounter.aggression_records.is_empty():
+			for record in encounter.aggression_records.values():
+				result.append(record.duplicate(true))
+			continue
 		for attacker_value in encounter.aggression_target_by_actor.keys():
 			var attacker_actor_id := str(attacker_value)
 			result.append({
@@ -199,6 +204,32 @@ func get_active_root_aggressions() -> Array[Dictionary]:
 			})
 	result.sort_custom(func(left: Dictionary, right: Dictionary) -> bool: return str(left["pair_key"]) < str(right["pair_key"]))
 	return result
+
+
+func get_aggression_context(encounter_id: String, attacker_id: String, target_id: String) -> Dictionary:
+	var encounter = _encounter_component(encounter_id)
+	var result := {}
+	if encounter != null:
+		for record in encounter.aggression_records.values():
+			if record.attacker_actor_id == attacker_id and record.protected_actor_id == target_id:
+				result = record
+	return result.duplicate(true)
+
+
+func settle_crime_incidents(actor_id: String, faction_id: String, crimes: Array) -> void:
+	var targets := {}
+	for crime in crimes:
+		if str(crime.get("crime_type", "")) in ["assault", "resisting_arrest", "murder"]:
+			targets[str(crime.get("target_key", ""))] = true
+	for entity in _world.query.with_all([C_ENCOUNTER]).execute():
+		var encounter = entity.get_component(C_ENCOUNTER)
+		for record in encounter.aggression_records.values():
+			if str(record.get("attacker_actor_id", "")) != actor_id or not targets.has(str(record.get("protected_actor_id", ""))):
+				continue
+			var settled: Array = record.get("settled_factions", [])
+			if not settled.has(faction_id):
+				settled.append(faction_id)
+			record["settled_factions"] = settled
 
 
 func _process_fixed_tick() -> void:
@@ -233,13 +264,10 @@ func _consume_event(event, actor_cache: Dictionary, spatial_buckets: Dictionary)
 		C_EVENT.Type.RESPONSE_AUTHORIZED:
 			_authorize_declared_responses(event, actor_cache, spatial_buckets)
 		C_EVENT.Type.RESPONSE_REVOKED:
-			_remove_authority_intents(str(event.authority_id), str(event.target_actor_id))
+			_remove_authority_intents(str(event.authority_id), str(event.target_actor_id), actor_cache)
 
 
 func _handle_attack_event(event, actor_cache: Dictionary, spatial_buckets: Dictionary) -> void:
-	# Legal counterattacks are not new root aggression. Preserve the distinct
-	# authorized-response bit for initial encounter-side placement below.
-	var legal_response := bool(event.authorized_response) or int(event.response_depth) > 0
 	var attacker_id := str(event.attacker_actor_id)
 	var protected_id := str(event.protected_actor_id)
 	var attacker_entry: Dictionary = actor_cache.get(attacker_id, {})
@@ -248,15 +276,12 @@ func _handle_attack_event(event, actor_cache: Dictionary, spatial_buckets: Dicti
 		return
 	var attacker_encounter = _encounter_for_actor(attacker_id)
 	var protected_encounter = _encounter_for_actor(protected_id)
+	_resume_encounter_pair(attacker_encounter, attacker_id, protected_id)
+	_resume_encounter_pair(protected_encounter, attacker_id, protected_id)
 	var encounter = null
-	if attacker_encounter != null and protected_encounter != null:
-		if str(attacker_encounter.encounter_id) != str(protected_encounter.encounter_id):
-			_record_external_aggression(attacker_encounter, attacker_id, protected_id, event.origin, legal_response)
-			return
+	if attacker_encounter != null:
+		# Keep existing sides, but still notify a newly attacked group's helpers.
 		encounter = attacker_encounter
-	elif attacker_encounter != null:
-		_record_external_aggression(attacker_encounter, attacker_id, protected_id, event.origin, legal_response)
-		return
 	elif protected_encounter != null:
 		encounter = protected_encounter
 		var protected_side := int(encounter.side_of(protected_id))
@@ -264,16 +289,18 @@ func _handle_attack_event(event, actor_cache: Dictionary, spatial_buckets: Dicti
 		encounter.add_to_side(attacker_id, attacker_side)
 		_index_encounter_actor(str(encounter.encounter_id), attacker_id)
 	else:
-		encounter = _create_encounter(attacker_id, protected_id, event.origin, str(event.encounter_id), bool(event.authorized_response))
+		encounter = _create_encounter(attacker_id, protected_id, event.origin, str(event.encounter_id))
 	if encounter == null:
 		return
 	encounter.origin = event.origin
 	encounter.remaining_ticks = ENCOUNTER_LIFETIME_TICKS
-	_commit_attack(encounter, attacker_id, protected_id, event.origin, legal_response)
+	# Stance-driven assistance happens for every attack, lawful or not. Legal
+	# classification records consequences; it cannot veto combat recruitment.
 	_recruit_social_allies(encounter, attacker_id, protected_id, attacker_entry, protected_entry, event.origin, float(event.radius), actor_cache, spatial_buckets)
+	_commit_attack(encounter, attacker_id, protected_id, event.origin)
 
 
-func _create_encounter(attacker_actor_id: String, protected_actor_id: String, origin: Vector3, requested_encounter_id: String, authorized_response: bool):
+func _create_encounter(attacker_actor_id: String, protected_actor_id: String, origin: Vector3, requested_encounter_id: String):
 	var sequence := _next_encounter_sequence
 	_next_encounter_sequence += 1
 	var encounter_id := requested_encounter_id
@@ -291,52 +318,43 @@ func _create_encounter(attacker_actor_id: String, protected_actor_id: String, or
 	encounter.sequence = sequence
 	encounter.origin = origin
 	encounter.remaining_ticks = ENCOUNTER_LIFETIME_TICKS
-	if authorized_response:
-		encounter.root_aggressor_actor_id = protected_actor_id
-		encounter.root_defender_actor_id = attacker_actor_id
-		encounter.add_to_side(protected_actor_id, SIDE_AGGRESSOR)
-		encounter.add_to_side(attacker_actor_id, SIDE_DEFENDER)
-	else:
-		encounter.root_aggressor_actor_id = attacker_actor_id
-		encounter.root_defender_actor_id = protected_actor_id
-		encounter.add_to_side(attacker_actor_id, SIDE_AGGRESSOR)
-		encounter.add_to_side(protected_actor_id, SIDE_DEFENDER)
+	encounter.root_aggressor_actor_id = attacker_actor_id
+	encounter.root_defender_actor_id = protected_actor_id
+	encounter.add_to_side(attacker_actor_id, SIDE_AGGRESSOR)
+	encounter.add_to_side(protected_actor_id, SIDE_DEFENDER)
 	_world.add_entity(entity, [encounter])
 	var registered_encounter = entity.get_component(C_ENCOUNTER)
 	_index_encounter(entity, registered_encounter)
 	return registered_encounter
 
 
-func _commit_attack(encounter, attacker_actor_id: String, target_actor_id: String, origin: Vector3, authorized_response: bool) -> void:
+func _commit_attack(encounter, attacker_actor_id: String, target_actor_id: String, origin: Vector3) -> void:
 	encounter.mark_committed(attacker_actor_id)
-	if authorized_response:
+	# Earlier events in this batch establish legal cause, independently of the
+	# physical fight and the companions that have already elected to assist.
+	var reason := get_response_context(attacker_actor_id, target_actor_id)
+	if str(reason.get("legal_reason", "")) == "group_defense":
+		var source_encounter = _encounter_component(str(reason.get("encounter_id", "")))
+		if source_encounter != null:
+			source_encounter.remaining_ticks = ENCOUNTER_LIFETIME_TICKS
+	if bool(reason.get("authorized_response", false)) or int(reason.get("response_depth", 0)) > 0:
 		return
-	var attacker_side := int(encounter.side_of(attacker_actor_id))
-	var target_side := int(encounter.side_of(target_actor_id))
-	var is_unlawful := attacker_side == SIDE_AGGRESSOR and target_side == SIDE_DEFENDER
-	if attacker_side != 0 and attacker_side == target_side:
-		is_unlawful = str(encounter.aggression_target_by_actor.get(target_actor_id, "")) != attacker_actor_id
-	if is_unlawful and encounter.mark_aggression(attacker_actor_id, target_actor_id):
-		root_combat_started.emit(attacker_actor_id, target_actor_id, origin, str(encounter.encounter_id))
-
-
-func _record_external_aggression(encounter, attacker_actor_id: String, target_actor_id: String, origin: Vector3, authorized_response: bool) -> void:
-	encounter.origin = origin
-	encounter.remaining_ticks = ENCOUNTER_LIFETIME_TICKS
-	encounter.mark_committed(attacker_actor_id)
-	if not authorized_response and encounter.mark_aggression(attacker_actor_id, target_actor_id):
+	if encounter.mark_aggression(attacker_actor_id, target_actor_id, reason):
+		if str(reason.get("legal_reason", "")) != "resisting_arrest":
+			var defense_key := _actor_pair_key(_group_key(target_actor_id), _group_key(attacker_actor_id))
+			encounter.defense_group_pairs[defense_key] = true
+			_defense_encounter_by_groups[defense_key] = str(encounter.encounter_id)
 		root_combat_started.emit(attacker_actor_id, target_actor_id, origin, str(encounter.encounter_id))
 
 
 func _recruit_social_allies(encounter, attacker_actor_id: String, protected_actor_id: String, attacker_entry: Dictionary, protected_entry: Dictionary, origin: Vector3, radius: float, _actor_cache: Dictionary, spatial_buckets: Dictionary) -> void:
 	var attacker_side := int(encounter.side_of(attacker_actor_id))
 	var protected_side := int(encounter.side_of(protected_actor_id))
-	if attacker_side == 0 or protected_side == 0 or attacker_side == protected_side:
-		return
+	var can_recruit_sides := attacker_side != 0 and protected_side != 0 and attacker_side != protected_side
 	var accepted := 0
 	for entry in _nearby_entries(origin, radius, spatial_buckets):
 		var actor_id := str(entry.get("actor_id", ""))
-		if actor_id == attacker_actor_id or actor_id == protected_actor_id or _encounter_id_by_actor.has(actor_id):
+		if actor_id == attacker_actor_id:
 			continue
 		if not _available_for_response(entry):
 			continue
@@ -344,9 +362,15 @@ func _recruit_social_allies(encounter, attacker_actor_id: String, protected_acto
 		var protected_allegiance := _social_allegiance_strength(entry, protected_entry)
 		if attacker_allegiance == 0 and protected_allegiance == 0:
 			continue
-		var side := attacker_side if attacker_allegiance > protected_allegiance else protected_side
-		encounter.add_to_side(actor_id, side)
-		_index_encounter_actor(str(encounter.encounter_id), actor_id)
+		if actor_id == protected_actor_id or protected_allegiance > attacker_allegiance:
+			var targets: Dictionary = encounter.assistance_targets_by_actor.get(actor_id, {})
+			targets[attacker_actor_id] = true
+			encounter.assistance_targets_by_actor[actor_id] = targets
+			_resume_encounter_pair(encounter, actor_id, attacker_actor_id)
+		if can_recruit_sides and actor_id != protected_actor_id and not _encounter_id_by_actor.has(actor_id):
+			var side := attacker_side if attacker_allegiance > protected_allegiance else protected_side
+			encounter.add_to_side(actor_id, side)
+			_index_encounter_actor(str(encounter.encounter_id), actor_id)
 		accepted += 1
 		if accepted >= MAX_RESPONDERS_PER_EVENT:
 			break
@@ -368,13 +392,14 @@ func _authorize_declared_responses(event, actor_cache: Dictionary, spatial_bucke
 			continue
 		if int(event.audience) == C_EVENT.Audience.SETTLEMENT_AUTHORITY and not _has_public_duty(entry, str(event.settlement_id), str(event.authority_faction_id)):
 			continue
-		_upsert_intent(int(event.response_kind), actor_id, str(event.target_actor_id), str(event.authority_id), AUTHORITY_INTENT_TICKS)
+		_upsert_intent(int(event.response_kind), actor_id, str(event.target_actor_id), str(event.authority_id), AUTHORITY_INTENT_TICKS, str(event.authority_faction_id), str(event.settlement_id))
+		_resume_encounter_pair(_encounter_for_actor(actor_id), actor_id, str(event.target_actor_id))
 		accepted += 1
 		if accepted >= MAX_RESPONDERS_PER_EVENT:
 			break
 
 
-func _upsert_intent(kind: int, responder_actor_id: String, target_actor_id: String, authority_id: String, remaining_ticks: int) -> void:
+func _upsert_intent(kind: int, responder_actor_id: String, target_actor_id: String, authority_id: String, remaining_ticks: int, authority_faction_id := "", settlement_id := "") -> void:
 	if responder_actor_id.is_empty() or target_actor_id.is_empty():
 		return
 	var key := _intent_key(kind, responder_actor_id, target_actor_id, authority_id)
@@ -396,6 +421,8 @@ func _upsert_intent(kind: int, responder_actor_id: String, target_actor_id: Stri
 	intent.responder_actor_id = responder_actor_id
 	intent.target_actor_id = target_actor_id
 	intent.authority_id = authority_id
+	intent.authority_faction_id = authority_faction_id
+	intent.settlement_id = settlement_id
 	intent.remaining_ticks = remaining_ticks
 	_next_intent_sequence += 1
 	_world.add_entity(entity, [intent])
@@ -441,6 +468,7 @@ func _enqueue_event(values: Dictionary) -> String:
 func _tick_and_reindex_encounters() -> void:
 	_encounter_entity_by_id.clear()
 	_encounter_id_by_actor.clear()
+	_defense_encounter_by_groups.clear()
 	var removals: Array = []
 	for entity in _world.query.with_all([C_ENCOUNTER]).execute():
 		var encounter = entity.get_component(C_ENCOUNTER)
@@ -449,7 +477,8 @@ func _tick_and_reindex_encounters() -> void:
 			continue
 		encounter.remaining_ticks = maxi(0, int(encounter.remaining_ticks) - 1)
 		_prune_encounter(encounter)
-		if encounter.remaining_ticks == 0 or encounter.aggressor_side_actor_ids.is_empty() or encounter.defender_side_actor_ids.is_empty():
+		var empty_side: bool = encounter.aggressor_side_actor_ids.is_empty() or encounter.defender_side_actor_ids.is_empty()
+		if encounter.remaining_ticks == 0 or (empty_side and encounter.defense_group_pairs.is_empty()):
 			removals.append(entity)
 			continue
 		_index_encounter(entity, encounter)
@@ -458,6 +487,16 @@ func _tick_and_reindex_encounters() -> void:
 
 
 func _prune_encounter(encounter) -> void:
+	for actor_id in encounter.assistance_targets_by_actor.keys():
+		if not _actor_is_available(actor_id):
+			encounter.assistance_targets_by_actor.erase(actor_id)
+			continue
+		var targets: Dictionary = encounter.assistance_targets_by_actor[actor_id]
+		for target_id in targets.keys():
+			if not _actor_is_available(target_id):
+				targets.erase(target_id)
+		if targets.is_empty():
+			encounter.assistance_targets_by_actor.erase(actor_id)
 	for actor_id in encounter.aggressor_side_actor_ids.duplicate():
 		if not _actor_is_available(actor_id):
 			encounter.remove_actor(actor_id)
@@ -477,8 +516,17 @@ func _actor_is_available(actor_id: String) -> bool:
 
 func _refresh_available_actor_ids() -> void:
 	_available_actor_ids.clear()
+	_group_key_by_actor.clear()
 	for entity in _world.query.with_all([C_IDENTITY, C_VITALS, C_CONFIG]).execute():
 		var identity = entity.get_component(C_IDENTITY)
+		var faction = entity.get_component(C_FACTION)
+		if identity != null and faction != null:
+			var key := "actor:" + str(identity.actor_id)
+			if not str(faction.party_id).is_empty():
+				key = "party:" + str(faction.party_id)
+			elif not str(faction.squad_name).is_empty():
+				key = "squad:%s:%s" % [faction.faction_id, faction.squad_name]
+			_group_key_by_actor[str(identity.actor_id)] = key
 		var vitals = entity.get_component(C_VITALS)
 		var config = entity.get_component(C_CONFIG)
 		if identity != null and vitals != null and config != null and int(vitals.life_state) == NpcRules.LifeState.ALIVE and not bool(config.protected_from_combat):
@@ -493,6 +541,7 @@ func _tick_and_reindex_intents() -> void:
 	_law_response_actor_ids.clear()
 	_law_response_pairs.clear()
 	var removals: Array = []
+	_arrest_context_by_group_officer.clear()
 	for entity in _world.query.with_all([C_INTENT]).execute():
 		var intent = entity.get_component(C_INTENT)
 		if intent == null:
@@ -508,21 +557,89 @@ func _tick_and_reindex_intents() -> void:
 	_read_indexes_dirty = false
 
 
-func _remove_authority_intents(authority_id: String, target_actor_id: String) -> void:
+func _remove_authority_intents(authority_id: String, target_actor_id: String, actor_cache: Dictionary) -> void:
 	if authority_id.is_empty():
 		return
 	var removals: Array = []
+	var law_pairs: Array[PackedStringArray] = []
 	for entity in _world.query.with_all([C_INTENT]).execute():
 		var intent = entity.get_component(C_INTENT)
 		if intent != null and str(intent.authority_id) == authority_id and (target_actor_id.is_empty() or str(intent.target_actor_id) == target_actor_id):
 			removals.append(entity)
+			if int(intent.kind) == C_INTENT.Kind.LAW_ENFORCEMENT:
+				law_pairs.append(PackedStringArray([intent.responder_actor_id, intent.target_actor_id]))
 	for entity in removals:
 		_remove_intent_entity(entity)
+	# Later events in this same batch must see the revoked authority immediately.
+	_rebuild_authority_read_indexes()
+	for pair in law_pairs:
+		if not is_law_enforcement_pair(pair[0], pair[1]):
+			_disengage_pair(pair[0], pair[1], actor_cache)
+			_disengage_pair(pair[1], pair[0], actor_cache)
+
+
+func _disengage_pair(actor_id: String, target_id: String, actor_cache: Dictionary) -> void:
+	for encounter_entity in _world.query.with_all([C_ENCOUNTER]).execute():
+		var active_encounter = encounter_entity.get_component(C_ENCOUNTER)
+		(active_encounter.assistance_targets_by_actor.get(actor_id, {}) as Dictionary).erase(target_id)
+	var encounter = _encounter_for_actor(actor_id)
+	if encounter != null and encounter.side_of(target_id) != 0:
+		var stopped: Dictionary = encounter.disengaged_targets_by_actor.get(actor_id, {})
+		stopped[target_id] = true
+		encounter.disengaged_targets_by_actor[actor_id] = stopped
+	var entry: Dictionary = actor_cache.get(actor_id, {})
+	var target_entry: Dictionary = actor_cache.get(target_id, {})
+	if entry.is_empty():
+		return
+	var entity: Entity = entry.entity
+	var state: CGameCombatState = entry.state
+	var binding: CGameActorNode = entity.get_component(CGameActorNode)
+	var actor := binding.get_actor() as WorldActor if binding != null else null
+	var target_binding: CGameActorNode = target_entry.entity.get_component(CGameActorNode) if not target_entry.is_empty() else null
+	var target := target_binding.get_actor() as WorldActor if target_binding != null else null
+	if actor != null and target != null:
+		actor.clear_personal_hostility(target)
+		var grudge_index := state.personal_hostile_ids.find(target.get_instance_id())
+		if grudge_index >= 0:
+			state.personal_hostile_ids.remove_at(grudge_index)
+	var stable_grudge_index := state.personal_hostile_actor_ids.find(target_id)
+	if stable_grudge_index >= 0:
+		state.personal_hostile_actor_ids.remove_at(stable_grudge_index)
+	if state.commanded_target_actor_id == target_id:
+		state.commanded_target_actor_id = ""
+	if state.current_target_actor_id == target_id:
+		state.current_target_actor_id = ""
+		state.current_target_id = 0
+	if state.system_target_actor_id == target_id:
+		state.system_target_actor_id = ""
+		state.system_target_id = 0
+		state.system_target_retarget_remaining = 0.0
+		if actor != null:
+			actor._system_target_id = 0
+			actor._system_move_active = false
+	var slot: CGameCombatSlotState = entity.get_component(CGameCombatSlotState)
+	if slot != null and slot.slot_target_actor_id == target_id:
+		slot.clear()
+	var action: CGameCombatAction = entity.get_component(CGameCombatAction)
+	if action != null and action.action_target_actor_id == target_id:
+		action.clear()
+		if actor != null:
+			actor._system_combat_action_active = false
+
+
+func _resume_encounter_pair(encounter, actor_id: String, target_id: String) -> void:
+	if encounter == null:
+		return
+	(encounter.disengaged_targets_by_actor.get(actor_id, {}) as Dictionary).erase(target_id)
+	(encounter.disengaged_targets_by_actor.get(target_id, {}) as Dictionary).erase(actor_id)
 
 
 func _index_encounter(entity, encounter) -> void:
+	# Index the GECS record, never manufacture authority from tactical sides.
 	var encounter_id := str(encounter.encounter_id)
 	_encounter_entity_by_id[encounter_id] = entity
+	for pair in encounter.defense_group_pairs:
+		_defense_encounter_by_groups[pair] = encounter_id
 	for actor_id in encounter.aggressor_side_actor_ids:
 		_index_encounter_actor(encounter_id, actor_id)
 	for actor_id in encounter.defender_side_actor_ids:
@@ -551,9 +668,17 @@ func _index_authority_read(intent) -> void:
 	if int(intent.kind) == C_INTENT.Kind.LAW_ENFORCEMENT:
 		_law_response_actor_ids[str(intent.responder_actor_id)] = true
 		_law_response_pairs[_actor_pair_key(str(intent.responder_actor_id), str(intent.target_actor_id))] = true
+		_arrest_context_by_group_officer[_actor_pair_key(_group_key(str(intent.target_actor_id)), str(intent.responder_actor_id))] = {
+			"response_depth": 0, "authorized_response": false, "legal_reason": "resisting_arrest",
+			"authority_id": str(intent.authority_id), "authority_faction_id": str(intent.authority_faction_id),
+			"settlement_id": str(intent.settlement_id),
+			"encounter_id": str(_encounter_id_by_actor.get(str(intent.target_actor_id), "")),
+		}
 
 
 func _rebuild_authority_read_indexes() -> void:
+	_authorized_response_pairs.clear()
+	_arrest_context_by_group_officer.clear()
 	_active_authority_target_keys.clear()
 	_responder_ids_by_authority.clear()
 	_law_response_actor_ids.clear()
@@ -561,6 +686,7 @@ func _rebuild_authority_read_indexes() -> void:
 	for entity in _world.query.with_all([C_INTENT]).execute():
 		var intent = entity.get_component(C_INTENT)
 		if intent != null and int(intent.remaining_ticks) > 0:
+			_authorized_response_pairs[_actor_pair_key(str(intent.responder_actor_id), str(intent.target_actor_id))] = true
 			_index_authority_read(intent)
 	_read_indexes_dirty = false
 
@@ -609,6 +735,7 @@ func _build_actor_cache() -> Dictionary:
 		var actor_id := str(identity.actor_id)
 		result[actor_id] = {
 			"actor_id": actor_id,
+			"entity": entity,
 			"identity": identity,
 			"faction": entity.get_component(C_FACTION),
 			"settlement": entity.get_component(C_SETTLEMENT),

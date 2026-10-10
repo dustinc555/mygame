@@ -25,6 +25,7 @@ LimboDebuggerShutdownGuard="*res://tools/debug/limbo_debugger_shutdown_guard.gd"
 GameDebug="*res://tools/game_debug.gd"
 MCPGameBridge="res://addons/godot_mcp/game_bridge/mcp_game_bridge.gd"
 ECS="*uid://dfqwl5njvdnmq"
+MusicPlayer="*uid://bco0vdil7dqi1"
 
 [display]
 

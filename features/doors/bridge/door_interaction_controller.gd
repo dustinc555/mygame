@@ -5,7 +5,7 @@ class_name DoorInteractionController
 const SERVICE_ID := &"door_interactions"
 const APPROACH_TIMEOUT_MSEC := 30000
 const INTERACTION_DISTANCE := 1.5
-const DOOR_LOCK_RULES := preload("res://features/doors/sim/door_lock_rules.gd")
+
 const SKILL_RULES := preload("res://features/skills/sim/skill_rules.gd")
 
 var _context: BootstrapContext
@@ -86,6 +86,9 @@ func request_npc_auto_open(actor: Node, door: Node) -> bool:
 func request_actor_action(actor: Node, door: Node, action: String, issued_by_player := true, resume_target = null, follow_up_action := "") -> bool:
 	if actor == null or door == null or _doors == null:
 		return false
+	if action in ["lockpick", "pick_lock", "pick_lock_rushed"]:
+		var picking := _context.get_optional(&"lockpick_interactions") if _context != null else null
+		return picking != null and actor is WorldActor and bool(picking.request_pick(actor, door, "rushed" if action == "pick_lock_rushed" else "careful"))
 	var actor_id := _actor_id(actor)
 	var door_id := _door_id(door)
 	if actor_id.is_empty() or door_id.is_empty() or _active_command_by_actor_door.has(_actor_door_key(actor_id, door_id)):
@@ -174,16 +177,7 @@ func _on_door_command_resolved(result: Dictionary) -> void:
 	var in_stride := bool(info.get("in_stride", false))
 	if not in_stride and not bool(info.get("issued_by_player", true)):
 		_set_door_duty_order(actor, false)
-	if str(result.get("action", "")) == "lockpick":
-		var xp := float(result.get("skill_xp", 0.0))
-		if xp > 0.0 and actor.has_method("add_skill_xp"):
-			actor.call("add_skill_xp", SKILL_RULES.SUBTERFUGE_LOCKPICKING, xp, "lockpicking")
-		if bool(result.get("lockpick_broke", false)):
-			_break_lockpick(actor)
-		var law_order := _context.get_optional(&"law_order") if _context != null else null
-		var door = _weak_door(info)
-		if law_order != null and door != null and law_order.has_method("report_lockpicking_if_witnessed"):
-			law_order.call("report_lockpicking_if_witnessed", actor, door)
+
 	# A replacement route owns the actor now; never restore or extend the old
 	# route just because its in-range door command finished on a later tick.
 	if in_stride and not _actor_move_target_matches(actor, info.resume_target):
@@ -285,15 +279,6 @@ func _find_inventory_tool(actor: Node, tool_tag: String):
 		if definition != null and definition.has_method("has_tool_tag") and definition.call("has_tool_tag", tool_tag):
 			return definition
 	return null
-
-
-func _break_lockpick(actor: Node) -> void:
-	var tool = _find_inventory_tool(actor, "lockpick")
-	var inventory = actor.get("inventory")
-	if tool != null and inventory != null:
-		inventory.remove_item_count(tool, 1)
-		if _gecs_world != null:
-			_gecs_world.sync_actor_inventory(actor)
 
 
 func _closest_interaction_position(actor: Node, door: Node) -> Vector3:

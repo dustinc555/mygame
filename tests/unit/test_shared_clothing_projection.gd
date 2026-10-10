@@ -16,6 +16,88 @@ class FixtureOutfitter extends "res://tools/outfitter/outfitter.gd":
 	func _ready() -> void:
 		_build_ui()
 
+func _rigid_fixture() -> Dictionary:
+	var f := _fixture()
+	f.item.equip_slot = "backpack"
+	f.visual.clothing_binding = null
+	f.visual.rigid_back_fit = true
+	f.archetype.visual_body_type = CharacterBodyArchetypeDefinition.VISUAL_BODY_TYPE_MALE
+	var skeleton: Skeleton3D = f.skeleton
+	for landmark: String in ["neck_01", "spine_03", "upperarm_l", "upperarm_r"]:
+		skeleton.add_bone(landmark)
+	skeleton.set_bone_rest(2, Transform3D(Basis.IDENTITY, Vector3(0,2,0)))
+	skeleton.set_bone_rest(3, Transform3D(Basis.IDENTITY, Vector3(0,1.7,0)))
+	skeleton.set_bone_rest(4, Transform3D(Basis.IDENTITY, Vector3(0.3,1.8,0)))
+	skeleton.set_bone_rest(5, Transform3D(Basis.IDENTITY, Vector3(-0.3,1.8,0)))
+	skeleton.reset_bone_poses()
+	var torso := MeshInstance3D.new()
+	torso.mesh = BoxMesh.new()
+	torso.mesh.size = Vector3(0.6,1.0,0.3)
+	torso.position = Vector3(0,1.5,0)
+	skeleton.add_child(torso)
+	torso.skin = skeleton.create_skin_from_rest_transforms()
+	torso.skeleton = NodePath("..")
+	return f
+
+func test_rigid_backpack_follows_upper_spine_without_changing_source() -> void:
+	var f := _rigid_fixture()
+	var skeleton: Skeleton3D = f.skeleton
+	f.actor.equip_item_to_slot(f.item, "backpack")
+	var mounted: Node3D = f.root.get_node_or_null("Equipped_Backpack")
+	assert_not_null(mounted, f.projection.get_clothing_fit_error("backpack"))
+	if mounted == null: return
+	var meshes := mounted.find_children("*", "MeshInstance3D", true, false)
+	assert_eq(meshes.size(), 1)
+	if meshes.size() != 1: return
+	var mesh := meshes[0] as MeshInstance3D
+	assert_eq(mesh.skin.get_bind_name(0), &"spine_03", "Rigid bag follows live upper spine, not pelvis")
+	assert_same(mesh.get_node(mesh.skeleton), skeleton)
+	assert_same(mesh.mesh.surface_get_material(0), f.source_mesh.surface_get_material(0))
+	assert_true(mesh.global_transform.is_equal_approx(skeleton.global_transform), "Body yaw and scale apply once")
+	var vertex: Vector3 = mesh.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX][0]
+	var placed := skeleton.get_bone_global_rest(3) * mesh.skin.get_bind_pose(0) * vertex
+	assert_lt(placed.z, -0.15, "Pack is behind the measured body surface")
+	var before := skeleton.get_bone_global_pose(3) * mesh.skin.get_bind_pose(0) * vertex
+	skeleton.set_bone_pose_position(3, Vector3(0.2,1.7,0))
+	var after := skeleton.get_bone_global_pose(3) * mesh.skin.get_bind_pose(0) * vertex
+	assert_almost_eq(after - before, Vector3(0.2,0,0), Vector3.ONE * 0.00001)
+	assert_eq(f.source_skin.get_bind_name(0), &"pelvis", "Source skin is untouched")
+	assert_eq(f.source_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX][0], Vector3(0,0,0.1))
+	f.actor.unequip_item_from_slot("backpack")
+	assert_null(f.root.get_node_or_null("Equipped_Backpack"))
+
+func test_rigid_backpack_creator_and_bestiary_use_same_fit_and_release() -> void:
+	var f := _rigid_fixture()
+	f.actor.equip_item_to_slot(f.item, "backpack")
+	var original := f.root.get_node("Equipped_Backpack/Garment") as MeshInstance3D
+	var preview := _editor_fixture(f)
+	preview.editor._setup_preview_clothing_visuals(preview.root, preview.skeleton, f.archetype, 1.7, BODY_PATH)
+	var shown := preview.root.get_node_or_null("Equipped_Backpack/Garment") as MeshInstance3D
+	assert_not_null(shown)
+	if shown != null:
+		assert_same(shown.mesh, original.mesh, "Rigid mesh preparation is shared, not rebuilt per actor")
+		assert_true(shown.skin.get_bind_pose(0).is_equal_approx(original.skin.get_bind_pose(0)))
+		assert_same(shown.get_node(shown.skeleton), preview.skeleton)
+	preview.editor.close_editor()
+	await get_tree().process_frame
+	assert_false(is_instance_valid(shown))
+	var bestiary := _bestiary_fixture(f)
+	var mounted := f.body.get_node_or_null("EquippedBackpackVisual/Garment") as MeshInstance3D
+	assert_not_null(mounted, bestiary.get_clothing_fit_error("backpack"))
+	if mounted != null:
+		assert_same(mounted.mesh, original.mesh)
+		assert_true(mounted.skin.get_bind_pose(0).is_equal_approx(original.skin.get_bind_pose(0)))
+	f.actor.unequip_item_from_slot("backpack")
+	assert_false(is_instance_valid(mounted))
+
+func test_rigid_backpack_refuses_missing_anatomy_without_an_unfitted_fallback() -> void:
+	var f := _rigid_fixture()
+	f.skeleton.set_bone_name(3, "missing_upper_spine")
+	f.actor.equip_item_to_slot(f.item, "backpack")
+	assert_null(f.root.get_node_or_null("Equipped_Backpack"))
+	assert_string_contains(f.projection.get_clothing_fit_error("backpack"), "spine_03")
+	assert_same(f.actor.get_equipped_item("backpack"), f.item, "Visual refusal does not destroy a real equipped item")
+
 func before_each() -> void:
 	FITTER.clear_cache()
 

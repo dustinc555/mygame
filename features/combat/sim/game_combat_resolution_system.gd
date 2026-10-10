@@ -5,6 +5,8 @@ class_name GameCombatResolutionSystem
 ## Value-only attribution after an accepted canonical/legacy impact, never a
 ## refused windup or an out-of-leash swing. Consumers cannot mutate its source.
 signal impact_resolved(attacker_actor_id: String, target_actor_id: String, action_sequence: int, outcome: String, damage: float)
+## Disposable presentation edges. No actor references or simulation mutation.
+signal combat_audio_event(event: Dictionary)
 
 const C_NODE = preload("res://features/actors/bridge/c_game_actor_node.gd")
 const C_IDENTITY = preload("res://features/actors/sim/c_game_actor_identity.gd")
@@ -149,6 +151,7 @@ func _try_start_slot_action(index: int, nodes: Array, identities: Array, spatial
 		return
 	var spec := actor.call("get_system_combat_attack_spec") as Dictionary if actor.has_method("get_system_combat_attack_spec") else {}
 	_start_action(action, actor, target_actor, target_actor_id, cfg, spec)
+	_emit_audio_event("swing", index, target_index, nodes, identities, spatials, actions, configs)
 	if combat_response_system != null:
 		var response_context: Dictionary = combat_response_system.get_response_context(actor_id, target_actor_id)
 		combat_response_system.emit_attack_started(actor_id, target_actor_id, spatials[target_index].world_position, int(response_context.get("response_depth", 0)), str(response_context.get("encounter_id", "")), bool(response_context.get("authorized_response", false)))
@@ -267,6 +270,10 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 	if not delivered:
 		return
 	impact_resolved.emit(_actor_id_at(attacker_index, identities), _actor_id_at(target_index, identities), int(action.action_sequence), outcome, maxf(final_blunt, 0.0) + maxf(final_cut, 0.0))
+	if outcome == "hit" or outcome == "blocked":
+		_emit_audio_event("contact", attacker_index, target_index, nodes, identities, spatials, actions, configs, outcome)
+	elif outcome == "dodged":
+		_emit_audio_event("dodge", attacker_index, target_index, nodes, identities, spatials, actions, configs, outcome)
 	if reaction_seconds > 0.0:
 		var target_action = actions[target_index]
 		if target_action != null:
@@ -277,6 +284,23 @@ func _resolve_action_impact(attacker_index: int, nodes: Array, identities: Array
 			# a reacting target, so overlapping reactions freeze everyone.
 			target_action.reaction_remaining = minf(reaction_seconds, MAX_REACTION_HOLD_SECONDS)
 			target_action.reaction_source_actor_id = str(identities[attacker_index].actor_id) if identities[attacker_index] != null else ""
+
+
+func _emit_audio_event(phase: String, attacker_index: int, target_index: int, nodes: Array, identities: Array, spatials: Array, actions: Array, configs: Array, outcome := "") -> void:
+	var actor := _actor_from_node_component(nodes[attacker_index])
+	var action = actions[attacker_index]
+	var event := {
+		"phase": phase, "attacker_id": _actor_id_at(attacker_index, identities),
+		"target_id": _actor_id_at(target_index, identities),
+		"source_instance_id": actor.get_instance_id() if actor != null else 0,
+		"sequence": int(action.action_sequence), "attack_id": str(action.action_attack_id),
+		"critical": bool(action.action_is_critical), "outcome": outcome,
+		"has_shield": bool(configs[target_index].has_shield),
+		"attacker_position": spatials[attacker_index].world_position,
+		"target_position": spatials[target_index].world_position,
+	}
+	event.make_read_only()
+	combat_audio_event.emit(event)
 
 
 func _build_incoming_fighting_pairs(identities: Array, slots: Array, count: int) -> Dictionary:
@@ -448,19 +472,7 @@ func _actor_from_node_component(node_component) -> Node:
 
 
 func _clear_action(action) -> void:
-	action.action_active = false
-	action.action_target_actor_id = ""
-	action.action_remaining = 0.0
-	action.action_impact_remaining = 0.0
-	action.action_has_impacted = false
-	action.action_names = PackedStringArray()
-	action.action_index = 0
-	action.action_clip_remaining = 0.0
-	action.action_attack_id = ""
-	action.action_hit_reaction_names = PackedStringArray()
-	action.action_blunt_damage = 0.0
-	action.action_cut_damage = 0.0
-	action.action_is_critical = false
+	action.clear()
 
 
 func _horizontal_distance(a: Vector3, b: Vector3) -> float:

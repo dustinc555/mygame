@@ -1,0 +1,28 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://features/world/bridge/resource_nodes/mining_resource_node.gd" id="1_node"]
+[ext_resource type="Resource" path="res://features/inventory/resources/items/iron_ore.tres" id="2_item"]
+[ext_resource type="PackedScene" path="res://assets/items/ore/iron/iron_vein.glb" id="3_model"]
+[ext_resource type="Resource" path="res://features/world/resources/resource_deposits/iron.tres" id="4_deposit"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_iron"]
+size = Vector3(4.27706, 2.24459, 2.85214)
+
+[node name="IronNode" type="StaticBody3D"]
+script = ExtResource("1_node")
+deposit_definition = ExtResource("4_deposit")
+display_name = "Medium Iron Vein"
+item_definition = ExtResource("2_item")
+required_mining_level = 0
+slow_mine_seconds = 15.0
+fast_mine_seconds = 7.0
+levels_to_fast_speed = 30
+interaction_radius = 1.35
+slot_distance = 2.8
+slot_count = 4
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(-0.04568, 0.9427, -0.02954)
+shape = SubResource("BoxShape3D_iron")
+
+[node name="Visual" parent="." instance=ExtResource("3_model")]

@@ -136,9 +136,17 @@ func assign_actor_to_assignment_slot(settlement_id: String, assignment_domain: S
 	var population := _get_population_controller()
 	if slot.is_empty() or population == null or not population.has_method("assign_record_to_slot"):
 		return {}
+	var law := _context.get_optional(LawOrderController.SERVICE_ID) as LawOrderController if _context != null else null
+	if assignment_domain == "custody" and (law == null or law.authored_prisoner_starts.has(slot_id)):
+		return {}
 	var record: Dictionary = population.call("assign_record_to_slot", actor_id, slot, true)
 	if record.is_empty():
 		return {}
+	if assignment_domain == "custody":
+		if not law.start_authored_prisoner(actor_id, slot, _staff_role_owner(settlement_id, slot)):
+			population.call("release_actor_assignment", actor_id, assignment_domain)
+			return {}
+		record = population.call("get_actor_record", actor_id)
 	slot["occupant_actor_id"] = actor_id
 	slot["filled"] = true
 	slots[key] = slot
@@ -752,6 +760,9 @@ func _assign_from_ledger(settlement_id: String, ignore_delay := false) -> void:
 			continue
 		var cost: int = max(0, int(vacancy.get("population_cost", 1)))
 		var domain := str(vacancy.get("assignment_domain", "employment"))
+		if domain == "custody":
+			vacancies.erase(assignment_key)
+			continue
 		if domain == "employment" and cost > available:
 			continue
 		var role_id := str(vacancy.get("role_id", "")).strip_edges()
@@ -925,7 +936,7 @@ func realize_assignment_slot(settlement_id: String, assignment_domain: String, s
 	role_owner.call("configure_settlement_assignment_actor", actor, slot_id, configuration_record)
 	actor.set_meta(META_ASSIGNMENT_DOMAIN, assignment_domain)
 	actor.set_meta(META_ASSIGNMENT_SLOT_ID, slot_id)
-	if returning_assignment and not durable_record.is_empty():
+	if returning_assignment and assignment_domain != "custody" and not durable_record.is_empty():
 		var durable_movement: Dictionary = durable_record.get("movement_state", {})
 		# Facility defaults win for a new assignment; returning workers resume their exact order.
 		if actor.has_method("apply_population_runtime_state"):
@@ -1126,6 +1137,10 @@ func _ensure_assignment_vacancy(settlement_id: String, slot: Dictionary, assignm
 		return
 	var state: Dictionary = settlement_states[settlement_id]
 	var vacancies: Dictionary = state.get("assignment_vacancies", {})
+	if str(slot.get("assignment_domain", "")) == "custody":
+		vacancies.erase(assignment_key)
+		state["assignment_vacancies"] = vacancies
+		return
 	if vacancies.has(assignment_key):
 		state["assignment_vacancies"] = vacancies
 		return

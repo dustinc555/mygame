@@ -68,7 +68,7 @@ func _validate_resource_creation() -> void:
 		var type_id := str(definition.get("deposit_type_id"))
 		_expect(not type_id.strip_edges().is_empty() and not type_ids.has(type_id), "Catalog resource type IDs are nonblank and unique")
 		type_ids[type_id] = true
-	for required in ["copper", "scrap_pile", "twisted_scrap_heap", "robot_wreck"]:
+	for required in ["copper", "iron", "scrap_pile", "twisted_scrap_heap", "robot_wreck"]:
 		_expect(type_ids.has(required), "Catalog includes the existing resource: " + required)
 	var zone := Node3D.new()
 	zone.name = "IsolatedResourcePlacement"

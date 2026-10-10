@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/pieces/plaster/floor_fitted_09.tscn" id="1_gksgt"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_kb8h2"]
+
+[resource]
+script = ExtResource("2_kb8h2")
+piece_id = "plaster_floor_fitted_09"
+display_name = "Fired Clay Fitted 09"
+category = "floor"
+scene = ExtResource("1_gksgt")
+bounds_size_meters = Vector3(1.90255, 0.020009998, 2)
+tags = PackedStringArray("project_owned", "plaster", "flat")

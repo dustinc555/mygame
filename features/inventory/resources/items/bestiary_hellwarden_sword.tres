@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://assets/items/equipment/bestiary/hellwarden_sword/dropped.tscn" id="4_world"]
 [ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="6_stat"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/blade_metal.tres" id="audio_profile"]
 
 [sub_resource type="Resource" id="Stat_0"]
 script = ExtResource("6_stat")
@@ -24,6 +25,7 @@ add = 0.75
 
 [resource]
 script = ExtResource("1_item")
+combat_audio = ExtResource("audio_profile")
 display_name = "Hellwarden Sword"
 item_id = "bestiary.hellwarden_sword"
 icon = ExtResource("2_icon")

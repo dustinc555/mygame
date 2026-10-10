@@ -18,6 +18,16 @@ class_name EquipmentVisualDefinition
 @export var replaces_body_slots: PackedStringArray = PackedStringArray()
 @export_multiline var visual_notes := ""
 
+@export_group("Rigid Back Fit")
+## One rigid source, sized to the wearer's torso and bound to its upper spine.
+## No full wardrobe cage is required. Changes apply on the next equip/rebuild.
+@export var rigid_back_fit := false
+@export_range(0.1, 2.0, 0.01) var back_height_ratio := 1.0
+@export_range(0.1, 2.0, 0.01) var back_width_ratio := 1.3
+## Gap behind the body, as a fraction of pelvis-to-neck length.
+@export_range(0.0, 0.3, 0.005) var back_clearance_ratio := 0.06
+@export_range(-0.5, 0.5, 0.01) var back_raise_ratio := 0.08
+
 # Live clothing copies meshes onto the actor skeleton, not the source scene.
 # Keep the scene alive between swaps. This cache dies with its item definition.
 var _loaded_body_fits: Dictionary[String, PackedScene] = {}
@@ -34,6 +44,9 @@ func get_body_archetype_id() -> String:
 func matches_body_archetype(archetype: Resource) -> bool:
 	if archetype == null:
 		return false
+	if rigid_back_fit:
+		# The fitter validates the actual skeleton and torso geometry.
+		return archetype.has_method("is_humanoid") and archetype.is_humanoid()
 	if clothing_binding != null:
 		var reference: Resource = clothing_binding.get("reference_profile")
 		if reference == null or not archetype.has_method("get_wardrobe_profile"):

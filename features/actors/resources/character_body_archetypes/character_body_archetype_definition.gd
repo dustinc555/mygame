@@ -33,6 +33,11 @@ func get_wardrobe_profile(body_scene_path: String = "") -> Resource:
 	return wardrobe_profiles.get(body_scene_path)
 
 
+## Humanoid visual bodies share wearable anatomy regardless of their race ID.
+func is_humanoid() -> bool:
+	return visual_body_type in [VISUAL_BODY_TYPE_MALE, VISUAL_BODY_TYPE_FEMALE]
+
+
 func get_race_id() -> String:
 	if race != null:
 		var resource_id := str(race.get("race_id"))

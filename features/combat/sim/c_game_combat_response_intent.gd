@@ -13,4 +13,6 @@ enum Kind {
 @export var responder_actor_id := ""
 @export var target_actor_id := ""
 @export var authority_id := ""
+@export var authority_faction_id := ""
+@export var settlement_id := ""
 @export var remaining_ticks := 0

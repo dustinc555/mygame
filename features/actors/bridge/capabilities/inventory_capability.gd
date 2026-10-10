@@ -136,7 +136,7 @@ func can_receive_inventory_transfer_from(_source_owner) -> bool:
 	return not is_displaying_work_inventory()
 
 
-func notify_inventory_changed(_reset_auto_burn_scan := true) -> void:
+func notify_inventory_changed() -> void:
 	if actor == null or not is_instance_valid(actor):
 		return
 	# GECS sync is INVERTED (dependency direction): the capability only emits. The
@@ -166,4 +166,4 @@ func _disconnect_inventory(target_inventory: InventoryData) -> void:
 
 
 func _on_inventory_data_changed() -> void:
-	notify_inventory_changed(true)
+	notify_inventory_changed()

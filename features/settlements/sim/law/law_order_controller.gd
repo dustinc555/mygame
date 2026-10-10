@@ -30,6 +30,7 @@ const CRIME_ASSAULT := "assault"
 const CRIME_MURDER := "murder"
 const CRIME_LOCKPICKING := "lockpicking"
 const CRIME_ESCAPE := "escape"
+const CRIME_RESISTING_ARREST := "resisting_arrest"
 
 var root_scene: Node
 var _context: BootstrapContext
@@ -37,6 +38,7 @@ var hud_layer: CanvasLayer
 var world_time: Node
 var warrants: Dictionary = {}
 var prisoner_records: Dictionary = {}
+var authored_prisoner_starts: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 var _process_accumulator := 0.0
 var _maintenance_accumulator := 0.0
@@ -125,95 +127,99 @@ func report_theft_if_witnessed(actor: WorldActor, item, witnesses: Array = []) -
 	return report_crime(actor, enforcing_faction, settlement_id, CRIME_THEFT, severity, witnesses[0], item)
 
 
+func theft_is_illegal(actor: WorldActor, item) -> bool:
+	if actor == null or item == null:
+		return false
+	var faction_id := _owner_faction_id(item)
+	if not item is WorldActor:
+		var jurisdiction := _settlement_faction_id(_find_containing_settlement(item))
+		if not jurisdiction.is_empty():
+			faction_id = jurisdiction
+	return not faction_id.is_empty() and _crime_alerts != null and _crime_alerts.crime_is_illegal_for_faction(CRIME_THEFT, faction_id)
+
+
 func report_player_assault(attacker: HumanoidCharacter, victim: HumanoidCharacter) -> Dictionary:
 	if attacker == null or victim == null or not attacker.is_player_party_member():
 		return {}
-	if victim.is_player_party_member() or victim.life_state == NpcRules.LifeState.DEAD:
-		return {}
-	var response_context: Dictionary = _combat_responses.get_response_context(_actor_key(attacker), _actor_key(victim)) if _combat_responses != null else {}
-	if int(response_context.get("response_depth", 0)) > 0 or bool(response_context.get("authorized_response", false)):
-		return {}
-	var settlement := _find_containing_settlement(victim)
-	var faction_id := _settlement_faction_id(settlement)
-	if faction_id.is_empty():
-		faction_id = victim.faction_name.strip_edges()
-	if faction_id.is_empty():
-		return {}
-	var public_witnesses := _find_local_authority_witnesses(attacker, victim, faction_id, settlement, NpcRules.NPC_ALERT_PROXIMITY_RADIUS)
-	var witnesses: Array[WorldActor] = [victim]
-	for witness in public_witnesses:
-		if witness != null and not witnesses.has(witness):
-			witnesses.append(witness)
-	var lead_witness: WorldActor = public_witnesses[0] if not public_witnesses.is_empty() else victim
-	return report_crime(attacker, faction_id, _settlement_id(settlement), CRIME_ASSAULT, 35, lead_witness, victim, {
-		"public": not public_witnesses.is_empty(),
-		"witnesses": witnesses,
-		"provisional_victim_key": _actor_key(victim),
-		"authority_alert_mode": "local",
-		"local_alarm_position": victim.global_position,
-		"local_alarm_radius": NpcRules.NPC_ALERT_PROXIMITY_RADIUS,
-	})
+	return _report_assault(attacker, victim)
 
 
-func _on_root_combat_started(attacker_actor_id: String, protected_actor_id: String, origin: Vector3, _encounter_id: String) -> void:
+func _on_root_combat_started(attacker_actor_id: String, protected_actor_id: String, origin: Vector3, encounter_id: String) -> void:
+	var cause := _combat_responses.get_aggression_context(encounter_id, attacker_actor_id, protected_actor_id) if _combat_responses != null else {}
+	cause.merge({"attacker_actor_id": attacker_actor_id, "protected_actor_id": protected_actor_id, "origin": origin, "encounter_id": encounter_id}, true)
+	_report_combat_aggression(cause)
+
+
+func _report_combat_aggression(cause: Dictionary) -> void:
+	var attacker_actor_id := str(cause.get("attacker_actor_id", ""))
+	var protected_actor_id := str(cause.get("protected_actor_id", ""))
 	var attacker := _actor_query.get_actor_by_stable_id(attacker_actor_id) as WorldActor if _actor_query != null else null
 	var victim := _actor_query.get_actor_by_stable_id(protected_actor_id) as WorldActor if _actor_query != null else null
 	if attacker == null or victim == null or victim.life_state == NpcRules.LifeState.DEAD:
 		return
+	_report_assault(attacker, victim, cause)
+
+
+## Shared by menu warnings and committed combat incidents. Hostility grudges
+## alone are never proof of self-defense; the combat cause owns that decision.
+func assess_attack(attacker: WorldActor, victim: WorldActor, cause: Dictionary = {}) -> Dictionary:
+	if attacker == null or victim == null or attacker == victim or (attacker.is_player_party_member() and victim.is_player_party_member()) or victim.life_state == NpcRules.LifeState.DEAD:
+		return {"illegal": false}
+	var response_context := cause
+	if response_context.is_empty() and _combat_responses != null:
+		response_context = _combat_responses.get_response_context(_actor_key(attacker), _actor_key(victim))
+	if bool(response_context.get("authorized_response", false)) or int(response_context.get("response_depth", 0)) > 0:
+		return {"illegal": false}
 	var settlement := _find_containing_settlement(victim)
-	var enforcing_faction := _settlement_faction_id(settlement)
+	var faction_id := _settlement_faction_id(settlement)
 	var settlement_id := _settlement_id(settlement)
-	if enforcing_faction.is_empty() or settlement_id.is_empty():
-		return
-	if _has_assault_warrant_for_target(attacker, enforcing_faction, victim):
-		return
-	var witnesses := _find_local_authority_witnesses(attacker, victim, enforcing_faction, settlement, NpcRules.NPC_ALERT_PROXIMITY_RADIUS)
-	if _is_law_soldier_responder(victim) and victim.faction_name == enforcing_faction and _is_law_actor_attached_to_settlement(victim, settlement):
+	var crime_type := CRIME_ASSAULT
+	if str(response_context.get("legal_reason", "")) == "resisting_arrest":
+		crime_type = CRIME_RESISTING_ARREST
+		faction_id = str(response_context.get("authority_faction_id", victim.faction_name))
+		settlement_id = str(response_context.get("settlement_id", settlement_id))
+	else:
+		var factions := _context.get_optional(FactionController.SERVICE_ID) as FactionController if _context != null else null
+		if not faction_id.is_empty() and factions != null and factions.are_hostile(faction_id, victim.faction_name):
+			return {"illegal": false}
+		if faction_id.is_empty():
+			faction_id = victim.faction_name.strip_edges()
+	if (response_context.get("settled_factions", []) as Array).has(faction_id):
+		return {"illegal": false}
+	var incident_id := str(response_context.get("encounter_id", ""))
+	if crime_type == CRIME_RESISTING_ARREST:
+		incident_id = "resistance:" + str(response_context.get("authority_id", incident_id))
+	elif not incident_id.is_empty():
+		incident_id += ":" + _actor_key(victim)
+	return {"illegal": not faction_id.is_empty() and _crime_alerts != null and _crime_alerts.crime_is_illegal_for_faction(crime_type, faction_id), "faction_id": faction_id, "settlement_id": settlement_id, "crime_type": crime_type, "incident_id": incident_id}
+
+
+func _report_assault(attacker: WorldActor, victim: WorldActor, cause: Dictionary = {}) -> Dictionary:
+	var assessment := assess_attack(attacker, victim, cause)
+	if not bool(assessment.get("illegal", false)):
+		return {}
+	var settlement := _find_containing_settlement(victim)
+	var faction_id := str(assessment.faction_id)
+	var witnesses := _find_local_authority_witnesses(attacker, victim, faction_id, settlement, NpcRules.NPC_ALERT_PROXIMITY_RADIUS)
+	if _is_law_soldier_responder(victim) and victim.faction_name == faction_id:
 		witnesses.append(victim)
-	if witnesses.is_empty():
-		# The victim is still a witness under the existing player-assault policy.
-		# Keep its provisional case private; that policy owns death cleanup and
-		# response-depth refusal instead of inventing a second root-event policy.
-		if attacker is HumanoidCharacter and victim is HumanoidCharacter:
-			report_player_assault(attacker, victim)
-		return
-	report_crime(attacker, enforcing_faction, settlement_id, CRIME_ASSAULT, 35, witnesses[0], victim, {
-		"public": true,
-		"witnesses": witnesses,
-		"event_origin": origin,
-		"authority_alert_mode": "local",
-		"local_alarm_position": origin,
-		"local_alarm_radius": NpcRules.NPC_ALERT_PROXIMITY_RADIUS,
+	var is_public := not witnesses.is_empty()
+	if not is_public and not attacker.is_player_party_member():
+		return {}
+	var lead_witness := witnesses[0] if is_public else victim
+	if not witnesses.has(victim):
+		witnesses.append(victim)
+	var origin: Vector3 = cause.get("origin", victim.global_position)
+	return report_crime(attacker, faction_id, str(assessment.settlement_id), str(assessment.crime_type), 35, lead_witness, victim, {
+		"public": is_public, "witnesses": witnesses,
+		"provisional_victim_key": _actor_key(victim), "incident_id": assessment.incident_id,
+		"event_origin": origin, "authority_alert_mode": "local",
+		"local_alarm_position": origin, "local_alarm_radius": NpcRules.NPC_ALERT_PROXIMITY_RADIUS,
 	})
-
-
-func _has_assault_warrant_for_target(attacker: WorldActor, enforcing_faction_id: String, victim: WorldActor) -> bool:
-	var record := _get_mutable_warrant_record(attacker, enforcing_faction_id)
-	if record.is_empty():
-		return false
-	var victim_key := _actor_key(victim)
-	for crime_value in (record.get("crimes", []) as Array):
-		var crime := crime_value as Dictionary
-		if str(crime.get("crime_type", "")) == CRIME_ASSAULT and str(crime.get("target_key", "")) == victim_key:
-			return true
-	return false
 
 
 func report_assault_if_witnessed(attacker: HumanoidCharacter, victim: HumanoidCharacter) -> Dictionary:
-	if attacker == null or victim == null or not attacker.is_player_party_member():
-		return {}
-	if victim.is_player_party_member() or victim.has_hostility_with(attacker):
-		return {}
-	var faction_id := victim.faction_name
-	if faction_id.is_empty():
-		return {}
-	var witnesses := _find_witnesses(attacker, victim, faction_id)
-	if witnesses.is_empty():
-		return {}
-	return report_crime(attacker, faction_id, get_current_settlement_id_for(victim), CRIME_ASSAULT, 35, witnesses[0], victim, {
-		"public": true,
-		"witnesses": witnesses,
-	})
+	return report_player_assault(attacker, victim)
 
 
 func report_murder_if_witnessed(attacker: HumanoidCharacter, victim: HumanoidCharacter) -> Dictionary:
@@ -251,7 +257,13 @@ func report_lockpicking_if_witnessed(actor: HumanoidCharacter, target) -> Dictio
 		faction_id = _settlement_faction_id(_find_containing_settlement(target))
 	if faction_id.is_empty():
 		return {}
-	var witnesses := _find_witnesses(actor, target, faction_id)
+	var explicit_owner = OwnershipUtils.get_explicit_owner(target)
+	if explicit_owner != null:
+		if OwnershipUtils.is_authorized(actor, target):
+			return {}
+	elif actor.faction_name == faction_id:
+		return {}
+	var witnesses := _find_witnesses(actor, target, faction_id, true)
 	if witnesses.is_empty():
 		return {}
 	return report_crime(actor, faction_id, get_current_settlement_id_for(target), CRIME_LOCKPICKING, 20, witnesses[0], target)
@@ -267,6 +279,23 @@ func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, 
 	var by_faction: Dictionary = warrants.get(actor_key, {})
 	var is_new_record := not by_faction.has(faction_key)
 	var record: Dictionary = by_faction.get(faction_key, _new_warrant(actor, faction_key, settlement_id))
+	var incident_id := str(crime_context.get("incident_id", ""))
+	if not incident_id.is_empty():
+		for existing in record.get("crimes", []):
+			if str(existing.get("incident_id", "")) == incident_id and str(existing.get("crime_type", "")) == crime_type:
+				# Witnesses may discover an ongoing incident, but cannot multiply it.
+				var new_audience := bool(crime_context.get("public", true)) and not bool(existing.get("public", true))
+				var entering_jurisdiction := str(record.get("settlement_id", "")).is_empty() and not settlement_id.is_empty()
+				if new_audience or entering_jurisdiction:
+					existing["public"] = bool(existing.get("public", false)) or new_audience
+					existing["witness_keys"] = _actor_keys_from_witnesses(crime_context.get("witnesses", []))
+					record["public_known"] = bool(record.get("public_known", false)) or new_audience
+					record["settlement_id"] = settlement_id
+					record["latest_alert_origin"] = crime_context.get("event_origin", actor.global_position)
+					record["latest_witness_actor_id"] = _actor_key(witness)
+					_alert_authority_guards(actor, record)
+					_save_law_order_state_to_gecs()
+				return record
 	var witness_keys := _actor_keys_from_witnesses(crime_context.get("witnesses", []))
 	if witness_keys.is_empty() and witness != null:
 		witness_keys.append(_actor_key(witness))
@@ -278,6 +307,8 @@ func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, 
 			target.died.connect(handle_actor_death)
 	var crime_record := {
 		"crime_type": crime_type,
+		"incident_id": incident_id,
+		"public_enforcement": _crime_alerts.uses_public_enforcement(crime_type, faction_key),
 		"severity": max(1, severity),
 		"settlement_id": settlement_id,
 		"witness_key": _actor_key(witness),
@@ -305,8 +336,7 @@ func report_crime(actor: WorldActor, faction_id: String, settlement_id: String, 
 	warrants[actor_key] = by_faction
 	_apply_actor_law_meta(actor, record)
 	_save_law_order_state_to_gecs()
-	if witness != null and witness.has_method("show_world_speech"):
-		witness.show_world_speech(_crime_alarm_line(crime_type), 4.0)
+	_present_crime_alarm(witness, crime_type, settlement_id, bool(crime_record.public_enforcement))
 	_alert_authority_guards(actor, record)
 	var brain := _get_gecs_world()
 	if brain != null and brain.has_method("log_world_event"):
@@ -323,6 +353,14 @@ func handle_actor_death(actor: WorldActor) -> void:
 func _on_population_life_state_changed(actor_id: String, _previous_state: int, next_state: int) -> void:
 	if next_state != NpcRules.LifeState.DEAD:
 		return
+	if prisoner_records.has(actor_id):
+		var record: Dictionary = prisoner_records[actor_id]
+		var jail := _find_jail_by_id(str(record.get("jail_id", "")))
+		if jail != null:
+			for cell in jail.get_cells():
+				if cell is JailCell:
+					cell.occupant_ids.erase(actor_id)
+		prisoner_records.erase(actor_id)
 	_prune_victim_only_crimes_for_dead_actor_id(actor_id)
 	_save_law_order_state_to_gecs()
 
@@ -368,6 +406,7 @@ func apply_serialized_state(state: Dictionary) -> void:
 		return
 	warrants = (state.get("warrants", {}) as Dictionary).duplicate(true)
 	prisoner_records = (state.get("prisoner_records", {}) as Dictionary).duplicate(true)
+	authored_prisoner_starts = (state.get("authored_prisoner_starts", {}) as Dictionary).duplicate(true)
 	_apply_loaded_law_meta()
 	_save_law_order_state_to_gecs()
 
@@ -381,6 +420,7 @@ func refresh_from_gecs_state() -> void:
 		return
 	warrants = (state.get("warrants", {}) as Dictionary).duplicate(true)
 	prisoner_records = (state.get("prisoner_records", {}) as Dictionary).duplicate(true)
+	authored_prisoner_starts = (state.get("authored_prisoner_starts", {}) as Dictionary).duplicate(true)
 	_apply_loaded_law_meta()
 
 
@@ -470,7 +510,7 @@ func _process_active_combat_aggressions() -> void:
 	var start_index := _combat_aggression_poll_cursor % aggressions.size()
 	for offset in range(poll_count):
 		var aggression: Dictionary = aggressions[(start_index + offset) % aggressions.size()]
-		_on_root_combat_started(str(aggression.get("attacker_actor_id", "")), str(aggression.get("protected_actor_id", "")), aggression.get("origin", Vector3.ZERO), str(aggression.get("encounter_id", "")))
+		_report_combat_aggression(aggression)
 	_combat_aggression_poll_cursor = (start_index + poll_count) % aggressions.size()
 
 
@@ -739,6 +779,8 @@ func _process_warrants() -> void:
 		var by_faction: Dictionary = warrants.get(actor_key, {})
 		for faction_id in by_faction.keys():
 			var record: Dictionary = by_faction[faction_id]
+			if not _warrant_uses_public_enforcement(record):
+				continue
 			if str(record.get("state", "wanted")) == "jailed":
 				continue
 			if str(record.get("state", "wanted")) == "custody":
@@ -791,6 +833,47 @@ func _process_prisoners() -> void:
 			# re-seat it into the cell recorded in GECS truth (prisoner_records).
 			if jail != null and jail.has_method("restore_prisoner_to_cell") and not actor.is_in_cell_custody():
 				jail.call("restore_prisoner_to_cell", actor, record)
+
+
+## Starting custody is authored once, not a replaceable employment vacancy.
+## Reserve real furniture even when the character is outside realization range.
+func start_authored_prisoner(actor_id: String, slot: Dictionary, jail: Node) -> bool:
+	var slot_id := str(slot.get("slot_id", ""))
+	var population := _context.get_optional(PopulationController.SERVICE_ID) as PopulationController if _context != null else null
+	if population == null or jail == null or not jail.has_method("get_cells"):
+		return false
+	if slot_id.is_empty() or str(slot.get("assignment_domain", "")) != "custody" or authored_prisoner_starts.has(slot_id) or prisoner_records.has(actor_id):
+		return false
+	var person := population.get_actor_record(actor_id)
+	if person.is_empty() or int(person.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD or not str(person.get("party_id", "")).is_empty():
+		return false
+	var selected: JailCell
+	for candidate in jail.get_cells():
+		var cell := candidate as JailCell
+		if cell != null and cell.reserve_prisoner_id(actor_id, WorldActor.CONTAINMENT_SIZE_MEDIUM):
+			selected = cell
+			break
+	if selected == null:
+		return false
+	prisoner_records[actor_id] = {
+		"state": "jailed", "actor_key": actor_id,
+		"settlement_id": str(slot.get("settlement_id", "")),
+		"faction_id": str(person.get("faction_id", "")),
+		"jail_id": str(jail.get_facility_id()), "cell_id": selected.cell_id,
+		"authored_slot_id": slot_id, "release_at_minute": -1,
+		"sentence_decision_given": true, "sentence_notification_given": true,
+		"sentence_notification_pending": false, "sentence_notification_requested": false,
+		"crimes": [],
+	}
+	authored_prisoner_starts[slot_id] = actor_id
+	population.update_actor_record(actor_id, {
+		"role_id": "prisoner", "available_for_work": false, "movement_state": {},
+		"last_world_position_initialized": true, "last_world_transform_initialized": true,
+		"last_world_position": selected.get_prisoner_position(),
+		"last_world_transform": Transform3D(Basis.from_euler(selected.get_prisoner_rotation()), selected.get_prisoner_position()),
+	})
+	_save_law_order_state_to_gecs()
+	return true
 
 
 func register_offscreen_prisoner(actor_id: String, settlement_id: String, faction_id: String) -> void:
@@ -1014,6 +1097,29 @@ func pay_bail(payer: WorldActor, jail: Node) -> bool:
 	return true
 
 
+## Picking a cage ends custody, not the warrant, sentence debt or confiscation.
+## The durable prisoner assignment is removed even if its actor is unloaded.
+func release_picked_cell(cell: JailCell) -> void:
+	if cell == null or cell.is_locked:
+		return
+	for actor_id in cell.occupant_ids.duplicate():
+		var custody: Dictionary = prisoner_records.get(actor_id, {})
+		prisoner_records.erase(actor_id)
+		var by_faction: Dictionary = warrants.get(actor_id, {})
+		for record in by_faction.values():
+			if str(record.get("state", "")) in ["jailed", "custody"]:
+				record["state"] = "wanted"
+		var actor := _find_actor_by_key(actor_id)
+		if actor != null:
+			actor.exit_cell_custody(cell.get_release_position(), cell.get_release_rotation())
+			actor.get_legal_status().clear_prisoner()
+			if not by_faction.is_empty():
+				_apply_actor_law_meta(actor, by_faction.values()[0])
+		_finish_authored_custody(actor_id, custody, cell.get_release_position(), cell.get_release_rotation())
+	cell.occupant_ids.clear()
+	_save_law_order_state_to_gecs()
+
+
 func _release_prisoner(actor: WorldActor, record: Dictionary, jail) -> void:
 	if jail != null and jail.has_method("release_prisoner"):
 		jail.call("release_prisoner", actor, record, false)
@@ -1022,10 +1128,35 @@ func _release_prisoner(actor: WorldActor, record: Dictionary, jail) -> void:
 	var status := actor.get_legal_status()
 	status.clear_prisoner()
 	status.clear_warrant_display()
+	_finish_authored_custody(_actor_key(actor), record, actor.global_position, actor.global_rotation)
 	_save_law_order_state_to_gecs()
 
 
+func _finish_authored_custody(actor_id: String, custody: Dictionary, position: Vector3, rotation: Vector3) -> void:
+	if str(custody.get("authored_slot_id", "")).is_empty():
+		return
+	var population := _context.get_optional(PopulationController.SERVICE_ID) as PopulationController if _context != null else null
+	if population == null:
+		return
+	# Leave the facility realization parent before releasing the binding: its
+	# reconciliation correctly removes unbound staff, but this person is free.
+	var actor := population.get_live_actor(actor_id) as WorldActor
+	if actor != null:
+		if actor.get_parent() != root_scene:
+			actor.reparent(root_scene)
+		actor.remove_meta("settlement_assignment_domain")
+		actor.remove_meta("settlement_assignment_slot_id")
+	population.release_actor_assignment(actor_id, "custody")
+	population.update_actor_record(actor_id, {
+		"generation_source": "census_authored", "role_id": "resident", "movement_state": {},
+		"last_world_position": position, "last_world_position_initialized": true,
+		"last_world_transform": Transform3D(Basis.from_euler(rotation), position), "last_world_transform_initialized": true,
+	})
+
+
 func _alert_authority_guards(actor: WorldActor, warrant: Dictionary) -> void:
+	if not _warrant_uses_public_enforcement(warrant):
+		return
 	if actor == null or actor.life_state != NpcRules.LifeState.ALIVE:
 		return
 	if _combat_responses == null:
@@ -1035,6 +1166,14 @@ func _alert_authority_guards(actor: WorldActor, warrant: Dictionary) -> void:
 	var origin: Vector3 = warrant.get("latest_alert_origin", warrant.get("local_alarm_position", actor.global_position))
 	var radius := float(warrant.get("latest_alert_radius", NpcRules.NPC_ALERT_PROXIMITY_RADIUS))
 	warrant["latest_response_event_id"] = _combat_responses.authorize_response(CGameCombatEvent.Audience.SETTLEMENT_AUTHORITY, _actor_key(actor), str(warrant.get("latest_witness_actor_id", "")), authority_id, str(warrant.get("faction_id", "")), str(warrant.get("settlement_id", "")), origin, radius, CGameCombatResponseIntent.Kind.LAW_ENFORCEMENT)
+
+
+func _warrant_uses_public_enforcement(warrant: Dictionary) -> bool:
+	for crime in warrant.get("crimes", []):
+		# Preserve existing saved warrants; new records capture the authored mode.
+		if bool(crime.get("public_enforcement", true)):
+			return true
+	return false
 
 
 func _disengage_authority_guards(actor: WorldActor, warrant: Dictionary) -> void:
@@ -1271,7 +1410,7 @@ func _find_local_authority_witnesses(attacker: WorldActor, victim: WorldActor, e
 	return witnesses
 
 
-func _find_witnesses(actor: WorldActor, target, faction_id: String) -> Array:
+func _find_witnesses(actor: WorldActor, target, faction_id: String, require_sight := false) -> Array:
 	var witnesses: Array = []
 	if actor == null or root_scene == null or not root_scene.is_inside_tree():
 		return witnesses
@@ -1279,11 +1418,20 @@ func _find_witnesses(actor: WorldActor, target, faction_id: String) -> Array:
 	if target is Node3D:
 		target_position = (target as Node3D).global_position
 	var perception := _get_perception_controller()
-	if target is WorldActor and perception == null:
+	if (require_sight or target is WorldActor) and (perception == null or not perception.has_method("evaluate_observer")):
 		return witnesses
-	for node in root_scene.get_tree().get_nodes_in_group("world_actor"):
+	var query := _get_actor_query_controller()
+	# Recurring lock work must use the spatial index, never a world-tree scan.
+	if require_sight and query == null:
+		return witnesses
+	var candidates: Array = query.get_nearby_actors(target_position, DEFAULT_WITNESS_RADIUS, false) if query != null else root_scene.get_tree().get_nodes_in_group("world_actor")
+	for node in candidates:
+		if not is_instance_valid(node) or node.is_queued_for_deletion():
+			continue
 		var witness := node as WorldActor
 		if witness == null or witness == actor or witness.life_state != NpcRules.LifeState.ALIVE or witness.player_party_member:
+			continue
+		if require_sight and not witness.can_participate_in_perception():
 			continue
 		if not faction_id.is_empty() and witness.faction_name != faction_id:
 			continue
@@ -1358,7 +1506,7 @@ func _clear_expired_warrants(absolute_minute: int) -> void:
 			var expires_at := int(record.get("warrant_expires_at_minute", -1))
 			if expires_at >= 0 and absolute_minute >= expires_at and str(record.get("state", "wanted")) != "jailed":
 				if actor != null:
-					_disengage_authority_guards(actor, record)
+					_finish_warrant_response(actor, record)
 				by_faction.erase(faction_id)
 				expired_any = true
 		if by_faction.is_empty():
@@ -1387,6 +1535,9 @@ func _clear_warrant_for_actor(actor: WorldActor, faction_id: String) -> void:
 		return
 	var actor_key := _actor_key(actor)
 	var by_faction: Dictionary = warrants.get(actor_key, {})
+	for key in by_faction:
+		if faction_id.is_empty() or str(key) == faction_id:
+			_finish_warrant_response(actor, by_faction[key])
 	if faction_id.is_empty():
 		by_faction.clear()
 	else:
@@ -1397,6 +1548,12 @@ func _clear_warrant_for_actor(actor: WorldActor, faction_id: String) -> void:
 	else:
 		warrants[actor_key] = by_faction
 	_save_law_order_state_to_gecs()
+
+
+func _finish_warrant_response(actor: WorldActor, warrant: Dictionary) -> void:
+	if _combat_responses != null:
+		_combat_responses.settle_crime_incidents(_actor_key(actor), str(warrant.get("faction_id", "")), warrant.get("crimes", []))
+	_disengage_authority_guards(actor, warrant)
 
 
 func _clear_actor_law_meta(actor: WorldActor) -> void:
@@ -1487,6 +1644,8 @@ func _warrant_duration_for(crime_type: String) -> int:
 			return TRESPASS_WARRANT_DURATION_MINUTES
 		CRIME_ASSAULT:
 			return ASSAULT_WARRANT_DURATION_MINUTES
+		CRIME_RESISTING_ARREST:
+			return ASSAULT_WARRANT_DURATION_MINUTES
 		CRIME_LOCKPICKING, CRIME_ESCAPE:
 			return LOCKPICK_WARRANT_DURATION_MINUTES
 		_:
@@ -1516,6 +1675,8 @@ func _sentence_minutes_for(crime_type: String, severity: int) -> int:
 			return MURDER_SENTENCE_MINUTES
 		CRIME_ASSAULT:
 			return ASSAULT_SENTENCE_MINUTES
+		CRIME_RESISTING_ARREST:
+			return ASSAULT_SENTENCE_MINUTES
 		CRIME_TRESPASS:
 			return TRESPASS_SENTENCE_MINUTES
 		CRIME_LOCKPICKING, CRIME_ESCAPE:
@@ -1540,9 +1701,21 @@ func _merged_warrant_expiry(record: Dictionary, crime_type: String) -> int:
 			duration = TRESPASS_WARRANT_DURATION_MINUTES
 		CRIME_ASSAULT:
 			duration = ASSAULT_WARRANT_DURATION_MINUTES
+		CRIME_RESISTING_ARREST:
+			duration = ASSAULT_WARRANT_DURATION_MINUTES
 		CRIME_LOCKPICKING, CRIME_ESCAPE:
 			duration = LOCKPICK_WARRANT_DURATION_MINUTES
 	return maxi(current, _now_minute() + duration + int(record.get("bad_person_points", 0)))
+
+
+func _present_crime_alarm(witness: WorldActor, crime_type: String, settlement_id: String, public_enforcement: bool) -> void:
+	if witness == null or settlement_id.is_empty() or not public_enforcement or witness.life_state != NpcRules.LifeState.ALIVE:
+		return
+	var role := str(witness.get_meta("actor_role_id", "")).to_lower()
+	var character_type := str(witness.get_meta("population_character_type_id", "")).to_lower()
+	if witness.is_faction_soldier() or character_type == "warrior" or role in ["warrior", "soldier", "guard", "jail_guard", "warden", "camp_warrior", "camp_leader"]:
+		return
+	witness.show_world_speech(_crime_alarm_line(crime_type), 4.0)
 
 
 func _crime_alarm_line(crime_type: String) -> String:
@@ -1598,6 +1771,8 @@ func _caught_crime_status_label(crime_type: String) -> String:
 			return "CAUGHT TRESPASSING"
 		CRIME_ASSAULT:
 			return "CAUGHT ASSAULTING"
+		CRIME_RESISTING_ARREST:
+			return "RESISTING ARREST"
 		CRIME_MURDER:
 			return "CAUGHT MURDERING"
 		CRIME_LOCKPICKING:
@@ -1670,7 +1845,7 @@ func _find_containing_settlement(target) -> Node:
 		position = (target as Node3D).global_position
 		has_position = true
 	var ancestor := _ancestor_settlement(target as Node if target is Node else null)
-	if ancestor != null:
+	if ancestor != null and (not has_position or not ancestor.has_method("contains_town_border_position") or bool(ancestor.call("contains_town_border_position", position))):
 		return ancestor
 	if not has_position:
 		return null
@@ -1796,6 +1971,7 @@ func _current_law_order_state() -> Dictionary:
 		"state_id": "law_order",
 		"warrants": warrants.duplicate(true),
 		"prisoner_records": prisoner_records.duplicate(true),
+		"authored_prisoner_starts": authored_prisoner_starts.duplicate(true),
 	}
 
 
@@ -1806,6 +1982,9 @@ func _save_law_order_state_to_gecs() -> void:
 
 
 func _apply_loaded_law_meta() -> void:
+	if root_scene != null and root_scene.is_inside_tree():
+		for jail in root_scene.get_tree().get_nodes_in_group("settlement_jail"):
+			restore_jail_reservations(jail)
 	for actor_key in warrants.keys():
 		var actor := _find_actor_by_key(str(actor_key))
 		if actor == null:
@@ -1817,6 +1996,27 @@ func _apply_loaded_law_meta() -> void:
 		var prisoner := _find_actor_by_key(str(prisoner_key))
 		if prisoner != null:
 			_apply_actor_law_meta(prisoner, prisoner_records[prisoner_key])
+
+
+## Furniture occupancy is a projection of saved law state, including unloaded
+## bodies. Run on load or jail mount, never as a per-frame scene scan.
+func restore_jail_reservations(jail: Node) -> void:
+	if jail == null or not jail.has_method("get_cells"):
+		return
+	var cells: Dictionary = {}
+	for candidate in jail.get_cells():
+		var cell := candidate as JailCell
+		if cell != null:
+			cell.occupant_ids.clear()
+			cells[cell.cell_id] = cell
+	for actor_id in prisoner_records:
+		var record: Dictionary = prisoner_records[actor_id]
+		if str(record.get("jail_id", "")) != str(jail.get_facility_id()):
+			continue
+		var cell := cells.get(str(record.get("cell_id", ""))) as JailCell
+		if cell != null:
+			# Do not relock a saved open lock while rebuilding occupancy.
+			cell.occupant_ids.append(str(actor_id))
 
 
 func _get_gecs_world() -> Node:

@@ -1,0 +1,65 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_piece.gd" id="1_wraac"]
+[ext_resource type="ArrayMesh" path="res://assets/buildings/earthen/meshes/wall_window_wide_flat.res" id="2_k4d35"]
+[ext_resource type="Script" path="res://features/world/projection/buildings/modular_building_snap_marker.gd" id="3_ccucv"]
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_x8xly"]
+data = PackedVector3Array(-1, 3.1227, 0, -0.59999996, 0, 0, -1, 0, 0, -1, 3.1227, -0.19999999, -1, 0, -0.19999999, -0.59999996, 0, -0.19999999, -0.59999996, 0, 0, -1, 3.1227, 0, -0.59999996, 3.1227, 0, -0.59999996, 0, -0.19999999, -0.59999996, 3.1227, -0.19999999, -1, 3.1227, -0.19999999, -1, 0, 0, -0.59999996, 0, 0, -0.59999996, 0, -0.19999999, -1, 0, 0, -0.59999996, 0, -0.19999999, -1, 0, -0.19999999, -0.59999996, 0, 0, -0.59999996, 3.1227, 0, -0.59999996, 3.1227, -0.19999999, -0.59999996, 0, 0, -0.59999996, 3.1227, -0.19999999, -0.59999996, 0, -0.19999999, -0.59999996, 3.1227, 0, -1, 3.1227, 0, -1, 3.1227, -0.19999999, -0.59999996, 3.1227, 0, -1, 3.1227, -0.19999999, -0.59999996, 3.1227, -0.19999999, -1, 3.1227, 0, -1, 0, 0, -1, 0, -0.19999999, -1, 3.1227, 0, -1, 0, -0.19999999, -1, 3.1227, -0.19999999, 0.59999996, 3.1227, 0, 1, 0, 0, 0.59999996, 0, 0, 0.59999996, 3.1227, -0.19999999, 0.59999996, 0, -0.19999999, 1, 0, -0.19999999, 1, 0, 0, 0.59999996, 3.1227, 0, 1, 3.1227, 0, 1, 0, -0.19999999, 1, 3.1227, -0.19999999, 0.59999996, 3.1227, -0.19999999, 0.59999996, 0, 0, 1, 0, 0, 1, 0, -0.19999999, 0.59999996, 0, 0, 1, 0, -0.19999999, 0.59999996, 0, -0.19999999, 1, 0, 0, 1, 3.1227, 0, 1, 3.1227, -0.19999999, 1, 0, 0, 1, 3.1227, -0.19999999, 1, 0, -0.19999999, 1, 3.1227, 0, 0.59999996, 3.1227, 0, 0.59999996, 3.1227, -0.19999999, 1, 3.1227, 0, 0.59999996, 3.1227, -0.19999999, 1, 3.1227, -0.19999999, 0.59999996, 3.1227, 0, 0.59999996, 0, 0, 0.59999996, 0, -0.19999999, 0.59999996, 3.1227, 0, 0.59999996, 0, -0.19999999, 0.59999996, 3.1227, -0.19999999, -0.59999996, 1.045, 0, 0.59999996, 0, 0, -0.59999996, 0, 0, -0.59999996, 1.045, -0.19999999, -0.59999996, 0, -0.19999999, 0.59999996, 0, -0.19999999, 0.59999996, 0, 0, -0.59999996, 1.045, 0, 0.59999996, 1.045, 0, 0.59999996, 0, -0.19999999, 0.59999996, 1.045, -0.19999999, -0.59999996, 1.045, -0.19999999, -0.59999996, 0, 0, 0.59999996, 0, 0, 0.59999996, 0, -0.19999999, -0.59999996, 0, 0, 0.59999996, 0, -0.19999999, -0.59999996, 0, -0.19999999, 0.59999996, 0, 0, 0.59999996, 1.045, 0, 0.59999996, 1.045, -0.19999999, 0.59999996, 0, 0, 0.59999996, 1.045, -0.19999999, 0.59999996, 0, -0.19999999, 0.59999996, 1.045, 0, -0.59999996, 1.045, 0, -0.59999996, 1.045, -0.19999999, 0.59999996, 1.045, 0, -0.59999996, 1.045, -0.19999999, 0.59999996, 1.045, -0.19999999, -0.59999996, 1.045, 0, -0.59999996, 0, 0, -0.59999996, 0, -0.19999999, -0.59999996, 1.045, 0, -0.59999996, 0, -0.19999999, -0.59999996, 1.045, -0.19999999, -0.59999996, 3.1227, 0, 0.59999996, 2.315, 0, -0.59999996, 2.315, 0, -0.59999996, 3.1227, -0.19999999, -0.59999996, 2.315, -0.19999999, 0.59999996, 2.315, -0.19999999, 0.59999996, 2.315, 0, -0.59999996, 3.1227, 0, 0.59999996, 3.1227, 0, 0.59999996, 2.315, -0.19999999, 0.59999996, 3.1227, -0.19999999, -0.59999996, 3.1227, -0.19999999, -0.59999996, 2.315, 0, 0.59999996, 2.315, 0, 0.59999996, 2.315, -0.19999999, -0.59999996, 2.315, 0, 0.59999996, 2.315, -0.19999999, -0.59999996, 2.315, -0.19999999, 0.59999996, 2.315, 0, 0.59999996, 3.1227, 0, 0.59999996, 3.1227, -0.19999999, 0.59999996, 2.315, 0, 0.59999996, 3.1227, -0.19999999, 0.59999996, 2.315, -0.19999999, 0.59999996, 3.1227, 0, -0.59999996, 3.1227, 0, -0.59999996, 3.1227, -0.19999999, 0.59999996, 3.1227, 0, -0.59999996, 3.1227, -0.19999999, 0.59999996, 3.1227, -0.19999999, -0.59999996, 3.1227, 0, -0.59999996, 2.315, 0, -0.59999996, 2.315, -0.19999999, -0.59999996, 3.1227, 0, -0.59999996, 2.315, -0.19999999, -0.59999996, 3.1227, -0.19999999)
+
+[node name="WallWindowWideFlat" type="Node3D" unique_id=1923147476]
+script = ExtResource("1_wraac")
+piece_id = "plaster_wall_window_wide_flat"
+display_name = "Plaster Window Wide Flat"
+category = "wall_window"
+bounds_size_meters = Vector3(2, 3.122689, 0.2)
+
+[node name="Model" type="MeshInstance3D" parent="." unique_id=1658374886]
+mesh = ExtResource("2_k4d35")
+
+[node name="Body" type="StaticBody3D" parent="Model" unique_id=481464137]
+
+[node name="Shape" type="CollisionShape3D" parent="Model/Body" unique_id=1037512377]
+shape = SubResource("ConcavePolygonShape3D_x8xly")
+
+[node name="SnapPoints" type="Node3D" parent="." unique_id=1778832135]
+
+[node name="Left" type="Marker3D" parent="SnapPoints" unique_id=1211144435]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1, 1.5613445, -0.1)
+script = ExtResource("3_ccucv")
+snap_id = "left"
+display_name = "Left"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+
+[node name="Right" type="Marker3D" parent="SnapPoints" unique_id=267258797]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1, 1.5613445, -0.1)
+script = ExtResource("3_ccucv")
+snap_id = "right"
+display_name = "Right"
+connector_type = "wall_side"
+accepts_types = PackedStringArray("wall_side", "corner_side")
+
+[node name="Top" type="Marker3D" parent="SnapPoints" unique_id=1719052958]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, 3.122689, -0.1)
+script = ExtResource("3_ccucv")
+snap_id = "top"
+display_name = "Top"
+connector_type = "wall_top"
+accepts_types = PackedStringArray("floor_edge", "wall_top", "wall_bottom", "roof_wall_top")
+
+[node name="Bottom" type="Marker3D" parent="SnapPoints" unique_id=1138335425]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.1)
+script = ExtResource("3_ccucv")
+snap_id = "bottom"
+display_name = "Bottom"
+connector_type = "wall_bottom"
+accepts_types = PackedStringArray("floor_edge", "wall_top", "wall_bottom", "roof_wall_top")
+
+[node name="WindowCenter" type="Marker3D" parent="SnapPoints"]
+position = Vector3(0, 1.7105, -0.1)
+script = ExtResource("3_ccucv")
+snap_id = "center"
+display_name = "Window Center"
+connector_type = "window_socket"
+accepts_types = PackedStringArray("window_insert")

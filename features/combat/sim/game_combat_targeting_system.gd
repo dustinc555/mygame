@@ -63,9 +63,9 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 	var encounter_targeting_context := _build_encounter_targeting_context()
 	var opposing_side_by_actor: Dictionary = encounter_targeting_context.get("opposing_side_by_actor", {})
 	var members_by_side: Dictionary = encounter_targeting_context.get("members_by_side", {})
-	var encounter_by_actor: Dictionary = encounter_targeting_context.get("encounter_by_actor", {})
-	var law_candidates_by_encounter: Dictionary = encounter_targeting_context.get("law_candidates_by_encounter", {})
-	var law_candidates_by_actor := _build_law_candidates_by_actor(response_intents_by_actor_id, encounter_by_actor, law_candidates_by_encounter)
+	var disengaged_by_actor: Dictionary = encounter_targeting_context.get("disengaged_by_actor", {})
+	var assistance_by_actor: Dictionary = encounter_targeting_context.get("assistance_by_actor", {})
+	var law_candidates_by_actor := _build_law_candidates_by_actor(response_intents_by_actor_id)
 	var alive_value := NpcRules.LifeState.ALIVE
 	var process_frame := Engine.get_process_frames()
 	var due_flags := PackedByteArray()
@@ -135,6 +135,13 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		var encounter_opponents: Dictionary = members_by_side.get(opposing_side_key, {})
 		var law_opponents: Dictionary = law_candidates_by_actor.get(actor_id_i, {})
 		var tactical_opponents: Dictionary = law_opponents if not law_opponents.is_empty() else encounter_opponents
+		if law_opponents.is_empty() and assistance_by_actor.has(actor_id_i):
+			tactical_opponents = tactical_opponents.duplicate()
+			tactical_opponents.merge(assistance_by_actor[actor_id_i])
+		if disengaged_by_actor.has(actor_id_i) and law_opponents.is_empty():
+			tactical_opponents = tactical_opponents.duplicate()
+			for stopped_target in disengaged_by_actor[actor_id_i]:
+				tactical_opponents.erase(stopped_target)
 		if vit_i == null or cfg_i == null or fac_i == null or vit_i.life_state != alive_value or cfg_i.protected_from_combat or bool(fac_i.player_order_active):
 			_write_node_target(node_actor, 0, process_frame)
 			continue
@@ -156,8 +163,8 @@ func process(entities: Array, components: Array, _delta: float) -> void:
 		if stance_i == NpcRules.CombatStance.PASSIVE:
 			_write_node_target(node_actor, 0, process_frame)
 			continue
-		# DEFENSIVE actors only fight who is actively fighting them (a fresh grudge);
-		# faction hostility alone never makes them initiate, and they never chase.
+		# Defend responds to attacks on self or nearby allies. Faction hostility
+		# alone never starts a fight; ordinary range and player orders still apply.
 		var require_grudge := stance_i == NpcRules.CombatStance.DEFENSIVE
 		var pos_i: Vector3 = spatials[i].world_position
 		var current_target_actor_id := previous_system_target_actor_id
@@ -315,13 +322,18 @@ func _build_response_intents_by_actor_id() -> Dictionary:
 func _build_encounter_targeting_context() -> Dictionary:
 	var members_by_side := {}
 	var opposing_side_by_actor := {}
-	var encounter_by_actor := {}
-	var law_candidates_by_encounter := {}
+	var disengaged_by_actor := {}
+	var assistance_by_actor := {}
 	for entity in _world.query.with_all([C_ENCOUNTER]).execute():
 		var encounter = entity.get_component(C_ENCOUNTER)
 		if encounter == null or int(encounter.remaining_ticks) <= 0:
 			continue
 		var encounter_id := str(encounter.encounter_id)
+		disengaged_by_actor.merge(encounter.disengaged_targets_by_actor, true)
+		for actor_id in encounter.assistance_targets_by_actor:
+			var targets: Dictionary = assistance_by_actor.get(actor_id, {})
+			targets.merge(encounter.assistance_targets_by_actor[actor_id])
+			assistance_by_actor[actor_id] = targets
 		var aggressor_key := _encounter_side_key(encounter_id, 1)
 		var defender_key := _encounter_side_key(encounter_id, 2)
 		var aggressors := _actor_id_set(encounter.aggressor_side_actor_ids)
@@ -329,24 +341,16 @@ func _build_encounter_targeting_context() -> Dictionary:
 		members_by_side[aggressor_key] = aggressors
 		members_by_side[defender_key] = defenders
 		for actor_id in encounter.aggressor_side_actor_ids:
-			opposing_side_by_actor[actor_id] = defender_key
-			encounter_by_actor[actor_id] = encounter_id
+			# Party membership records proximity, not consent to join an assault.
+			if encounter.committed_actor_ids.has(actor_id):
+				opposing_side_by_actor[actor_id] = defender_key
 		for actor_id in encounter.defender_side_actor_ids:
 			opposing_side_by_actor[actor_id] = aggressor_key
-			encounter_by_actor[actor_id] = encounter_id
-		var law_candidates := {}
-		if not str(encounter.root_aggressor_actor_id).is_empty():
-			law_candidates[str(encounter.root_aggressor_actor_id)] = true
-		for attacker_value in encounter.aggression_target_by_actor.keys():
-			var attacker_id := str(attacker_value)
-			if aggressors.has(attacker_id) and encounter.committed_actor_ids.has(attacker_id):
-				law_candidates[attacker_id] = true
-		law_candidates_by_encounter[encounter_id] = law_candidates
 	return {
 		"members_by_side": members_by_side,
+		"disengaged_by_actor": disengaged_by_actor,
+		"assistance_by_actor": assistance_by_actor,
 		"opposing_side_by_actor": opposing_side_by_actor,
-		"encounter_by_actor": encounter_by_actor,
-		"law_candidates_by_encounter": law_candidates_by_encounter,
 	}
 
 
@@ -361,18 +365,17 @@ func _encounter_side_key(encounter_id: String, side: int) -> String:
 	return "%s|%d" % [encounter_id, side]
 
 
-func _build_law_candidates_by_actor(intents_by_actor_id: Dictionary, encounter_by_actor: Dictionary, law_candidates_by_encounter: Dictionary) -> Dictionary:
+func _build_law_candidates_by_actor(intents_by_actor_id: Dictionary) -> Dictionary:
 	var result := {}
 	for actor_id_value in intents_by_actor_id.keys():
 		var actor_id := str(actor_id_value)
 		for intent in (intents_by_actor_id[actor_id_value] as Array):
 			if int(intent.kind) != C_RESPONSE_INTENT.Kind.LAW_ENFORCEMENT:
 				continue
-			var encounter_id := str(encounter_by_actor.get(str(intent.target_actor_id), ""))
-			var candidates: Dictionary = law_candidates_by_encounter.get(encounter_id, {})
-			if not candidates.is_empty():
-				result[actor_id] = candidates
-			break
+			# Tactical sides cannot issue warrants. Only named authorized suspects.
+			var candidates: Dictionary = result.get(actor_id, {})
+			candidates[str(intent.target_actor_id)] = true
+			result[actor_id] = candidates
 	return result
 
 

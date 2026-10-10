@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="FacilityRoleDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/settlements/resources/facility_role_definition.gd" id="1_role"]
+
+[resource]
+script = ExtResource("1_role")
+role_id = "prisoner"
+display_name = "Prisoner"
+assignment_domain = "custody"
+assignment_exclusivity_group = "custody"
+uses_settlement_jobs = false

@@ -20,3 +20,19 @@ class_name CGameCombatAction
 @export var reaction_remaining := 0.0
 @export var reaction_source_actor_id := ""
 @export var action_sequence := 0
+
+
+func clear() -> void:
+	action_active = false
+	action_target_actor_id = ""
+	action_remaining = 0.0
+	action_impact_remaining = 0.0
+	action_has_impacted = false
+	action_names = PackedStringArray()
+	action_index = 0
+	action_clip_remaining = 0.0
+	action_attack_id = ""
+	action_hit_reaction_names = PackedStringArray()
+	action_blunt_damage = 0.0
+	action_cut_damage = 0.0
+	action_is_critical = false

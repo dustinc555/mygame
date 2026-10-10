@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" path="res://assets/items/equipment/traveler_trousers/traveler_trousers.png" id="3_icon"]
 [ext_resource type="PackedScene" path="res://assets/items/equipment/traveler_trousers/male_regular.glb" id="4_male"]
 [ext_resource type="Resource" path="res://assets/items/equipment/wardrobe_bindings/traveler_trousers.res" id="wardrobe_binding"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/worn_cloth.tres" id="audio_profile"]
 
 [sub_resource type="Resource" id="Visual_shared"]
 script = ExtResource("2_visual")
@@ -18,6 +19,7 @@ visual_notes = "Full-length smoke-brown hide trousers with reinforced knees, a r
 
 [resource]
 script = ExtResource("1_item")
+combat_audio = ExtResource("audio_profile")
 display_name = "Traveler Hide Trousers"
 item_id = "traveler_trousers"
 icon = ExtResource("3_icon")

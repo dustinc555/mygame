@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_cjkov"]
-[ext_resource type="Texture2D" uid="uid://cuj5f4ifrcx2d" path="res://assets/items/currency/silver_coin.svg" id="2_icon"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/silver.png" id="2_icon"]
 
 [resource]
 script = ExtResource("1_item")

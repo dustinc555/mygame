@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://cmwhwpk1rbf07" path="res://assets/items/icons/iron_axe.png" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://dp5joxq33kp1p" path="res://features/world/projection/equipment/axe_model.tscn" id="4_model"]
 [ext_resource type="Resource" uid="uid://ddoq1y4fkfw0i" path="res://features/actors/resources/equipment_grip_profiles/one_hand_melee.tres" id="5_grip"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/axe_metal_head_wood_shaft.tres" id="audio_profile"]
 
 [sub_resource type="Resource" id="ItemStatModifier_damage"]
 script = ExtResource("2_mod")
@@ -33,6 +34,7 @@ icon = ExtResource("3_icon")
 grid_size = Vector2i(2, 3)
 unit_weight = 4.2
 equip_slot = "weapon"
+combat_audio = ExtResource("audio_profile")
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray()
 world_scene = ExtResource("4_model")

@@ -88,6 +88,9 @@ func _get_tooltip(at_position: Vector2) -> String:
 	var entry = _entry_at_local_position(at_position)
 	if entry == null or entry.definition == null:
 		return ""
+	if entry.definition.has_tool_tag("lockpick"):
+		var heading: String = entry_tooltip_provider.call(entry) if entry_tooltip_provider.is_valid() else entry.definition.display_name
+		return heading + "\n" + preload("res://features/lockpicking/sim/lockpick_rules.gd").condition_label(entry)
 	if entry_tooltip_provider.is_valid():
 		return entry_tooltip_provider.call(entry)
 	if inventory_data != null and inventory_data.has_method("is_entry_currency_container") and bool(inventory_data.call("is_entry_currency_container", entry)):
@@ -115,22 +118,27 @@ func _get_drag_data(at_position: Vector2):
 
 func _can_drop_data(at_position: Vector2, data) -> bool:
 	var definition := _drag_definition(data)
-	if drop_validator.is_null() or definition == null:
+	if (drop_validator.is_null() and drop_error_provider.is_null()) or definition == null:
 		_clear_preview()
 		_last_invalid_drop_message = ""
 		return false
 	var target_cell := _drop_cell(at_position, definition)
-	var is_valid: bool = drop_validator.call(data, target_cell)
-	if is_valid:
-		_preview_visible = true
-		_preview_rect = _item_rect_from_definition(definition, target_cell)
-		_last_invalid_drop_message = ""
-		queue_redraw()
+	# The message provider is the full validation result (empty means valid).
+	# Do not perform the same capacity/access checks twice for an invalid cell.
+	var is_valid: bool
+	if not drop_error_provider.is_null():
+		_last_invalid_drop_message = str(drop_error_provider.call(data, target_cell))
+		is_valid = _last_invalid_drop_message.is_empty()
 	else:
-		if not drop_error_provider.is_null():
-			_last_invalid_drop_message = str(drop_error_provider.call(data, target_cell))
-		else:
-			_last_invalid_drop_message = ""
+		_last_invalid_drop_message = ""
+		is_valid = bool(drop_validator.call(data, target_cell))
+	if is_valid:
+		var preview_rect := _item_rect_from_definition(definition, target_cell)
+		if not _preview_visible or _preview_rect != preview_rect:
+			queue_redraw()
+		_preview_visible = true
+		_preview_rect = preview_rect
+	else:
 		_clear_preview()
 	return is_valid
 

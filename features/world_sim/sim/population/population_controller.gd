@@ -184,7 +184,7 @@ func update_actor_record(actor_id: String, updates: Dictionary) -> Dictionary:
 func claim_record_for_assignment(settlement_id: String, slot: Dictionary) -> Dictionary:
 	var domain := str(slot.get("assignment_domain", "employment")).strip_edges().to_lower()
 	var slot_id := str(slot.get("slot_id", "")).strip_edges()
-	if settlement_id.is_empty() or domain.is_empty() or slot_id.is_empty():
+	if settlement_id.is_empty() or domain.is_empty() or domain == "custody" or slot_id.is_empty():
 		return {}
 	var preferred_actor_id := str(slot.get("preferred_actor_id", "")).strip_edges()
 	if not preferred_actor_id.is_empty():
@@ -224,6 +224,8 @@ func claim_records_for_assignments(settlement_id: String, slots: Array[Dictionar
 		return priority_a > priority_b if priority_a != priority_b else str(a.get("slot_id", "")) < str(b.get("slot_id", "")))
 	for slot in ordered_slots:
 		var domain := str(slot.get("assignment_domain", "employment")).strip_edges().to_lower()
+		if domain == "custody":
+			continue
 		var exclusivity_group := str(slot.get("assignment_exclusivity_group", ""))
 		var preferred_actor_id := str(slot.get("preferred_actor_id", "")).strip_edges()
 		var best_index := -1
@@ -388,6 +390,9 @@ func release_all_actor_assignments(actor_id: String) -> Dictionary:
 
 func _eligible_for_assignment(record: Dictionary, settlement_id: String, domain: String, exclusivity_group: String, allow_unavailable := false) -> bool:
 	if record.is_empty() or str(record.get("settlement_id", "")) != settlement_id:
+		return false
+	var assignments: Dictionary = record.get("assignments", {})
+	if assignments.has("custody") or (domain == "custody" and not assignments.is_empty()):
 		return false
 	if int(record.get("life_state", NpcRules.LifeState.ALIVE)) == NpcRules.LifeState.DEAD:
 		return false
@@ -730,16 +735,11 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 		WorldActor.set_profile_metadata(actor, &"party_id", party_id)
 	if actor.has_method("set_player_party_member"):
 		actor.call("set_player_party_member", is_player_party)
-	if is_player_party and actor is WorldActor:
-		if party_manager != null:
-			party_manager.register_party_member(actor as WorldActor)
-	elif not party_id.is_empty():
-		update_actor_record(actor_id, {"party_id": party_id})
 	actor.set("squad_name", str(record.get("squad_name", actor.get("squad_name"))))
 	actor.set("hostile_factions", PackedStringArray(record.get("hostile_faction_ids", [])))
 	actor.set("combat_stance", int(record.get("combat_stance", actor.get("combat_stance"))))
 	actor.set("auto_heal_enabled", bool(record.get("auto_heal_enabled", actor.get("auto_heal_enabled"))))
-	actor.set("auto_burn_rustdead_enabled", bool(record.get("auto_burn_rustdead_enabled", actor.get("auto_burn_rustdead_enabled"))))
+	actor.set("share_food_enabled", bool(record.get("share_food_enabled", false)))
 	actor.set("life_state", int(record.get("life_state", actor.get("life_state"))))
 	if record.has("conversation_definition_path") and actor.has_method("get_conversation_definition"):
 		actor.set("conversation_definition", _load_resource(str(record.get("conversation_definition_path", ""))))
@@ -790,6 +790,13 @@ func apply_record_to_actor(actor: Node, record: Dictionary) -> void:
 			equipment.call("hydrate_gecs_slots", gecs.call("get_equipment_slots", actor_id), true)
 		elif inventory != null:
 			inventory.inventory_changed.emit()
+	# Membership observers build portraits and squad counts synchronously. Publish
+	# only after the complete record, including squad and appearance, is applied.
+	if is_player_party and actor is WorldActor:
+		if party_manager != null:
+			party_manager.register_party_member(actor as WorldActor)
+	elif not party_id.is_empty():
+		update_actor_record(actor_id, {"party_id": party_id})
 
 
 func ensure_record_character_realizer(actor_id: String, realizer: Resource, name_profile: Resource = null) -> Dictionary:
@@ -1302,7 +1309,7 @@ func _create_generated_actor_record(settlement_id: String, spawner_id: String, g
 		"hostile_faction_ids": Array(context.get("hostile_faction_ids", [])),
 		"combat_stance": int(context.get("combat_stance", NpcRules.combat_stance_for_role(str(context.get("role_id", "resident"))))),
 		"auto_heal_enabled": bool(context.get("auto_heal_enabled", false)),
-		"auto_burn_rustdead_enabled": bool(context.get("auto_burn_rustdead_enabled", false)),
+		"share_food_enabled": bool(context.get("share_food_enabled", false)),
 		"base_color": context.get("base_color", Color(0.62, 0.62, 0.62, 1.0)),
 		"appearance": _appearance_to_record(appearance),
 		"equipment_slots": equipment_slots,
@@ -1361,7 +1368,7 @@ func _merge_actor_state_into_record(record: Dictionary, actor: Node, settlement_
 	record["hostile_faction_ids"] = Array(actor.get("hostile_factions"))
 	record["combat_stance"] = int(actor.get("combat_stance"))
 	record["auto_heal_enabled"] = bool(actor.get("auto_heal_enabled"))
-	record["auto_burn_rustdead_enabled"] = bool(actor.get("auto_burn_rustdead_enabled"))
+	record["share_food_enabled"] = bool(actor.get("share_food_enabled"))
 	record["life_state"] = int(actor.get("life_state")) if actor.get("life_state") != null else NpcRules.LifeState.ALIVE
 	if int(record["life_state"]) == NpcRules.LifeState.DEAD:
 		record["body_state"] = str(record.get("body_state", "corpse"))

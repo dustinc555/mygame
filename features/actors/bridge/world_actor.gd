@@ -12,6 +12,7 @@ signal life_state_changed(previous_state: int, new_state: int)
 signal died(actor: Node)
 signal state_changed()
 signal inventory_changed()
+signal share_food_changed(enabled: bool)
 ## Projection-authored identity/faction data changed; the GECS bridge observes it.
 signal simulation_profile_changed()
 
@@ -103,7 +104,14 @@ var _authored_fatigue_enabled := true
 # Assist toggles (party behavior bar + town staff defaults); persisted into
 # population records, so they must exist as real properties.
 @export var auto_heal_enabled := false
-@export var auto_burn_rustdead_enabled := false
+
+@export var share_food_enabled := false:
+	set(value):
+		if share_food_enabled == value:
+			return
+		share_food_enabled = value
+		share_food_changed.emit(value)
+		state_changed.emit()
 
 # Authored starting skills, owned by StatsCapability at runtime; buffered here so
 # spawner scripts can assign before add_child (same pattern as the base stats).
@@ -958,6 +966,10 @@ func assign_attack_target(target_actor: Node, _issued_by_player: bool = true, _n
 	mark_hostile(target)
 	state.commanded_target_actor_id = target.stable_id
 	state.system_target_retarget_remaining = 0.0
+	# Accepted intent establishes initiative before either actor can swing.
+	var responses := BootstrapContext.service(GameCombatResponseSystem.SERVICE_ID) as GameCombatResponseSystem
+	if responses != null:
+		responses.emit_attack_started(stable_id, target.stable_id, target.global_position, 0)
 	return true
 
 
@@ -1226,12 +1238,12 @@ func _configure_world_actor_movement() -> void:
 
 
 # InteractionCapability uses this hook to move without replacing its work order.
-func _set_actor_move_target(target: Vector3, continue_order: bool = false) -> void:
+func _set_actor_move_target(target: Vector3, continue_order: bool = false, arrival_distance := -1.0) -> void:
 	_navigation_yield_active = false
 	_combat_navigation_owned = false
 	_combat_navigation_destination = Vector3.INF
 	_combat_navigation_failed = false
-	_navigation_agent.set_move_target(target, -1.0, true, continue_order)
+	_navigation_agent.set_move_target(target, arrival_distance, true, continue_order)
 
 
 func _clear_actor_move_target() -> void:
@@ -1884,14 +1896,6 @@ func get_food_effect_rate() -> float:
 	return needs.get_food_effect_rate() if needs != null else 0.0
 
 
-func eat_item(definition: ItemDefinition) -> bool:
-	if not can_eat_item(definition) or is_food_effect_active():
-		return false
-	if inventory == null or not inventory.remove_item_count(definition, 1):
-		return false
-	return get_needs().start_food_effect(definition.nutrition_value, NpcRules.FOOD_EFFECT_DURATION_SECONDS)
-
-
 func shows_fatigue_vital() -> bool:
 	var needs := get_needs()
 	return needs != null and needs.fatigue_enabled
@@ -1924,18 +1928,18 @@ func is_auto_heal_enabled() -> bool:
 	return auto_heal_enabled and life_state == NpcRules.LifeState.ALIVE
 
 
+func is_share_food_enabled() -> bool:
+	return share_food_enabled
+
+
+func set_share_food_enabled(value: bool) -> void:
+	share_food_enabled = value
+
+
 func set_auto_heal_enabled(value: bool) -> void:
 	auto_heal_enabled = value
 	state_changed.emit()
 
-
-func is_auto_burn_rustdead_enabled() -> bool:
-	return auto_burn_rustdead_enabled and life_state == NpcRules.LifeState.ALIVE
-
-
-func set_auto_burn_rustdead_enabled(value: bool) -> void:
-	auto_burn_rustdead_enabled = value
-	state_changed.emit()
 
 
 ## Rustdead override these two: they only die to fire.

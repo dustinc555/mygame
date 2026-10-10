@@ -3,7 +3,11 @@ extends StaticBody3D
 
 class_name JailCell
 
+const LOCK_TARGET := preload("res://features/lockpicking/bridge/lockpick_target.gd")
 @export var cell_id := ""
+@export var is_locked := true
+@export var lock_contact_offset := Vector3(0.383, 1.35, 0.76)
+@export var lock_stand_offset := Vector3(0.383, 0.0, 1.33)
 ## Largest WorldActor.CONTAINMENT_SIZE_* this cell can hold. A standard cell is
 ## MEDIUM (1); special cages for large/giant creatures raise this.
 @export_range(0, 3, 1) var max_containment_size_class := 1
@@ -36,6 +40,11 @@ func _ready() -> void:
 		return
 	_refresh_collision()
 	_refresh_visual()
+	_bind_lockpick_target.call_deferred()
+
+
+func _bind_lockpick_target() -> void:
+	LOCK_TARGET.bind(self)
 
 
 func get_cell_id() -> String:
@@ -91,11 +100,21 @@ func can_assign_prisoner(actor: Node) -> bool:
 func assign_prisoner(actor: Node) -> bool:
 	if not can_assign_prisoner(actor):
 		return false
-	var occupant_id := _occupant_key(actor)
-	if occupant_id.is_empty():
+	return reserve_prisoner_id(_occupant_key(actor), actor.get_containment_size_class())
+
+
+## Durable custody may reserve a cell before its humanoid body is realized.
+func reserve_prisoner_id(occupant_id: String, size_class: int) -> bool:
+	if occupant_id.is_empty() or size_class > max_containment_size_class:
 		return false
 	if not occupant_ids.has(occupant_id):
+		if get_available_capacity() <= 0:
+			return false
 		occupant_ids.append(occupant_id)
+		var locks := BootstrapContext.service(&"lockpicking")
+		if locks != null and not is_locked:
+			locks.relock(str(get_lockpick_record().lock_id))
+		is_locked = true
 	return true
 
 
@@ -160,28 +179,43 @@ func place_carried_prisoner(carrier: HumanoidCharacter, prisoner: WorldActor) ->
 	return true
 
 
-func attempt_unlock(actor: HumanoidCharacter) -> bool:
-	_report_lockpicking(actor)
-	var skill := actor.get_skill_level(SkillRules.SUBTERFUGE_LOCKPICKING) if actor != null and actor.has_method("get_skill_level") else 0
-	if skill < lock_difficulty:
-		_show_lockpick_failure_notice(actor)
-		if actor != null and actor.has_method("show_world_speech"):
-			actor.show_world_speech("The cage lock resists.", 2.5)
-		return false
-	if actor != null and actor.has_method("show_world_speech"):
-		actor.show_world_speech("Cell unlocked.", 2.0)
-	return true
+func get_lockpick_record() -> Dictionary:
+	return {"lock_id": LOCK_TARGET.scoped_cell_id(self, get_cell_id()),
+		"is_locked": is_locked, "difficulty": lock_difficulty}
 
 
-func get_world_context_actions(_actor) -> Array:
-	return [{"key": "pick_lock", "label": "Pick Lock"}]
+func get_lockpick_contact(_actor = null) -> Vector3:
+	return global_transform * lock_contact_offset
+
+
+func get_lockpick_position(_actor = null) -> Vector3:
+	return global_transform * lock_stand_offset
+
+
+func apply_lockpick_state(state: Dictionary) -> void:
+	if not state.is_empty():
+		is_locked = bool(state.is_locked)
+
+
+func on_lockpick_completed(_actor: WorldActor) -> void:
+	var law := BootstrapContext.service(&"law_order")
+	if law != null:
+		law.release_picked_cell(self)
+	else:
+		var actors := BootstrapContext.service(&"gecs_world")
+		for id in occupant_ids.duplicate():
+			var prisoner = actors.get_actor_by_stable_id(id) if actors != null else null
+			if prisoner is WorldActor:
+				prisoner.exit_cell_custody(get_release_position(), get_release_rotation())
+		occupant_ids.clear()
+
+
+func get_world_context_actions(actor) -> Array:
+	return LOCK_TARGET.actions(self, actor)
 
 
 func perform_world_context_action(action_key: String, actors: Array) -> String:
-	if action_key != "pick_lock":
-		return ""
-	var actor := actors[0] as HumanoidCharacter if not actors.is_empty() else null
-	return "Unlocked" if attempt_unlock(actor) else "Lock too hard"
+	return LOCK_TARGET.request(self, action_key, actors)
 
 
 func get_cell_record() -> Dictionary:
@@ -191,24 +225,6 @@ func get_cell_record() -> Dictionary:
 		"occupant_count": get_occupant_count(),
 		"lock_difficulty": lock_difficulty,
 	}
-
-
-func _report_lockpicking(actor: HumanoidCharacter) -> void:
-	if actor == null:
-		return
-	var tree := get_tree()
-	if tree == null:
-		return
-	for controller in tree.get_nodes_in_group("law_order_controller"):
-		if controller != null and controller.has_method("report_lockpicking_if_witnessed"):
-			controller.call("report_lockpicking_if_witnessed", actor, self)
-			return
-
-
-func _show_lockpick_failure_notice(actor: HumanoidCharacter) -> void:
-	if actor == null or not actor.has_signal("center_notice_requested"):
-		return
-	actor.center_notice_requested.emit("Lock too hard")
 
 
 func _refresh_collision() -> void:

@@ -16,6 +16,7 @@ const FOOD_ITEM_PATHS := [
 ]
 const MATERIAL_ITEM_PATHS := [
 	"res://features/inventory/resources/items/copper_ore.tres",
+	"res://features/inventory/resources/items/iron_ore.tres",
 	"res://features/inventory/resources/items/copper_wire.tres",
 	"res://features/inventory/resources/items/scrap_metal.tres",
 	"res://features/inventory/resources/items/robot_parts.tres",

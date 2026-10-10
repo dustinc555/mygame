@@ -9,3 +9,13 @@ scenes/zones/rustwash_basin/**/*.PNG filter=lfs diff=lfs merge=lfs -text
 scenes/zones/rustwash_basin/**/*.res filter=lfs diff=lfs merge=lfs -text
 assets/vendor/polyhaven/cliff_side/*.png filter=lfs diff=lfs merge=lfs -text
 assets/vendor/polyhaven/cliff_side/*.jpg filter=lfs diff=lfs merge=lfs -text
+assets/vendor/polyhaven/stone_brick_wall_001/*.png filter=lfs diff=lfs merge=lfs -text
+assets/vendor/polyhaven/stone_brick_wall_001/*.jpg filter=lfs diff=lfs merge=lfs -text
+assets/vendor/polyhaven/weathered_planks/*.jpg filter=lfs diff=lfs merge=lfs -text
+
+# Additional flat plaster / fired-clay building modules.
+assets/vendor/polyhaven/plastered_wall/*.png filter=lfs diff=lfs merge=lfs -text
+assets/vendor/polyhaven/clay_plaster/*.png filter=lfs diff=lfs merge=lfs -text
+assets/vendor/polyhaven/terracotta_floor_tiles/*.png filter=lfs diff=lfs merge=lfs -text
+assets/buildings/earthen/textures/*.png filter=lfs diff=lfs merge=lfs -text
+assets/buildings/earthen/meshes/*.res filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,20 @@
+[
+  {
+    "file": "/home/dustin/mygame/assets/vendor/polyhaven/rock_face/source/rock_face_diff_2k.jpg",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rock_face/rock_face_diff_2k.jpg",
+    "md5": "e3964bcefad9a2a758263b077b47ed64",
+    "bytes": 2971109
+  },
+  {
+    "file": "/home/dustin/mygame/assets/vendor/polyhaven/rock_face/source/rock_face_disp_2k.jpg",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rock_face/rock_face_disp_2k.jpg",
+    "md5": "f14c4adb840d4ff2c13ca5a5bd5f26bb",
+    "bytes": 879369
+  },
+  {
+    "file": "/home/dustin/mygame/assets/vendor/polyhaven/rock_face/source/rock_face_rough_2k.jpg",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/rock_face/rock_face_rough_2k.jpg",
+    "md5": "72bdf484361d84d661a99af4f0b93bea",
+    "bytes": 980027
+  }
+]

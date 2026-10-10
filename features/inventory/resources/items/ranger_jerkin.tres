@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://cqmhyx0uwo7wa" path="res://assets/items/icons/ranger_jerkin.png" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://c2aqdtf7r52vk" path="res://assets/vendor/quaternius/modular_character_outfits_fantasy/modular_parts/Male_Ranger_Body.gltf" id="4_male"]
 [ext_resource type="Script" uid="uid://ifrge4u87sv8" path="res://features/inventory/resources/items/equipment_visual_definition.gd" id="6_visual"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/worn_leather.tres" id="audio_profile"]
 [ext_resource type="Resource" uid="uid://d1kdijpr1yecj" path="res://assets/items/equipment/wardrobe_bindings/ranger_jerkin.res" id="wardrobe_binding"]
 
 [sub_resource type="Resource" id="Visual_shared"]
@@ -27,6 +28,7 @@ icon = ExtResource("3_icon")
 grid_size = Vector2i(2, 3)
 unit_weight = 2.0
 equip_slot = "chest"
+combat_audio = ExtResource("audio_profile")
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray()
 world_scene = ExtResource("4_male")

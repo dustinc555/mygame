@@ -677,8 +677,7 @@ func _prepare_guard_actor(actor: Node, index: int) -> void:
 		actor.set("stable_id", "%s.%s" % [_get_staff_id_prefix(), _indexed_name("guard", index)])
 	if _has_property(actor, "auto_heal_enabled"):
 		actor.set("auto_heal_enabled", true)
-	if _has_property(actor, "auto_burn_rustdead_enabled"):
-		actor.set("auto_burn_rustdead_enabled", true)
+
 	if not Engine.is_editor_hint():
 		if actor.has_method("set_settlement_authority"):
 			actor.call("set_settlement_authority", true)

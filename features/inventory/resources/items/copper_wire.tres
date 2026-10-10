@@ -2,10 +2,16 @@
 
 [ext_resource type="Script" uid="uid://dwatrabyxxg0g" path="res://features/inventory/resources/items/item_definition.gd" id="1_item"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="2_ejuq0"]
+[ext_resource type="PackedScene" path="res://features/world/projection/items/copper_wire_world.tscn" id="3_world"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/copper_wire.png" id="4_icon"]
 
 [resource]
 script = ExtResource("1_item")
 display_name = "Copper Wire"
+icon = ExtResource("4_icon")
+grid_size = Vector2i(2, 2)
+world_scene = ExtResource("3_world")
+world_visual_long_axis_meters = 0.2
 unit_weight = 0.25
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray()

@@ -1,0 +1,23 @@
+[gd_resource type="ShaderMaterial" load_steps=7 format=3]
+
+[ext_resource type="Shader" path="res://assets/buildings/earthen/materials/lime_plaster.gdshader" id="1"]
+[ext_resource type="Texture2D" path="res://assets/buildings/earthen/textures/lime_albedo.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/buildings/earthen/textures/lime_normal.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/buildings/earthen/textures/lime_roughness.png" id="4"]
+[ext_resource type="Texture2D" path="res://assets/buildings/earthen/textures/lime_ao.png" id="5"]
+[ext_resource type="Texture2D" path="res://assets/buildings/earthen/textures/lime_distance_detail.png" id="6"]
+
+[resource]
+resource_name = "Lime Plaster"
+shader = ExtResource("1")
+shader_parameter/albedo_texture = ExtResource("2")
+shader_parameter/normal_texture = ExtResource("3")
+shader_parameter/roughness_texture = ExtResource("4")
+shader_parameter/ao_texture = ExtResource("5")
+shader_parameter/variation_texture = ExtResource("6")
+shader_parameter/grain_repeat_meters = 2.0
+shader_parameter/normal_strength = 0.7
+shader_parameter/distance_detail_strength = 0.8
+shader_parameter/marks_repeat_meters = 5.0
+shader_parameter/detail_start_distance = 4.0
+shader_parameter/detail_full_distance = 16.0

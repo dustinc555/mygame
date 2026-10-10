@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://features/inventory/projection/food_eating_audio.gd" id="1_script"]
+[ext_resource type="Resource" path="res://features/inventory/resources/food_eating_sound.tres" id="2_cue"]
+
+[node name="FoodEatingAudio" type="AudioStreamPlayer3D"]
+process_mode = 3
+unit_size = 6.0
+max_distance = 45.0
+script = ExtResource("1_script")
+cue = ExtResource("2_cue")

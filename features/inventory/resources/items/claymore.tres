@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" path="res://assets/items/icons/claymore.png" id="3_icon"]
 [ext_resource type="PackedScene" path="res://features/world/projection/equipment/claymore_model.tscn" id="4_model"]
 [ext_resource type="Resource" uid="uid://chbtkld6llbso" path="res://features/actors/resources/equipment_grip_profiles/two_hand_weapon.tres" id="5_grip"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/blade_metal.tres" id="audio_profile"]
 
 [sub_resource type="Resource" id="ItemStatModifier_damage"]
 script = ExtResource("2_mod")
@@ -28,6 +29,7 @@ add = 0.75
 
 [resource]
 script = ExtResource("1_item")
+combat_audio = ExtResource("audio_profile")
 display_name = "Claymore"
 icon = ExtResource("3_icon")
 grid_size = Vector2i(1, 5)

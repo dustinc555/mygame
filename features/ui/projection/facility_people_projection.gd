@@ -281,6 +281,7 @@ class FacilityPeopleWindow extends PanelContainer:
 		title_label.add_theme_color_override("font_color", Color(0.92, 0.84, 0.66, 1.0))
 		header.add_child(title_label)
 		var back := Button.new()
+		back.set_meta(&"ui_audio_action", &"close")
 		back.text = "Back"
 		back.focus_mode = Control.FOCUS_NONE
 		back.pressed.connect(hide)

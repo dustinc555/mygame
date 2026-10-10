@@ -1,0 +1,10 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/actors/resources/characters/kneeling_work_animation.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+work_start_seconds = 1.066667
+work_end_seconds = 2.0
+loop_blend_seconds = 0.2
+rise_start_seconds = 4.0

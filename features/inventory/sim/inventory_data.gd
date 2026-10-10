@@ -5,6 +5,7 @@ class_name InventoryData
 const SILVER_ITEM := preload("res://features/inventory/resources/items/silver.tres")
 const SILVER_POUCH_ITEM := preload("res://features/inventory/resources/items/silver_pouch.tres")
 const ENTRY_BANDAGE_USES_KEY := "__bandage_uses"
+const ITEM_STORAGE_KEY := "item_storage"
 const META_STOLEN := "stolen"
 const META_STOLEN_FROM_FACTION_ID := "stolen_from_faction_id"
 const META_STOLEN_FROM_SETTLEMENT_ID := "stolen_from_settlement_id"
@@ -44,6 +45,15 @@ var stack_id_prefix := ""
 var next_stack_sequence := 1
 var admission_validator: Callable
 var stack_limit_resolver: Callable
+var access_validator: Callable
+var additional_weight_provider: Callable
+var storage_stack_id := ""
+var _carrying_inventory: WeakRef
+var _open_item_storages: Dictionary = {}
+# Saved contents contain paths, not strong resource references. Retain only
+# each definition's scalar weight, never its meshes/textures, after resolution.
+# Counts, liquids and live storage are still read afresh for every check.
+var _stored_unit_weights: Dictionary[String, float] = {}
 
 
 static func create_stack_id() -> String:
@@ -101,6 +111,8 @@ func get_stack_limit(definition) -> int:
 
 
 func accepts_item_count(definition, amount: int) -> bool:
+	if not is_accessible():
+		return false
 	if not admission_validator.is_valid():
 		return true
 	return bool(admission_validator.call(definition, amount))
@@ -110,7 +122,50 @@ func get_total_weight() -> float:
 	var total := 0.0
 	for entry in entries:
 		total += get_entry_weight(entry)
+	if additional_weight_provider.is_valid():
+		total += float(additional_weight_provider.call())
 	return total
+
+
+func is_accessible() -> bool:
+	return access_validator.is_null() or (access_validator.is_valid() and bool(access_validator.call()))
+
+
+func get_carrying_inventory() -> InventoryData:
+	var carrier = _carrying_inventory.get_ref() if _carrying_inventory != null else null
+	return carrier if carrier != null else self
+
+
+func get_capacity_weight() -> float:
+	return get_carrying_inventory().get_total_weight()
+
+
+func get_capacity_limit() -> float:
+	return get_carrying_inventory().max_weight
+
+
+func bind_item_storage(stack_id: String, storage: InventoryData) -> void:
+	_open_item_storages[stack_id] = weakref(storage)
+	storage._carrying_inventory = weakref(self)
+	storage.use_weight = use_weight
+	storage.max_weight = max_weight
+
+
+func unbind_item_storage(stack_id: String, storage: InventoryData) -> void:
+	var reference: WeakRef = _open_item_storages.get(stack_id)
+	if reference != null and reference.get_ref() == storage:
+		_open_item_storages.erase(stack_id)
+
+
+func get_item_storage_weight(stack_id: String, metadata: Dictionary) -> float:
+	var storage := get_bound_item_storage(stack_id)
+	return storage.get_total_weight() if storage != null else get_stored_weight(metadata)
+
+
+func get_bound_item_storage(stack_id: String) -> InventoryData:
+	var reference: WeakRef = _open_item_storages.get(stack_id)
+	var storage = reference.get_ref() if reference != null else null
+	return storage if storage != null and storage.is_accessible() else null
 
 
 func can_add_item(definition) -> bool:
@@ -136,7 +191,7 @@ func _can_add_standard_item_count(definition, amount: int) -> bool:
 		return true
 	if not accepts_item_count(definition, amount):
 		return false
-	if use_weight and get_total_weight() + get_item_weight(definition, amount) > max_weight:
+	if use_weight and get_capacity_weight() + get_item_weight(definition, amount) > get_capacity_limit():
 		return false
 	var remaining := amount
 	var stack_limit := get_stack_limit(definition)
@@ -217,7 +272,7 @@ func get_max_addable_item_count_with_metadata(definition, requested_amount: int,
 	if use_weight:
 		var unit_weight := get_item_weight(definition, 1)
 		if unit_weight > 0.0:
-			amount = mini(amount, maxi(0, int(floor((max_weight - get_total_weight() + 0.000001) / unit_weight))))
+			amount = mini(amount, maxi(0, int(floor((get_capacity_limit() - get_capacity_weight() + 0.000001) / unit_weight))))
 	while amount > 0 and not accepts_item_count(definition, amount):
 		amount -= 1
 	return amount
@@ -367,7 +422,7 @@ func get_entry_at_cell(cell: Vector2i):
 ## target has the weight budget, and the cell fits. Lets callers gate side
 ## effects (theft rolls, stolen-item metadata) on a take that will happen.
 func can_move_entry_to_inventory(entry, target_inventory, target_position: Vector2i) -> bool:
-	if entry == null or target_inventory == null:
+	if entry == null or target_inventory == null or not is_accessible():
 		return false
 	if not entries.has(entry):
 		return false
@@ -375,7 +430,7 @@ func can_move_entry_to_inventory(entry, target_inventory, target_position: Vecto
 		return true
 	if target_inventory.has_method("accepts_item_count") and not bool(target_inventory.call("accepts_item_count", entry.definition, entry.count)):
 		return false
-	if target_inventory.use_weight and target_inventory.get_total_weight() + get_entry_weight(entry) > target_inventory.max_weight:
+	if get_carrying_inventory() != target_inventory.get_carrying_inventory() and target_inventory.use_weight and target_inventory.get_capacity_weight() + get_entry_weight(entry) > target_inventory.get_capacity_limit():
 		return false
 	return target_inventory.can_place_item(entry.definition, target_position)
 
@@ -451,23 +506,28 @@ func trade_entries_to_inventory(goods: Array, amount: int, target: InventoryData
 ## finish_goods commits the slot/cursor only after all inventory/payment work.
 ## It returns false without side effects if a durable commit cannot be prepared;
 ## on true, there are no remaining fallible operations before publication.
-func exchange_for_silver(payer: InventoryData, silver_price: int, move_goods: Callable, finish_goods := Callable()) -> bool:
+func exchange_for_silver(payer: InventoryData, silver_price: int, move_goods: Callable, finish_goods := Callable(), participating_inventories: Array[InventoryData] = []) -> bool:
 	if silver_price < 0 or payer == null or payer == self or not move_goods.is_valid() \
 			or payer.count_item(SILVER_ITEM) < silver_price:
 		return false
-	var source_snapshot := _snapshot_standard_transaction()
-	var payer_snapshot := payer._snapshot_standard_transaction()
+	var participants: Array[InventoryData] = [self, payer]
+	for inventory in participating_inventories:
+		if inventory != null and not participants.has(inventory):
+			participants.append(inventory)
+	var snapshots: Array[Dictionary] = []
+	for inventory in participants:
+		snapshots.append(inventory._snapshot_standard_transaction())
 	var paid := silver_price == 0 or payer._remove_silver_count(silver_price, false)
 	if not paid or not bool(move_goods.call()) or not _add_silver_count(silver_price, false):
-		_restore_standard_transaction(source_snapshot)
-		payer._restore_standard_transaction(payer_snapshot)
+		for i in range(participants.size()):
+			participants[i]._restore_standard_transaction(snapshots[i])
 		return false
 	if finish_goods.is_valid() and not bool(finish_goods.call()):
-		_restore_standard_transaction(source_snapshot)
-		payer._restore_standard_transaction(payer_snapshot)
+		for i in range(participants.size()):
+			participants[i]._restore_standard_transaction(snapshots[i])
 		return false
-	changed.emit()
-	payer.changed.emit()
+	for inventory in participants:
+		inventory.changed.emit()
 	return true
 
 
@@ -653,25 +713,96 @@ func _restore_standard_transaction(snapshot: Dictionary) -> void:
 func get_entry_weight(entry) -> float:
 	if entry == null:
 		return 0.0
-	return get_item_weight(entry.definition, entry.count, entry.contained_item_counts, entry.metadata)
+	var weight := get_item_weight(entry.definition, entry.count, entry.contained_item_counts, entry.metadata)
+	if entry.definition != null and entry.definition.has_storage():
+		weight += get_item_storage_weight(entry.stack_id, entry.metadata) - get_stored_weight(entry.metadata)
+	return weight
+
+
+## The physical item's GECS metadata owns this serialized inventory. Only plain
+## values cross the persistence boundary; each child retains its exact stack ID.
+static func create_item_storage(definition: ItemDefinition, metadata: Dictionary, stack_id: String) -> InventoryData:
+	if definition == null or not definition.has_storage():
+		return null
+	var inventory := InventoryData.new(definition.storage_grid_size.x, definition.storage_grid_size.y, 60.0, false)
+	inventory.storage_stack_id = stack_id
+	var saved: Dictionary = metadata.get(ITEM_STORAGE_KEY, {})
+	inventory.configure_stack_allocator("%s.contents" % stack_id, int(saved.get("next_stack_sequence", 1)))
+	inventory.set_admission_validator(func(item, _amount): return item != null and not item.has_storage())
+	for row: Dictionary in saved.get("entries", []):
+		var path := str(row.get("item_definition_path", ""))
+		# Refuse an incomplete projection instead of deleting unavailable goods
+		# the next time this inventory publishes back into the bag.
+		if path.is_empty() or not ResourceLoader.exists(path):
+			return null
+		var item := load(path) as ItemDefinition
+		if item == null:
+			return null
+		inventory.hydrate_entry_with_contents(item, row.get("grid_position", Vector2i.ZERO), int(row.get("count", 1)), row.get("contained_item_counts", {}), row.get("metadata", {}), str(row.get("stack_id", "")), false)
+	return inventory
+
+
+func serialize_contents() -> Dictionary:
+	var saved: Array[Dictionary] = []
+	for entry in entries:
+		saved.append({"stack_id": entry.stack_id, "item_definition_path": entry.definition.resource_path,
+			"grid_position": entry.grid_position, "count": entry.count,
+			"contained_item_counts": entry.contained_item_counts.duplicate(true), "metadata": entry.metadata.duplicate(true)})
+	return {"entries": saved, "next_stack_sequence": next_stack_sequence}
+
+
+static func has_stored_items(metadata: Dictionary) -> bool:
+	return not (metadata.get(ITEM_STORAGE_KEY, {}) as Dictionary).get("entries", []).is_empty()
+
+
+func get_stored_weight(metadata: Dictionary) -> float:
+	var weight := 0.0
+	for row: Dictionary in (metadata.get(ITEM_STORAGE_KEY, {}) as Dictionary).get("entries", []):
+		var path := str(row.get("item_definition_path", ""))
+		var amount := int(row.get("count", 1))
+		if amount <= 0:
+			continue
+		var unit_weight = _stored_unit_weight(path)
+		if unit_weight != null:
+			weight += float(unit_weight) * amount + _contents_weight(row.get("contained_item_counts", {}), row.get("metadata", {}))
+	return weight
+
+
+func _stored_unit_weight(path: String):
+	if path.is_empty():
+		return null
+	# Read a currently loaded definition so live authoring changes take effect.
+	# Otherwise reuse the scalar: loading a closed bag's item just to weigh it
+	# would repeatedly construct and free its entire visual resource graph.
+	var definition := ResourceLoader.get_cached_ref(path) as ItemDefinition
+	if definition == null and not _stored_unit_weights.has(path) and ResourceLoader.exists(path):
+		definition = load(path) as ItemDefinition
+	if definition != null:
+		_stored_unit_weights[path] = definition.unit_weight
+	return _stored_unit_weights.get(path)
 
 
 func get_item_weight(definition, amount: int = 1, contained_item_counts: Dictionary = {}, metadata: Dictionary = {}) -> float:
 	if definition == null or amount <= 0:
 		return 0.0
-	var total: float = float(definition.unit_weight) * float(amount)
+	return float(definition.unit_weight) * float(amount) + _contents_weight(contained_item_counts, metadata)
+
+
+func _contents_weight(contained_item_counts: Dictionary, metadata: Dictionary) -> float:
+	var total := 0.0
 	for item_path_value in contained_item_counts.keys():
 		var item_path := str(item_path_value)
 		var contained_count := int(contained_item_counts[item_path_value])
-		if contained_count <= 0 or item_path.is_empty() or not ResourceLoader.exists(item_path):
+		if contained_count <= 0:
 			continue
-		var contained_definition := load(item_path) as ItemDefinition
-		if contained_definition != null:
-			total += contained_definition.unit_weight * contained_count
+		var unit_weight = _stored_unit_weight(item_path)
+		if unit_weight != null:
+			total += float(unit_weight) * contained_count
 	# farm_water is authoritative; carried_liquids.water is a compatibility
 	# mirror (or migration fallback), never a second quantity of water.
 	var liquids := metadata.get("carried_liquids", {}) as Dictionary
 	total += maxf(0.0, float(metadata.get("farm_water", liquids.get("water", 0.0))))
+	total += get_stored_weight(metadata)
 	return total
 
 
@@ -789,7 +920,7 @@ func take_contained_item_as_loose(entry, definition, amount: int) -> int:
 
 
 func remove_entry(entry) -> bool:
-	if entry == null or not entries.has(entry):
+	if not is_accessible() or entry == null or not entries.has(entry):
 		return false
 	entries.erase(entry)
 	changed.emit()
@@ -850,7 +981,7 @@ func clear_expired_stolen_metadata(absolute_minute: int) -> int:
 
 
 func move_entry(entry, target_position: Vector2i) -> bool:
-	if entry == null:
+	if not is_accessible() or entry == null:
 		return false
 	if not entries.has(entry):
 		return false
@@ -862,6 +993,8 @@ func move_entry(entry, target_position: Vector2i) -> bool:
 
 
 func auto_sort() -> bool:
+	if not is_accessible():
+		return false
 	if entries.is_empty():
 		return true
 	var existing_entries := entries.duplicate()
@@ -888,7 +1021,7 @@ func _can_add_item_count_as_distinct_entries(definition, amount: int, contained_
 		return false
 	if not bypass_admission and not accepts_item_count(definition, amount):
 		return false
-	if use_weight and get_total_weight() + get_item_weight(definition, amount, contained_item_counts, metadata) > max_weight:
+	if use_weight and get_capacity_weight() + get_item_weight(definition, amount, contained_item_counts, metadata) > get_capacity_limit():
 		return false
 	var remaining := amount
 	var stack_limit := get_stack_limit(definition)
@@ -918,11 +1051,13 @@ func _add_item_count_as_distinct_entries(definition, amount: int, contained_item
 	return true
 
 
-func find_first_space(definition) -> Vector2i:
+func find_first_space(definition, ignored_entry = null, preferred_cell := Vector2i(-1, -1)) -> Vector2i:
+	if can_place_item(definition, preferred_cell, ignored_entry):
+		return preferred_cell
 	for y in range(rows - definition.grid_size.y + 1):
 		for x in range(columns - definition.grid_size.x + 1):
 			var cell := Vector2i(x, y)
-			if can_place_item(definition, cell):
+			if can_place_item(definition, cell, ignored_entry):
 				return cell
 	return Vector2i(-1, -1)
 
@@ -976,7 +1111,7 @@ func _can_add_silver_count(amount: int) -> bool:
 		remaining -= added_to_existing
 		added_weight += SILVER_ITEM.unit_weight * added_to_existing
 		if remaining <= 0:
-			return not use_weight or get_total_weight() + added_weight <= max_weight
+			return not use_weight or get_capacity_weight() + added_weight <= get_capacity_limit()
 
 	var reserved: Array = []
 	var pouch_capacity := _silver_pouch_capacity()
@@ -997,7 +1132,7 @@ func _can_add_silver_count(amount: int) -> bool:
 			remaining -= added_to_stack
 			added_weight += SILVER_ITEM.unit_weight * added_to_stack
 			if remaining <= 0:
-				return not use_weight or get_total_weight() + added_weight <= max_weight
+				return not use_weight or get_capacity_weight() + added_weight <= get_capacity_limit()
 
 	while remaining > 0:
 		var coin_slot := _find_first_space_with_reserved_entries(SILVER_ITEM, reserved)
@@ -1007,7 +1142,7 @@ func _can_add_silver_count(amount: int) -> bool:
 		reserved.append({"definition": SILVER_ITEM, "position": coin_slot})
 		remaining -= loose_count
 		added_weight += SILVER_ITEM.unit_weight * loose_count
-	return not use_weight or get_total_weight() + added_weight <= max_weight
+	return not use_weight or get_capacity_weight() + added_weight <= get_capacity_limit()
 
 
 func _add_silver_count(amount: int, emit_changed := true) -> bool:

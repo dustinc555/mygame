@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/pieces/plaster/wall_window_thin_round.tscn" id="1"]
+[ext_resource type="Material" path="res://assets/buildings/earthen/materials/clay_plaster.tres" id="2"]
+
+[node name="ClayWallWindowThinRound" instance=ExtResource("1")]
+piece_id = "clay_wall_window_thin_round"
+display_name = "Clay Plaster Window Thin Round"
+
+[node name="Model" parent="." index="0"]
+material_override = ExtResource("2")

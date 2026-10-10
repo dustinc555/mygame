@@ -4,6 +4,7 @@ class_name BestiaryEquipmentProjection
 ## Disposable view of EquipmentCapability. Never owns items, stacks, or the model.
 const MOUNT_HELPER = preload("res://features/actors/projection/equipment_mount_helper.gd")
 const CLOTHING_FITTER = preload("res://features/actors/projection/appearance/clothing_fitter.gd")
+const RIGID_BACK_FITTER = preload("res://features/actors/projection/appearance/rigid_back_fitter.gd")
 var _model: Node3D
 var _equipment: EquipmentCapability
 var _body_archetype: Resource
@@ -115,9 +116,10 @@ func _mount_clothing(item: ItemDefinition, slot: String) -> Node3D:
 	var variant := item.get_equipment_visual_for_body_archetype(_body_archetype, body_scene_path)
 	if variant != null: item_transform = variant.get("equipped_transform")
 	var binding: Resource = variant.get("clothing_binding") if variant != null else null
-	if binding != null:
+	var rigid_back: bool = variant is EquipmentVisualDefinition and variant.rigid_back_fit
+	if binding != null or rigid_back:
 		var profile: Resource = _body_archetype.get_wardrobe_profile(body_scene_path) if _body_archetype != null else null
-		var result := CLOTHING_FITTER.fit(source, binding, profile, _skeleton)
+		var result := RIGID_BACK_FITTER.fit(source, variant, _skeleton, _model) if rigid_back else CLOTHING_FITTER.fit(source, binding, profile, _skeleton)
 		source.free()
 		if not result.error.is_empty():
 			_clothing_fit_errors[slot] = result.error

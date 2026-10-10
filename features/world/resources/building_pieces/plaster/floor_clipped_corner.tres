@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ModularBuildingPieceDefinition" format=3]
+
+[ext_resource type="PackedScene" path="res://features/world/projection/buildings/pieces/plaster/floor_clipped_corner.tscn" id="1_dipwl"]
+[ext_resource type="Script" path="res://features/world/resources/building_pieces/modular_building_piece_definition.gd" id="2_jdx3c"]
+
+[resource]
+script = ExtResource("2_jdx3c")
+piece_id = "plaster_floor_clipped_corner"
+display_name = "Fired Clay Clipped Corner"
+category = "floor"
+scene = ExtResource("1_dipwl")
+bounds_size_meters = Vector3(1, 0.020009998, 2)
+tags = PackedStringArray("project_owned", "plaster", "flat")

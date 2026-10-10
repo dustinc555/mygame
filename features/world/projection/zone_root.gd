@@ -9,9 +9,21 @@ class_name Zone
 ## terrain or any specific child structure. Authored/edited through the
 ## world_authoring plugin.
 
+const AMBIENT_MUSIC_PROFILE := preload("res://features/audio/resources/ambient_music_profile.gd")
+signal ambient_music_changed
+
 ## Stable identifier for save/load, world-sim records, and cross-zone
 ## references. Defaults to the node name when left empty.
 @export var zone_id := ""
+
+@export_group("Music")
+## Optional background music selections; this zone does not start playback.
+@export var ambient_music: AMBIENT_MUSIC_PROFILE:
+	set(value):
+		if ambient_music == value:
+			return
+		ambient_music = value
+		ambient_music_changed.emit()
 
 
 func get_zone_id() -> String:

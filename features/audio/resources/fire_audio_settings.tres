@@ -1,0 +1,10 @@
+[gd_resource type="Resource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/audio/resources/fire_audio_settings.gd" id="1"]
+[ext_resource type="Resource" path="res://features/audio/resources/fire_small_flame.tres" id="2"]
+[ext_resource type="Resource" path="res://features/audio/resources/fire_campfire.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+small_flame = ExtResource("2")
+campfire = ExtResource("3")

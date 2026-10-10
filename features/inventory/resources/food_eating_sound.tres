@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="GameSoundCue" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/audio/resources/game_sound_cue.gd" id="1_cue"]
+
+[resource]
+script = ExtResource("1_cue")
+cue_id = &"food_eat"
+paths = PackedStringArray("res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 2_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 3_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 4_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch 5_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Crisp bite crunch_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Fruit bite crunch 2_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Fruit bite crunch 3_GfxSounds_FantasyGameBundle.wav", "res://assets/vendor/gfxsounds-studios/fantasy-game-bundle/audio/Foley Interactions/Food Drink/FOODEat_Fruit bite crunch_GfxSounds_FantasyGameBundle.wav")
+volume_db = -6.0
+pitch_min = 1.0
+pitch_max = 1.0

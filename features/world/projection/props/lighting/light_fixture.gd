@@ -2,6 +2,9 @@ extends Node3D
 
 class_name LightFixture
 
+## Semantic on/off state, independent of visual light LOD and cutaways.
+signal fire_active_changed(active: bool)
+
 ## A placed light source (wall torch, lantern, candle) that follows world
 ## time: lit through the night window, dark through the day. Wrapper scenes
 ## pair a vendor mesh with an authored Light3D child; the furnisher places
@@ -21,6 +24,7 @@ class_name LightFixture
 
 var _light: Light3D
 var _glow: Node3D
+var _lit := false
 
 
 func _ready() -> void:
@@ -76,3 +80,10 @@ func _set_lit(lit: bool) -> void:
 		_light.visible = lit
 	if _glow != null:
 		_glow.visible = lit
+	if _lit != lit:
+		_lit = lit
+		fire_active_changed.emit(lit)
+
+
+func is_fire_active() -> bool:
+	return _lit

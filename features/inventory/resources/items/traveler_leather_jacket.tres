@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://bv0ivjle5ruqj" path="res://assets/items/equipment/traveler_leather_jacket/traveler_leather_jacket.png" id="3_icon"]
 [ext_resource type="PackedScene" uid="uid://c3cnlu8ip2r0b" path="res://assets/items/equipment/traveler_leather_jacket/body_fits/male_regular.glb" id="4_male"]
 [ext_resource type="Script" uid="uid://bxftigaxin68f" path="res://features/inventory/resources/items/item_stat_modifier.gd" id="6_m1i5p"]
+[ext_resource type="Resource" path="res://features/combat/resources/item_audio_profiles/worn_leather.tres" id="audio_profile"]
 [ext_resource type="Resource" uid="uid://duvoo861qbw6c" path="res://assets/items/equipment/wardrobe_bindings/traveler_leather_jacket.res" id="wardrobe_binding"]
 
 [sub_resource type="Resource" id="Visual_shared"]
@@ -24,6 +25,7 @@ icon = ExtResource("3_icon")
 grid_size = Vector2i(2, 3)
 unit_weight = 2.0
 equip_slot = "chest"
+combat_audio = ExtResource("audio_profile")
 alternate_equip_slots = PackedStringArray()
 compatible_races = PackedStringArray("human")
 world_scene = ExtResource("4_male")

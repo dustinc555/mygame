@@ -89,6 +89,7 @@ text = "Inventory"
 
 
 [node name="CloseButton" type="Button" parent="Margin/WindowVBox/TitleBar/TitleBarHBox"]
+metadata/ui_audio_action = &"close"
 custom_minimum_size = Vector2(28, 28)
 layout_mode = 2
 theme_override_styles/normal = SubResource("HeaderButton")

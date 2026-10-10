@@ -244,13 +244,18 @@ func _build_nav_window() -> void:
 
 func _build_npc_instant_actions_window() -> void:
 	var vbox := _build_window("NPC Instant Actions", Vector2(372.0, 348.0))
-	var kill_button := Button.new()
-	kill_button.text = "Kill"
-	kill_button.focus_mode = Control.FOCUS_NONE
-	kill_button.pressed.connect(_on_npc_kill_pressed)
-	vbox.add_child(kill_button)
+	for action in [
+		{"id": WorldInteractionController.NPC_ACTION_KILL, "name": "KillButton", "text": "Kill"},
+		{"id": WorldInteractionController.NPC_ACTION_DEGRADE_HUNGER, "name": "DegradeHungerLevelButton", "text": "Degrade Hunger Level"},
+	]:
+		var button := Button.new()
+		button.name = action.name
+		button.text = action.text
+		button.focus_mode = Control.FOCUS_NONE
+		button.pressed.connect(_on_npc_instant_action_pressed.bind(action.id))
+		vbox.add_child(button)
 	_npc_action_status = _make_label(vbox)
-	_npc_action_status.text = "Click Kill, then click a non-party NPC."
+	_npc_action_status.text = ""
 	var interaction := BootstrapContext.service(WorldInteractionController.SERVICE_ID)
 	if interaction != null and interaction.has_signal("npc_instant_action_finished") and not interaction.npc_instant_action_finished.is_connected(_on_npc_instant_action_finished):
 		interaction.npc_instant_action_finished.connect(_on_npc_instant_action_finished)
@@ -259,17 +264,17 @@ func _build_npc_instant_actions_window() -> void:
 		panel.visibility_changed.connect(_on_npc_actions_visibility_changed.bind(panel))
 
 
-func _on_npc_kill_pressed() -> void:
+func _on_npc_instant_action_pressed(action_id: StringName) -> void:
 	var interaction := BootstrapContext.service(WorldInteractionController.SERVICE_ID)
-	if interaction == null or not interaction.has_method("arm_npc_instant_action") or not bool(interaction.call("arm_npc_instant_action", WorldInteractionController.NPC_ACTION_KILL)):
+	if interaction == null or not interaction.arm_npc_instant_action(action_id):
 		_npc_action_status.text = "World interaction unavailable."
 		return
-	_npc_action_status.text = "Click a living non-party NPC to kill. Right-click or Escape cancels."
+	_npc_action_status.text = "%s. Right-click or Escape cancels." % interaction.get_npc_instant_action_prompt(action_id)
 
 
-func _on_npc_instant_action_finished(_action_id: StringName, _target: WorldActor, success: bool, message: String) -> void:
+func _on_npc_instant_action_finished(action_id: StringName, _target: WorldActor, success: bool, message: String) -> void:
 	_npc_action_status.text = message
-	if success:
+	if success and action_id == WorldInteractionController.NPC_ACTION_KILL:
 		_npc_action_status.text += " Corpse persisted."
 
 
@@ -816,6 +821,7 @@ func _build_window(title_text: String, window_position: Vector2) -> VBoxContaine
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
 	var close_button := Button.new()
+	close_button.set_meta(&"ui_audio_action", &"close")
 	close_button.text = "X"
 	close_button.focus_mode = Control.FOCUS_NONE
 	close_button.pressed.connect(panel.hide)

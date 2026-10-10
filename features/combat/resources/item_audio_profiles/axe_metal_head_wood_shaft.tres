@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CombatItemAudioProfile" format=3]
+
+[ext_resource type="Script" path="res://features/combat/resources/combat_item_audio_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+resource_name = "Axe metal head wood shaft"
+weapon_kind = 2
+strike_surface = 6
+guard_surface = 5
+worn_surface = 0
